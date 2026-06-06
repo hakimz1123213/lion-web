@@ -12,10 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
-// 🛠️ تم استبدال @expo/vector-icons بـ react-icons
-import { FaArrowDown, FaArrowUp, FaStar } from 'react-icons/fa';
-import { IoDiamond } from 'react-icons/io5';
-import { MdChevronRight, MdChevronLeft } from 'react-icons/md';
+// 🚀 لا نحتاج لأي مكتبة أيقونات بعد الآن! 
 
 import { useAuth } from '@/hooks/useAuth';
 import { useTask } from '@/hooks/useTask';
@@ -25,7 +22,6 @@ import { GlobalStyles } from '@/constants/styles';
 import { VIP_TIERS, TASK_TOTAL, getVIPTier } from '@/constants/config';
 import { Transaction } from '@/contexts/WalletContext';
 
-// 🌍 قاموس التعريب
 const dashboardTranslations: Record<string, Record<string, string>> = {
   EN: {
     goodDay: "Good day,",
@@ -117,14 +113,10 @@ function TxRow({ tx, lang }: { tx: Transaction; lang: string }) {
   return (
     <View style={[styles.txRow, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
       <View style={[styles.txIcon, { backgroundColor: isReward ? Colors.goldSurface : isDeposit ? Colors.infoSurface : Colors.dangerSurface }]}>
-        {/* 🛠️ استخدام react-icons */}
-        {isReward ? (
-          <FaStar size={16} color={Colors.gold} />
-        ) : isDeposit ? (
-          <FaArrowDown size={14} color={Colors.info} />
-        ) : (
-          <FaArrowUp size={14} color={Colors.danger} />
-        )}
+        {/* 👑 إيموجي نصي أصلي يستحيل أن يختفي */}
+        <Text style={{ fontSize: 14 }}>
+          {isReward ? '⭐' : isDeposit ? '⬇️' : '⬆️'}
+        </Text>
       </View>
       <View style={[{ flex: 1 }, lang === 'AR' && { alignItems: 'flex-end', marginRight: 12 }]}>
         <Text style={styles.txType}>{displayType}</Text>
@@ -150,7 +142,7 @@ export default function DashboardScreen() {
   const router = useRouter();
 
   // @ts-ignore
-  const lang = user?.language || 'EN';
+const lang = user?.language || 'EN';
   const t = dashboardTranslations[lang] || dashboardTranslations['EN'];
 
   const secretTapCount = React.useRef(0);
@@ -190,8 +182,7 @@ export default function DashboardScreen() {
           style={[styles.vipBadge, lang === 'AR' && { flexDirection: 'row-reverse' }]}
           onPress={() => router.push('/vip-upgrade')}
         >
-          {/* 🛠️ استخدام react-icons */}
-          <IoDiamond size={14} color={userVip > 0 ? tier.color : Colors.textMuted} />
+          <Text style={{ fontSize: 12, opacity: userVip > 0 ? 1 : 0.5 }}>💎</Text>
           <Text style={[styles.vipBadgeText, { color: userVip > 0 ? tier.color : Colors.textMuted }]}>
             {userVip > 0 ? tier.label : t.noVip}
           </Text>
@@ -207,16 +198,14 @@ export default function DashboardScreen() {
             style={({ pressed }) => [styles.balanceBtn, { opacity: pressed ? 0.8 : 1 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}
             onPress={() => router.push('/deposit')}
           >
-            {/* 🛠️ استخدام react-icons */}
-            <FaArrowDown size={14} color={Colors.textOnGold} />
+            <Text style={{ fontSize: 14 }}>⬇️</Text>
             <Text style={styles.balanceBtnText}>{t.deposit}</Text>
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.balanceBtnOutline, { opacity: pressed ? 0.8 : 1 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}
             onPress={() => router.push('/withdraw')}
           >
-            {/* 🛠️ استخدام react-icons */}
-            <FaArrowUp size={14} color={Colors.gold} />
+            <Text style={{ fontSize: 14 }}>⬆️</Text>
             <Text style={styles.balanceBtnOutlineText}>{t.withdraw}</Text>
           </Pressable>
         </View>
@@ -253,8 +242,7 @@ export default function DashboardScreen() {
         <View style={[GlobalStyles.cardGold, styles.section]}>
           <View style={[GlobalStyles.spaceBetween, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
             <Text style={GlobalStyles.sectionTitle}>{t.potentialReward}</Text>
-             {/* 🛠️ استخدام react-icons */}
-            <FaStar size={16} color={Colors.gold} />
+            <Text style={{ fontSize: 16 }}>⭐</Text>
           </View>
           <Text style={[styles.payoutRange, lang === 'AR' && { textAlign: 'right' }]}>
             ${tier.dailyPayoutMin.toFixed(2)} – ${tier.dailyPayoutMax.toFixed(2)}
@@ -268,18 +256,14 @@ export default function DashboardScreen() {
           style={({ pressed }) => [styles.upgradePrompt, { opacity: pressed ? 0.85 : 1 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}
           onPress={() => router.push('/vip-upgrade')}
         >
-          {/* 🛠️ استخدام react-icons */}
-          <IoDiamond size={20} color={Colors.gold} />
+          <Text style={{ fontSize: 20 }}>💎</Text>
           <View style={[{ flex: 1, marginLeft: Spacing.sm }, lang === 'AR' && { alignItems: 'flex-end', marginRight: Spacing.sm, marginLeft: 0 }]}>
             <Text style={styles.upgradeTitle}>{t.activateVip}</Text>
             <Text style={styles.upgradeSubtitle}>{t.earnDaily}</Text>
           </View>
-          {/* 🛠️ استخدام react-icons */}
-          {lang === 'AR' ? (
-            <MdChevronLeft size={20} color={Colors.goldDim} />
-          ) : (
-             <MdChevronRight size={20} color={Colors.goldDim} />
-          )}
+          <Text style={{ fontSize: 16, color: Colors.goldDim }}>
+            {lang === 'AR' ? '◀' : '▶'}
+          </Text>
         </Pressable>
       )}
 
