@@ -12,7 +12,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
-// 🚀 لا حاجة لمكتبات الأيقونات بعد اليوم! الاعتماد الكلي على الإيموجيات الأصلية المدمجة بالنظام
+// 👑 نترك استيراد الأيقونات فقط للأزرار والأسهم التي تعمل عندك بنجاح
+import { MaterialIcons, FontAwesome } from '@expo/vector-icons'; 
+
 import { useAuth } from '@/hooks/useAuth';
 import { useTask } from '@/hooks/useTask';
 import { useWallet } from '@/hooks/useWallet';
@@ -21,11 +23,12 @@ import { GlobalStyles } from '@/constants/styles';
 import { VIP_TIERS, TASK_TOTAL, getVIPTier } from '@/constants/config';
 import { Transaction } from '@/contexts/WalletContext';
 
+// 🌍 قاموس التعريب
 const dashboardTranslations: Record<string, Record<string, string>> = {
   EN: {
     goodDay: "Good day,",
     noVip: "No VIP",
-    totalBalance: "MONEY",
+    totalBalance: "TOTAL BALANCE",
     deposit: "Deposit",
     withdraw: "Withdraw",
     dailyTask: "Daily Task",
@@ -89,6 +92,10 @@ function formatAmount(type: string, amount: number): string {
 }
 
 function TxRow({ tx, lang }: { tx: Transaction; lang: string }) {
+  const isReward = tx.type === 'Reward';
+  const isDeposit = tx.type === 'Deposit';
+  const color = tx.type === 'Withdrawal' ? Colors.danger : Colors.success;
+  
   const t = dashboardTranslations[lang] || dashboardTranslations['EN'];
   const txTypeString = tx.type as string;
   const txStatusString = tx.status as string;
@@ -105,26 +112,16 @@ function TxRow({ tx, lang }: { tx: Transaction; lang: string }) {
   else if (lowerStatus === 'completed' || lowerStatus === 'approved' || lowerStatus === 'success') displayStatus = t.completedStatus;
   else if (lowerStatus === 'rejected' || lowerStatus === 'failed') displayStatus = t.rejectedStatus;
 
-  // 🛠️ منطق الإيموجي والألوان المُحسن الذكي
-  let iconEmoji = '⬇️';
-  let iconBg = Colors.infoSurface;
-  const color = tx.type === 'Withdrawal' ? Colors.danger : Colors.success;
-
-  if (tx.type === 'Withdrawal') {
-    iconEmoji = '⬆️';
-    iconBg = Colors.dangerSurface;
-  } else if (tx.type === 'Reward') {
-    iconEmoji = '⭐';
-    iconBg = Colors.goldSurface;
-  } else if (tx.type === 'Referral Bonus') {
-    iconEmoji = '🎁'; // تم استبدال السهم الأحمر بهدية لأنها أرباح!
-    iconBg = Colors.successSurface;
-  }
-
   return (
     <View style={[styles.txRow, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-      <View style={[styles.txIcon, { backgroundColor: iconBg }]}>
-        <Text style={{ fontSize: 13 }}>{iconEmoji}</Text>
+      <View style={[styles.txIcon, { backgroundColor: isReward ? Colors.goldSurface : isDeposit ? Colors.infoSurface : Colors.dangerSurface }]}>
+        {isReward ? (
+          <Text style={{ fontSize: 12 }}>⭐</Text>
+        ) : isDeposit ? (
+          <FontAwesome name="arrow-down" size={14} color={Colors.info} />
+        ) : (
+          <FontAwesome name="arrow-up" size={14} color={Colors.danger} />
+        )}
       </View>
       <View style={[{ flex: 1 }, lang === 'AR' && { alignItems: 'flex-end', marginRight: 12 }]}>
         <Text style={styles.txType}>{displayType}</Text>
@@ -181,23 +178,25 @@ export default function DashboardScreen() {
       contentContainerStyle={{ paddingBottom: Spacing.xl }}
       showsVerticalScrollIndicator={false}
     >
+      {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-        <Pressable onPress={handleSecretTap} style={lang === 'AR' && { alignItems: 'flex-end' }}>
+        <View style={lang === 'AR' && { alignItems: 'flex-end' }}>
           <Text style={styles.greeting}>{t.goodDay}</Text>
           <Text style={styles.username}>{user.username}</Text>
-        </Pressable>
+        </View>
         <Pressable
           style={[styles.vipBadge, lang === 'AR' && { flexDirection: 'row-reverse' }]}
           onPress={() => router.push('/vip-upgrade')}
         >
-          {/* 💎 إيموجي الماسة لزر الـ VIP */}
-          <Text style={{ fontSize: 13, marginRight: 2, opacity: userVip > 0 ? 1 : 0.5 }}>💎</Text>
+          {/* 🛠️ تعديل 1: استبدال المربع الأبيض الأول بإيموجي الماسة الثابت للتطبيق والموقع */}
+          <Text style={{ fontSize: 12, marginRight: 2, opacity: userVip > 0 ? 1 : 0.6 }}>💎</Text>
           <Text style={[styles.vipBadgeText, { color: userVip > 0 ? tier.color : Colors.textMuted }]}>
             {userVip > 0 ? tier.label : t.noVip}
           </Text>
         </Pressable>
       </View>
 
+      {/* Balance Hero Card */}
       <View style={styles.balanceCard}>
         <View style={styles.balanceGlow} />
         <Text style={[styles.balanceLabel, lang === 'AR' && { textAlign: 'right' }]}>{t.totalBalance}</Text>
@@ -207,21 +206,20 @@ export default function DashboardScreen() {
             style={({ pressed }) => [styles.balanceBtn, { opacity: pressed ? 0.8 : 1 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}
             onPress={() => router.push('/deposit')}
           >
-            {/* ⬇️ إيموجي الإيداع */}
-            <Text style={{ fontSize: 14, marginRight: 4 }}>⬇️</Text>
+            <FontAwesome name="arrow-down" size={14} color={Colors.textOnGold} />
             <Text style={styles.balanceBtnText}>{t.deposit}</Text>
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.balanceBtnOutline, { opacity: pressed ? 0.8 : 1 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}
             onPress={() => router.push('/withdraw')}
           >
-            {/* ⬆️ إيموجي السحب */}
-            <Text style={{ fontSize: 14, marginRight: 4 }}>⬆️</Text>
+            <FontAwesome name="arrow-up" size={14} color={Colors.gold} />
             <Text style={styles.balanceBtnOutlineText}>{t.withdraw}</Text>
           </Pressable>
         </View>
       </View>
 
+      {/* Daily Task Progress */}
       <View style={[GlobalStyles.card, styles.section]}>
         <View style={[GlobalStyles.spaceBetween, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
           <Text style={GlobalStyles.sectionTitle}>{t.dailyTask}</Text>
@@ -249,12 +247,13 @@ export default function DashboardScreen() {
         </View>
       </View>
 
+      {/* VIP Payout Info */}
       {userVip > 0 && (
         <View style={[GlobalStyles.cardGold, styles.section]}>
           <View style={[GlobalStyles.spaceBetween, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
             <Text style={GlobalStyles.sectionTitle}>{t.potentialReward}</Text>
-            {/* ⭐ إيموجي النجمة الفاخرة للجوائز */}
-            <Text style={{ fontSize: 16 }}>⭐</Text>
+            {/* 🛠️ تعديل 2: استبدال المربع الأبيض الثاني هنا بإيموجي نجمة نصية ثابتة */}
+            <Text style={{ fontSize: 14 }}>⭐</Text>
           </View>
           <Text style={[styles.payoutRange, lang === 'AR' && { textAlign: 'right' }]}>
             ${tier.dailyPayoutMin.toFixed(2)} – ${tier.dailyPayoutMax.toFixed(2)}
@@ -263,23 +262,24 @@ export default function DashboardScreen() {
         </View>
       )}
 
+      {/* VIP Upgrade Prompt */}
       {userVip === 0 && (
         <Pressable
           style={({ pressed }) => [styles.upgradePrompt, { opacity: pressed ? 0.85 : 1 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}
           onPress={() => router.push('/vip-upgrade')}
         >
-          {/* 💎 إيموجي الماسة في كرت الترقية */}
-          <Text style={{ fontSize: 18, marginRight: 8 }}>💎</Text>
+          <Text style={{ fontSize: 16, marginRight: 6 }}>💎</Text>
           <View style={[{ flex: 1 }, lang === 'AR' && { alignItems: 'flex-end', marginRight: Spacing.sm, marginLeft: 0 }]}>
             <Text style={styles.upgradeTitle}>{t.activateVip}</Text>
             <Text style={styles.upgradeSubtitle}>{t.earnDaily}</Text>
           </View>
-          <Text style={{ fontSize: 16, color: Colors.goldDim }}>
+          <Text style={{ fontSize: 14, color: Colors.goldDim }}>
             {lang === 'AR' ? '◀' : '▶'}
           </Text>
         </Pressable>
       )}
 
+      {/* Recent Transactions */}
       <View style={[GlobalStyles.card, styles.section]}>
         <View style={[GlobalStyles.spaceBetween, { marginBottom: Spacing.md }, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
           <Text style={GlobalStyles.sectionTitle}>{t.recentActivity}</Text>
@@ -295,7 +295,6 @@ export default function DashboardScreen() {
           </Text>
         ) : (
           recentTxs.map((tx, i) => {
-            const lowerStatus = (tx.status as string).toLowerCase();
             return (
               <View key={tx.id}>
                 <TxRow tx={tx} lang={lang} />
