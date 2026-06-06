@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 
@@ -15,7 +14,7 @@ import VideoAdModal from '../components/VideoAdModal';
 
 const { width } = Dimensions.get('window');
 
-// 🌍 قاموس التعريب الفوري والمدمج محلياً لـ شاشة المهام لمنع أخطاء الـ TypeScript والمسارات
+// 🌍 قاموس التعريب الفوري والمدمج محلياً لـ شاشة المهام
 const taskTranslations: Record<string, Record<string, string>> = {
   EN: {
     dailyTasks: "Daily Tasks",
@@ -63,7 +62,6 @@ export default function TasksScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  // 📡 التقاط لغة العميل لايف سحابياً من مستند الـ user
   // @ts-ignore
   const lang = user?.language || 'EN';
   const t = taskTranslations[lang] || taskTranslations['EN'];
@@ -81,14 +79,14 @@ export default function TasksScreen() {
     );
   }
 
-  // 🔒 قفل المنطقة المدفوعة لو رتبته VIP 0
   if (user.vip_level === 0) {
     return (
       <View style={styles.lockedScreen}>
         <VideoView player={promoPlayer} style={StyleSheet.absoluteFill} contentFit="cover" nativeControls={false} />
         <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.85)' }]} />
         <View style={styles.lockedOverlay}>
-          <View style={styles.lockIconBox}><Ionicons name="lock-closed" size={40} color="#D4AF37" /></View>
+          {/* 🛠️ استبدال القفل الداخلي المكسور بإيموجي قفل نصي صلب */}
+          <View style={styles.lockIconBox}><Text style={{ fontSize: 32 }}>🔒</Text></View>
           <Text style={styles.lockedTitle}>{t.premiumZone}</Text>
           <View style={styles.goldDivider} />
           <Text style={styles.lockedDesc}>{t.upgradeToUnlock}</Text>
@@ -115,14 +113,15 @@ export default function TasksScreen() {
         {/* Cooldown ليميت الـ 24 ساعة اليومي */}
         {tasksDoneToday ? (
           <View style={styles.cooldownCard}>
-            <View style={styles.cooldownIconBox}><MaterialIcons name="lock-clock" size={40} color="#D4AF37" /></View>
+            {/* 🛠️ استبدال قفل التحديث بإيموجي ساعة رملية فاخرة */}
+            <View style={styles.cooldownIconBox}><Text style={{ fontSize: 32 }}>⏳</Text></View>
             <Text style={styles.cooldownTitle}>{t.nextRefresh}</Text>
             <Text style={styles.timerDisplay}>{timeRemaining}</Text>
             <Text style={styles.cooldownDesc}>{t.reachedLimit}</Text>
           </View>
         ) : (
           <View>
-            {/* Progress Bar المنسق اتجاهياً */}
+            {/* Progress Bar */}
             <View style={styles.progressSection}>
               <View style={styles.progressBg}>
                 <View style={[styles.progressFill, { width: `${(dailyCounter / TASK_TOTAL) * 100}%` }]} />
@@ -154,12 +153,13 @@ export default function TasksScreen() {
                     onPress={() => isNext ? startWatchingVideo(i) : null}
                     disabled={!isNext}
                   >
+                    {/* 🛠️ استبدال مكونات الأيقونات الخارجية المكسورة بإيموجيات نصية مع الحفاظ على المقاسات والستايل النظيف للألوان التفاعلية */}
                     {isDone ? (
-                      <MaterialIcons name="check-circle" size={24} color="#4CAF50" />
+                      <Text style={{ fontSize: 18 }}>✅</Text>
                     ) : isNext ? (
-                      <MaterialIcons name="play-arrow" size={26} color="#000" />
+                      <Text style={{ fontSize: 20 }}>▶️</Text>
                     ) : (
-                      <MaterialIcons name="lock-outline" size={20} color="#555" />
+                      <Text style={{ fontSize: 16, opacity: 0.4 }}>🔒</Text>
                     )}
                     <Text style={[styles.slotNum, isNext && { color: '#000' }, !isNext && !isDone && { color: '#555' }]}>
                       #{i + 1}
