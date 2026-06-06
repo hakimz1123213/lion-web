@@ -309,17 +309,54 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md },
   greeting: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.medium },
   username: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.textPrimary },
-  vipBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.surfaceBorder, borderRadius: Radius.full, paddingHorizontal: 12, paddingVertical: 6 },
+  
+  // 👑 ستايل شارة الـ VIP (تعديل لدعم أيقونة التاج في الويب)
+  vipBadge: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 4, 
+    backgroundColor: Colors.surface, 
+    borderWidth: 1, 
+    borderColor: Colors.surfaceBorder, 
+    borderRadius: Radius.full, 
+    paddingHorizontal: 12, 
+    paddingVertical: 6
+  },
   vipBadgeText: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, letterSpacing: 0.5 },
+  
   balanceCard: { marginHorizontal: Spacing.lg, marginBottom: Spacing.md, backgroundColor: Colors.goldSurface, borderRadius: Radius.xl, borderWidth: 1, borderColor: Colors.goldDim, padding: Spacing.lg, overflow: 'hidden' },
   balanceGlow: { position: 'absolute', top: -40, right: -40, width: 160, height: 160, borderRadius: 80, backgroundColor: Colors.gold, opacity: 0.06 },
   balanceLabel: { fontSize: FontSize.xs, color: Colors.goldDim, fontWeight: FontWeight.semibold, letterSpacing: 1.5, marginBottom: Spacing.sm },
   balanceAmount: { fontSize: 44, fontWeight: FontWeight.extrabold, color: Colors.gold, marginBottom: Spacing.lg, letterSpacing: -1 },
   balanceActions: { flexDirection: 'row', gap: Spacing.sm },
-  balanceBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: Colors.gold, borderRadius: Radius.md, paddingVertical: 12 },
+  
+  // 💵 زر إيداع شحن (تثبيت خط الأيقونة لـ Ionicons / FontAwesome في الويب)
+  balanceBtn: { 
+    flex: 1, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    gap: 6, 
+    backgroundColor: Colors.gold, 
+    borderRadius: Radius.md, 
+    paddingVertical: 12
+  },
   balanceBtnText: { color: Colors.textOnGold, fontSize: FontSize.md, fontWeight: FontWeight.bold },
-  balanceBtnOutline: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderColor: Colors.goldDim, borderRadius: Radius.md, paddingVertical: 12 },
+  
+  // 📤 زر سحب أرباح (تثبيت خط الأيقونة في الويب)
+  balanceBtnOutline: { 
+    flex: 1, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    gap: 6, 
+    borderWidth: 1, 
+    borderColor: Colors.goldDim, 
+    borderRadius: Radius.md, 
+    paddingVertical: 12
+  },
   balanceBtnOutlineText: { color: Colors.gold, fontSize: FontSize.md, fontWeight: FontWeight.semibold },
+  
   section: { marginHorizontal: Spacing.lg, marginBottom: Spacing.md },
   taskProgressRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: Spacing.sm },
   taskCountText: { flexDirection: 'row', alignItems: 'baseline' },
@@ -335,11 +372,31 @@ const styles = StyleSheet.create({
   upgradePrompt: { flexDirection: 'row', alignItems: 'center', marginHorizontal: Spacing.lg, marginBottom: Spacing.md, backgroundColor: Colors.goldSurface, borderWidth: 1, borderColor: Colors.goldDim, borderRadius: Radius.lg, padding: Spacing.md },
   upgradeTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   upgradeSubtitle: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 },
+  
   txRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: 4 },
-  txIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  
+  // 🔄 مربع أيقونة السجل (بونص الإحالة والعمليات الماليّة)
+  txIcon: { 
+    width: 36, 
+    height: 36, 
+    borderRadius: 10, 
+    alignItems: 'center', 
+    justifyContent: 'center'
+  },
+  
   txType: { fontSize: FontSize.md, color: Colors.textPrimary, fontWeight: FontWeight.semibold },
   txDate: { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2 },
   txAmount: { fontSize: FontSize.md, fontWeight: FontWeight.bold, marginBottom: 4 },
   txStatusBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: Radius.sm },
   txStatusText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold },
+
+  // 🔥 🛡️ إضافة كلاس خاص لإجبار المتصفح على قراءة كاع أيقونات الموبايل كـ خط ويب حقيقي
+  // هادا الـ Style تضمن بيه باللي أي أيقونة تخرج صافية ومستحيل ترجع مربع فارغ
+  webIconForce: {
+    fontFamily: Platform.OS === 'web' ? 'FontAwesome, Material Icons, Ionicons' : undefined,
+    fontSize: 20,
+    textAlign: 'center',
+    justifyContent: 'center',
+    alignItems: 'center',
+  }
 });
