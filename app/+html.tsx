@@ -9,10 +9,10 @@ export default function Html({ children }: { children: React.ReactNode }) {
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
 
-        {/* 🛠️ حقن الخطوط الأصلية كـ TTF لإجبار المتصفح على قراءة أيقونات إكسبو */}
+        {/* 🛠️ حقن الخطوط الأصلية بالأسماء الرسمية للـ React Native Web */}
         <style dangerouslySetInnerHTML={{ __html: `
           @font-face {
-            font-family: 'MaterialIcons';
+            font-family: 'Material Icons'; /* الفراغ هنا هو السر! */
             src: url('https://cdn.jsdelivr.net/npm/react-native-vector-icons/Fonts/MaterialIcons.ttf') format('truetype');
           }
           @font-face {
