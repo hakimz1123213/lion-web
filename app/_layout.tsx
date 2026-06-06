@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Linking, Modal, ActivityIndicator, StatusBar } from 'react-native';
 import { Slot } from 'expo-router';
+import { useFonts } from 'expo-font';
+import { MaterialIcons, FontAwesome, FontAwesome5, Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 
 // 🚨 المسارات الصحيحة والمضمونة 100% بالصعود خطوة واحدة لجذر المشروع

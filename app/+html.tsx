@@ -9,25 +9,9 @@ export default function Html({ children }: { children: React.ReactNode }) {
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
 
-        {/* 🛠️ حقن الخطوط الأصلية بالأسماء الرسمية للـ React Native Web */}
-        <style dangerouslySetInnerHTML={{ __html: `
-          @font-face {
-            font-family: 'Material Icons'; /* الفراغ هنا هو السر! */
-            src: url('https://cdn.jsdelivr.net/npm/react-native-vector-icons/Fonts/MaterialIcons.ttf') format('truetype');
-          }
-          @font-face {
-            font-family: 'FontAwesome';
-            src: url('https://cdn.jsdelivr.net/npm/react-native-vector-icons/Fonts/FontAwesome.ttf') format('truetype');
-          }
-          @font-face {
-            font-family: 'FontAwesome5Free-Solid';
-            src: url('https://cdn.jsdelivr.net/npm/react-native-vector-icons/Fonts/FontAwesome5_Solid.ttf') format('truetype');
-          }
-          @font-face {
-            font-family: 'Ionicons';
-            src: url('https://cdn.jsdelivr.net/npm/react-native-vector-icons/Fonts/Ionicons.ttf') format('truetype');
-          }
-        `}} />
+        {/* 🛠️ الحل النهائي: حقن CDN الخطوط مباشرة لإجبار المتصفح على عرض الأيقونات */}
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+        <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
 
         <ScrollViewStyleReset />
       </head>
