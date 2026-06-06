@@ -12,8 +12,10 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
-// 🛠️ تم إضافة FontAwesome هنا للاستخدام مع الأسهم
-import { MaterialIcons, FontAwesome } from '@expo/vector-icons'; 
+// 🛠️ تم استبدال @expo/vector-icons بـ react-icons
+import { FaArrowDown, FaArrowUp, FaStar } from 'react-icons/fa';
+import { IoDiamond } from 'react-icons/io5';
+import { MdChevronRight, MdChevronLeft } from 'react-icons/md';
 
 import { useAuth } from '@/hooks/useAuth';
 import { useTask } from '@/hooks/useTask';
@@ -23,7 +25,7 @@ import { GlobalStyles } from '@/constants/styles';
 import { VIP_TIERS, TASK_TOTAL, getVIPTier } from '@/constants/config';
 import { Transaction } from '@/contexts/WalletContext';
 
-// 🌍 قاموس التعريب الفوري والمدمج محلياً لـ لوحة التحكم الرئيسية لمنع أخطاء الـ TypeScript والمسارات
+// 🌍 قاموس التعريب
 const dashboardTranslations: Record<string, Record<string, string>> = {
   EN: {
     goodDay: "Good day,",
@@ -81,7 +83,6 @@ const dashboardTranslations: Record<string, Record<string, string>> = {
   }
 };
 
-// ✅ تعديل دالة التاريخ لتتعامل مع النصوص القادمة من الفايربيز
 function formatDate(dateStr: string | number, lang: string): string {
   const d = new Date(dateStr);
   return d.toLocaleDateString(lang === 'AR' ? 'ar-DZ' : 'en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -101,14 +102,12 @@ function TxRow({ tx, lang }: { tx: Transaction; lang: string }) {
   const txTypeString = tx.type as string;
   const txStatusString = tx.status as string;
 
-  // تعريب نوع العملية لايف لداخل الكرت
   let displayType = txTypeString;
   if (txTypeString === 'Deposit') displayType = t.depositType;
   else if (txTypeString === 'Withdrawal') displayType = t.withdrawalType;
   else if (txTypeString === 'Reward') displayType = t.rewardType;
   else if (txTypeString === 'Referral Bonus') displayType = t.referralType;
 
-  // تعريب حالة العملية لايف لداخل الكرت من الفايربيز
   let displayStatus = txStatusString;
   const lowerStatus = txStatusString.toLowerCase();
   if (lowerStatus === 'pending' || lowerStatus === 'waiting') displayStatus = t.pendingStatus;
@@ -118,13 +117,13 @@ function TxRow({ tx, lang }: { tx: Transaction; lang: string }) {
   return (
     <View style={[styles.txRow, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
       <View style={[styles.txIcon, { backgroundColor: isReward ? Colors.goldSurface : isDeposit ? Colors.infoSurface : Colors.dangerSurface }]}>
-        {/* 🛠️ استخدام FontAwesome للأسهم و MaterialIcons للنجوم */}
+        {/* 🛠️ استخدام react-icons */}
         {isReward ? (
-          <MaterialIcons name="star" size={16} color={Colors.gold} />
+          <FaStar size={16} color={Colors.gold} />
         ) : isDeposit ? (
-          <FontAwesome name="arrow-down" size={14} color={Colors.info} />
+          <FaArrowDown size={14} color={Colors.info} />
         ) : (
-          <FontAwesome name="arrow-up" size={14} color={Colors.danger} />
+          <FaArrowUp size={14} color={Colors.danger} />
         )}
       </View>
       <View style={[{ flex: 1 }, lang === 'AR' && { alignItems: 'flex-end', marginRight: 12 }]}>
@@ -150,7 +149,6 @@ export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  // 📡 التقاط رادار لغة العميل الحالية من مستند الـ user لايف سحابياً من الداتابيز
   // @ts-ignore
   const lang = user?.language || 'EN';
   const t = dashboardTranslations[lang] || dashboardTranslations['EN'];
@@ -183,7 +181,6 @@ export default function DashboardScreen() {
       contentContainerStyle={{ paddingBottom: Spacing.xl }}
       showsVerticalScrollIndicator={false}
     >
-      {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
         <Pressable onPress={handleSecretTap} style={lang === 'AR' && { alignItems: 'flex-end' }}>
           <Text style={styles.greeting}>{t.goodDay}</Text>
@@ -193,14 +190,14 @@ export default function DashboardScreen() {
           style={[styles.vipBadge, lang === 'AR' && { flexDirection: 'row-reverse' }]}
           onPress={() => router.push('/vip-upgrade')}
         >
-          <MaterialIcons name="diamond" size={14} color={userVip > 0 ? tier.color : Colors.textMuted} />
+          {/* 🛠️ استخدام react-icons */}
+          <IoDiamond size={14} color={userVip > 0 ? tier.color : Colors.textMuted} />
           <Text style={[styles.vipBadgeText, { color: userVip > 0 ? tier.color : Colors.textMuted }]}>
             {userVip > 0 ? tier.label : t.noVip}
           </Text>
         </Pressable>
       </View>
 
-      {/* Balance Hero Card */}
       <View style={styles.balanceCard}>
         <View style={styles.balanceGlow} />
         <Text style={[styles.balanceLabel, lang === 'AR' && { textAlign: 'right' }]}>{t.totalBalance}</Text>
@@ -210,22 +207,21 @@ export default function DashboardScreen() {
             style={({ pressed }) => [styles.balanceBtn, { opacity: pressed ? 0.8 : 1 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}
             onPress={() => router.push('/deposit')}
           >
-            {/* 🛠️ تم وضع FontAwesome هنا لزر الإيداع */}
-            <FontAwesome name="arrow-down" size={14} color={Colors.textOnGold} />
+            {/* 🛠️ استخدام react-icons */}
+            <FaArrowDown size={14} color={Colors.textOnGold} />
             <Text style={styles.balanceBtnText}>{t.deposit}</Text>
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.balanceBtnOutline, { opacity: pressed ? 0.8 : 1 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}
             onPress={() => router.push('/withdraw')}
           >
-            {/* 🛠️ تم وضع FontAwesome هنا لزر السحب */}
-            <FontAwesome name="arrow-up" size={14} color={Colors.gold} />
+            {/* 🛠️ استخدام react-icons */}
+            <FaArrowUp size={14} color={Colors.gold} />
             <Text style={styles.balanceBtnOutlineText}>{t.withdraw}</Text>
           </Pressable>
         </View>
       </View>
 
-      {/* Daily Task Progress */}
       <View style={[GlobalStyles.card, styles.section]}>
         <View style={[GlobalStyles.spaceBetween, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
           <Text style={GlobalStyles.sectionTitle}>{t.dailyTask}</Text>
@@ -253,12 +249,12 @@ export default function DashboardScreen() {
         </View>
       </View>
 
-      {/* VIP Payout Info */}
       {userVip > 0 && (
         <View style={[GlobalStyles.cardGold, styles.section]}>
           <View style={[GlobalStyles.spaceBetween, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
             <Text style={GlobalStyles.sectionTitle}>{t.potentialReward}</Text>
-            <MaterialIcons name="star" size={16} color={Colors.gold} />
+             {/* 🛠️ استخدام react-icons */}
+            <FaStar size={16} color={Colors.gold} />
           </View>
           <Text style={[styles.payoutRange, lang === 'AR' && { textAlign: 'right' }]}>
             ${tier.dailyPayoutMin.toFixed(2)} – ${tier.dailyPayoutMax.toFixed(2)}
@@ -267,22 +263,26 @@ export default function DashboardScreen() {
         </View>
       )}
 
-      {/* VIP Upgrade Prompt */}
       {userVip === 0 && (
         <Pressable
           style={({ pressed }) => [styles.upgradePrompt, { opacity: pressed ? 0.85 : 1 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}
           onPress={() => router.push('/vip-upgrade')}
         >
-          <MaterialIcons name="diamond" size={20} color={Colors.gold} />
+          {/* 🛠️ استخدام react-icons */}
+          <IoDiamond size={20} color={Colors.gold} />
           <View style={[{ flex: 1, marginLeft: Spacing.sm }, lang === 'AR' && { alignItems: 'flex-end', marginRight: Spacing.sm, marginLeft: 0 }]}>
             <Text style={styles.upgradeTitle}>{t.activateVip}</Text>
             <Text style={styles.upgradeSubtitle}>{t.earnDaily}</Text>
           </View>
-          <MaterialIcons name={lang === 'AR' ? "chevron-left" : "chevron-right"} size={20} color={Colors.goldDim} />
+          {/* 🛠️ استخدام react-icons */}
+          {lang === 'AR' ? (
+            <MdChevronLeft size={20} color={Colors.goldDim} />
+          ) : (
+             <MdChevronRight size={20} color={Colors.goldDim} />
+          )}
         </Pressable>
       )}
 
-      {/* Recent Transactions */}
       <View style={[GlobalStyles.card, styles.section]}>
         <View style={[GlobalStyles.spaceBetween, { marginBottom: Spacing.md }, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
           <Text style={GlobalStyles.sectionTitle}>{t.recentActivity}</Text>
