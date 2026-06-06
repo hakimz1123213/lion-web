@@ -12,7 +12,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
-// 🚀 لا نحتاج لأي مكتبة أيقونات بعد الآن! 
+// 👑 عودة الأيقونات الفاخرة
+import { MaterialIcons, FontAwesome } from '@expo/vector-icons'; 
 
 import { useAuth } from '@/hooks/useAuth';
 import { useTask } from '@/hooks/useTask';
@@ -26,7 +27,7 @@ const dashboardTranslations: Record<string, Record<string, string>> = {
   EN: {
     goodDay: "Good day,",
     noVip: "No VIP",
-    totalBalance: "MY MONEY",
+    totalBalance: "TOTAL BALANCE", // أعدناها كما كانت
     deposit: "Deposit",
     withdraw: "Withdraw",
     dailyTask: "Daily Task",
@@ -113,10 +114,14 @@ function TxRow({ tx, lang }: { tx: Transaction; lang: string }) {
   return (
     <View style={[styles.txRow, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
       <View style={[styles.txIcon, { backgroundColor: isReward ? Colors.goldSurface : isDeposit ? Colors.infoSurface : Colors.dangerSurface }]}>
-        {/* 👑 إيموجي نصي أصلي يستحيل أن يختفي */}
-        <Text style={{ fontSize: 14 }}>
-          {isReward ? '⭐' : isDeposit ? '⬇️' : '⬆️'}
-        </Text>
+        {/* استرجاع الأيقونات */}
+        {isReward ? (
+          <MaterialIcons name="star" size={16} color={Colors.gold} />
+        ) : isDeposit ? (
+          <FontAwesome name="arrow-down" size={14} color={Colors.info} />
+        ) : (
+          <FontAwesome name="arrow-up" size={14} color={Colors.danger} />
+        )}
       </View>
       <View style={[{ flex: 1 }, lang === 'AR' && { alignItems: 'flex-end', marginRight: 12 }]}>
         <Text style={styles.txType}>{displayType}</Text>
@@ -141,8 +146,9 @@ export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
+  // 🛠️ حل مشكلة الـ TypeScript التي كانت تعطل الرفع
   // @ts-ignore
-const lang = user?.language || 'EN';
+  const lang = user?.language || 'EN';
   const t = dashboardTranslations[lang] || dashboardTranslations['EN'];
 
   const secretTapCount = React.useRef(0);
@@ -182,7 +188,7 @@ const lang = user?.language || 'EN';
           style={[styles.vipBadge, lang === 'AR' && { flexDirection: 'row-reverse' }]}
           onPress={() => router.push('/vip-upgrade')}
         >
-          <Text style={{ fontSize: 12, opacity: userVip > 0 ? 1 : 0.5 }}>💎</Text>
+          <MaterialIcons name="diamond" size={14} color={userVip > 0 ? tier.color : Colors.textMuted} />
           <Text style={[styles.vipBadgeText, { color: userVip > 0 ? tier.color : Colors.textMuted }]}>
             {userVip > 0 ? tier.label : t.noVip}
           </Text>
@@ -198,14 +204,14 @@ const lang = user?.language || 'EN';
             style={({ pressed }) => [styles.balanceBtn, { opacity: pressed ? 0.8 : 1 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}
             onPress={() => router.push('/deposit')}
           >
-            <Text style={{ fontSize: 14 }}>⬇️</Text>
+            <FontAwesome name="arrow-down" size={14} color={Colors.textOnGold} />
             <Text style={styles.balanceBtnText}>{t.deposit}</Text>
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.balanceBtnOutline, { opacity: pressed ? 0.8 : 1 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}
             onPress={() => router.push('/withdraw')}
           >
-            <Text style={{ fontSize: 14 }}>⬆️</Text>
+            <FontAwesome name="arrow-up" size={14} color={Colors.gold} />
             <Text style={styles.balanceBtnOutlineText}>{t.withdraw}</Text>
           </Pressable>
         </View>
@@ -242,7 +248,7 @@ const lang = user?.language || 'EN';
         <View style={[GlobalStyles.cardGold, styles.section]}>
           <View style={[GlobalStyles.spaceBetween, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
             <Text style={GlobalStyles.sectionTitle}>{t.potentialReward}</Text>
-            <Text style={{ fontSize: 16 }}>⭐</Text>
+            <MaterialIcons name="star" size={16} color={Colors.gold} />
           </View>
           <Text style={[styles.payoutRange, lang === 'AR' && { textAlign: 'right' }]}>
             ${tier.dailyPayoutMin.toFixed(2)} – ${tier.dailyPayoutMax.toFixed(2)}
@@ -256,14 +262,12 @@ const lang = user?.language || 'EN';
           style={({ pressed }) => [styles.upgradePrompt, { opacity: pressed ? 0.85 : 1 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}
           onPress={() => router.push('/vip-upgrade')}
         >
-          <Text style={{ fontSize: 20 }}>💎</Text>
+          <MaterialIcons name="diamond" size={20} color={Colors.gold} />
           <View style={[{ flex: 1, marginLeft: Spacing.sm }, lang === 'AR' && { alignItems: 'flex-end', marginRight: Spacing.sm, marginLeft: 0 }]}>
             <Text style={styles.upgradeTitle}>{t.activateVip}</Text>
             <Text style={styles.upgradeSubtitle}>{t.earnDaily}</Text>
           </View>
-          <Text style={{ fontSize: 16, color: Colors.goldDim }}>
-            {lang === 'AR' ? '◀' : '▶'}
-          </Text>
+          <MaterialIcons name={lang === 'AR' ? "chevron-left" : "chevron-right"} size={20} color={Colors.goldDim} />
         </Pressable>
       )}
 
