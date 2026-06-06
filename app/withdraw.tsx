@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/useAuth';
 import { useWallet } from '@/hooks/useWallet';
 import { useAlert } from '@/template';
@@ -21,7 +20,7 @@ import { GlobalStyles } from '@/constants/styles';
 import { WITHDRAWAL_MIN, VIP_TIERS } from '@/constants/config'; 
 import { sendWithdrawalAlert } from '@/services/discord';
 
-// 🌍 قاموس التعريب الفوري والمدمج محلياً لـ شاشة السحب لمنع أخطاء الـ TypeScript والمسارات
+// 🌍 قاموس التعريب الفوري والمدمج محلياً لـ شاشة السحب
 const withdrawTranslations: Record<string, Record<string, string>> = {
   EN: {
     withdrawFunds: "Withdraw Funds",
@@ -96,12 +95,10 @@ export default function WithdrawScreen() {
 
   if (!user) return null;
 
-  // 📡 التقاط رادار لغة العميل الحالية من مستند الـ user سحابياً
   // @ts-ignore
   const lang = user?.language || 'EN';
   const t = withdrawTranslations[lang] || withdrawTranslations['EN'];
 
-  // ─── 🛡️ حساب الرصيد المتاح للسحب (الأرباح فقط) ──────────────────
   const currentTier = VIP_TIERS.find(t => t.level === user.vip_level);
   const lockedCapital = currentTier ? currentTier.entryFee : 0; 
   const maxWithdrawable = Math.max(0, user.balance - lockedCapital);
@@ -168,10 +165,13 @@ export default function WithdrawScreen() {
     >
       <View style={[styles.screen, { paddingTop: insets.top }]}>
         
-        {/* Header الفخم المعدل اتجاهياً */}
+        {/* Header */}
         <View style={[styles.header, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
           <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
-            <MaterialIcons name={lang === 'AR' ? "arrow-forward" : "arrow-back"} size={22} color={Colors.gold} />
+            {/* 🛠️ استبدال سهم الرجوع المكسور بإيموجي نصي سهمي ثابت ومتناسق */}
+            <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>
+              {lang === 'AR' ? '◀' : '▶'}
+            </Text>
           </Pressable>
           <Text style={styles.headerTitle}>{t.withdrawFunds}</Text>
           <View style={{ width: 44 }} />
@@ -206,15 +206,16 @@ export default function WithdrawScreen() {
             </View>
           </View>
 
-          {/* صندوق المعلومات السريع المتناسق اتجاهياً */}
+          {/* صندوق المعلومات السريع */}
           <View style={[styles.infoBox, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-            <MaterialIcons name="info-outline" size={18} color={Colors.gold} />
+            {/* 🛠️ استبدال مربع أيقونة معلومات الحساب بإيموجي نصي ثابت */}
+            <Text style={{ fontSize: 14 }}>ℹ️</Text>
             <Text style={[styles.infoText, lang === 'AR' && { textAlign: 'right' }]}>
               {t.infoText}
             </Text>
           </View>
 
-          {/* خانة إدخال المبلغ الفخمة */}
+          {/* خانة إدخال المبلغ */}
           <View style={styles.inputContainer}>
             <Text style={[styles.inputLabel, lang === 'AR' && { textAlign: 'right' }]}>{t.withdrawAmountLabel}</Text>
             <View style={[styles.amountInputRow, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
@@ -241,11 +242,12 @@ export default function WithdrawScreen() {
             </Text>
           </View>
 
-          {/* خانة عنوان المحفظة الفخمة */}
+          {/* خانة عنوان المحفظة */}
           <View style={styles.inputContainer}>
             <Text style={[styles.inputLabel, lang === 'AR' && { textAlign: 'right' }]}>{t.walletAddressLabel}</Text>
             <View style={[styles.addressBox, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-              <MaterialIcons name="account-balance-wallet" size={20} color={Colors.gold} style={lang === 'AR' ? { marginRight: 5 } : { marginLeft: 5 }} />
+              {/* 🛠️ استبدال مربع أيقونة محفظة السحب بإيموجي المحفظة الرقمية */}
+              <Text style={[{ fontSize: 14 }, lang === 'AR' ? { marginRight: 5 } : { marginLeft: 5 }]}>💳</Text>
               <TextInput
                 style={[styles.addressInput, lang === 'AR' && { textAlign: 'right' }]}
                 value={walletAddress}
@@ -258,15 +260,16 @@ export default function WithdrawScreen() {
             </View>
           </View>
 
-          {/* كارت التحذير الملكي لشبكة السحب منعا لضياع الأموال */}
+          {/* كارت التحذير الملكي */}
           <View style={[styles.warningCard, lang === 'AR' && { flexDirection: 'row-reverse', borderLeftWidth: 0, borderRightWidth: 3, borderRightColor: Colors.gold }]}>
-            <MaterialIcons name="report-problem" size={20} color="#e5c07b" />
+            {/* 🛠️ استبدال أيقونة التحذير المكسورة بإيموجي تنبيه نصي صلب */}
+            <Text style={{ fontSize: 14 }}>⚠️</Text>
             <Text style={[styles.warningText, lang === 'AR' && { textAlign: 'right' }]}>
               {t.warningText}
             </Text>
           </View>
 
-          {/* زر السحب الأسطوري المطور بتصميم فخم ومستقر */}
+          {/* زر السحب الأسطوري */}
           <Pressable
             style={({ pressed }) => [
               styles.submitBtn,
@@ -280,7 +283,8 @@ export default function WithdrawScreen() {
               <ActivityIndicator color="#000" />
             ) : (
               <>
-                <MaterialIcons name="lock-open" size={18} color="#000" />
+                {/* 🛠️ استبدال أيقونة قفل زر السحب بإيموجي صاعقة الشحن والسحب */}
+                <Text style={{ fontSize: 14 }}>⚡</Text>
                 <Text style={styles.submitBtnText}>{t.requestBtn}</Text>
               </>
             )}
@@ -304,6 +308,7 @@ const styles = StyleSheet.create({
   
   dividerRow: { width: '100%', height: 1, backgroundColor: '#101010', marginVertical: 18 },
   detailsRow: { flexDirection: 'row', width: '100%', justifyContent: 'space-around', alignItems: 'center' },
+  detailsRowAr: { flexDirection: 'row-reverse', width: '100%', justifyContent: 'space-around', alignItems: 'center' },
   detailItem: { alignItems: 'center' },
   detailLabel: { color: '#444', fontSize: 9, fontWeight: FontWeight.semibold, marginBottom: 4 },
   detailValue: { color: '#fff', fontSize: 14, fontWeight: FontWeight.bold },
