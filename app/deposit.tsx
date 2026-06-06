@@ -13,7 +13,6 @@ import {
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as Clipboard from 'expo-clipboard'; 
 import { useAuth } from '@/hooks/useAuth';
@@ -28,7 +27,7 @@ import { sendDepositAlert } from '@/services/discord';
 import { db } from '@/services/firebaseConfig';
 import { ref, update, get, set, push } from 'firebase/database';
 
-// 🌍 قاموس التعريب الفوري والمدمج محلياً لـ شاشة الإيداع لمنع أخطاء الـ TypeScript والمسارات
+// 🌍 قاموس التعريب الفوري والمدمج محلياً لـ شاشة الإيداع
 const depositTranslations: Record<string, Record<string, string>> = {
   EN: {
     depositFunds: "Deposit Funds",
@@ -116,7 +115,6 @@ export default function DepositScreen() {
 
   if (!user) return null;
 
-  // 📡 التقاط رادار لغة العميل الحالية من مستند الـ user سحابياً
   // @ts-ignore
   const lang = user?.language || 'EN';
   const t = depositTranslations[lang] || depositTranslations['EN'];
@@ -168,7 +166,6 @@ export default function DepositScreen() {
       setIsSubmitting(true);
       const currentTime = Date.now();
 
-      // 🛡️ [حارس الـ 3 طلبات الذكي لمكافحة الـ سبام لـ حكيم] 🛡️
       const depositHistoryRef = ref(db, `users/${user.uid}/depositRequestsHistory`);
       const historySnap = await get(depositHistoryRef);
       
@@ -182,7 +179,6 @@ export default function DepositScreen() {
         (ts) => (currentTime - ts) / (1000 * 60 * 60) < 24
       );
 
-      // 🛑 حظر فوري وصارم إذا حاول تسجيل الطلب الرابع في نفس اليوم
       if (activeRequestsInLast24h.length >= 3) {
         const oldestRequestTime = Math.min(...activeRequestsInLast24h);
         const hoursPassedSinceOldest = (currentTime - oldestRequestTime) / (1000 * 60 * 60);
@@ -196,7 +192,6 @@ export default function DepositScreen() {
         return;
       }
 
-      // 📡 [الحقن العسكري المباشر لداخل الـ Realtime Database]
       const txsRef = push(ref(db, 'transactions')); 
       const txIdKey = txsRef.key || currentTime.toString();
 
@@ -213,7 +208,6 @@ export default function DepositScreen() {
         createdAt: currentTime,
       });
 
-      // إرسال البيانات الحية لديسكورد
       await sendDepositAlert({
         username: user.username,
         userId: user.uid,
@@ -223,7 +217,6 @@ export default function DepositScreen() {
         timestamp: currentTime,
       });
 
-      // تحديث مصفوفة الـ History لـتثبيت الطلب الجديد الحالي وضمان دقة الحظر الـسبامي
       activeRequestsInLast24h.push(currentTime);
       await set(ref(db, `users/${user.uid}/depositRequestsHistory`), activeRequestsInLast24h);
 
@@ -246,10 +239,13 @@ export default function DepositScreen() {
     >
       <View style={[styles.screen, { paddingTop: insets.top }]}>
         
-        {/* Header فخم يدعم الاتجاهين */}
+        {/* Header */}
         <View style={[styles.header, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
           <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
-            <MaterialIcons name={lang === 'AR' ? "arrow-forward" : "arrow-back"} size={22} color={Colors.textSecondary} />
+            {/* 🛠️ استبدال سهم الرجوع المكسور بإيموجي نصي سهمي ثابت ومتناسق */}
+            <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>
+              {lang === 'AR' ? '◀' : '▶'}
+            </Text>
           </Pressable>
           <Text style={styles.headerTitle}>{t.depositFunds}</Text>
           <View style={{ width: 40 }} />
@@ -260,9 +256,10 @@ export default function DepositScreen() {
           contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.xxl, paddingHorizontal: Spacing.lg }}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Instructions المنسقة اتجاهياً وعسكرياً */}
+          {/* Instructions */}
           <View style={styles.instructionCard}>
             <View style={[styles.instructionStep, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
+              {/* 🛠️ استبدال أرقام الخطوات بدوائر نصية نظيفة */}
               <View style={[styles.stepNum, { backgroundColor: Colors.info + '22', borderColor: Colors.info }]}>
                 <Text style={[styles.stepNumText, { color: Colors.info }]}>1</Text>
               </View>
@@ -321,11 +318,8 @@ export default function DepositScreen() {
                   }
                 }}
               >
-                <MaterialIcons
-                  name={addressCopied ? 'check' : 'content-copy'}
-                  size={18}
-                  color={addressCopied ? Colors.success : Colors.gold}
-                />
+                {/* 🛠️ استبدال مربع أيقونة النسخ بإيموجي ورقتي النسخ و علامة صح نصية */}
+                <Text style={{ fontSize: 13, marginRight: 2 }}>{addressCopied ? '✅' : '📋'}</Text>
                 <Text style={[styles.copyText, { color: addressCopied ? Colors.success : Colors.gold }]}>
                   {addressCopied ? t.copiedBtn : t.copyBtn}
                 </Text>
@@ -333,7 +327,8 @@ export default function DepositScreen() {
             </View>
 
             <View style={[styles.warningRow, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-              <MaterialIcons name="warning-amber" size={14} color={Colors.warning} />
+              {/* 🛠️ استبدال أيقونة التحذير المكسورة بإيموجي تنبيه نصي صلب */}
+              <Text style={{ fontSize: 12 }}>⚠️</Text>
               <Text style={[styles.warningText, lang === 'AR' && { textAlign: 'right' }]}>{t.warningText}</Text>
             </View>
           </View>
@@ -382,18 +377,19 @@ export default function DepositScreen() {
                   style={({ pressed }) => [styles.removeProofBtn, { opacity: pressed ? 0.7 : 1 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}
                   onPress={() => setProofUri(null)}
                 >
-                  <MaterialIcons name="close" size={16} color={Colors.textPrimary} />
+                  <Text style={{ fontSize: 12, color: '#fff' }}>❌</Text>
                   <Text style={styles.removeProofText}>{t.removeBtn}</Text>
                 </Pressable>
               </View>
               <View style={[styles.proofSuccessBadge, lang === 'AR' && { right: Spacing.sm, left: undefined, flexDirection: 'row-reverse' }]}>
-                <MaterialIcons name="check-circle" size={16} color={Colors.success} />
+                <Text style={{ fontSize: 12 }}>✅</Text>
                 <Text style={styles.proofSuccessText}>{t.proofReady}</Text>
               </View>
             </View>
           ) : (
             <View style={styles.uploadBox}>
-              <MaterialIcons name="upload-file" size={32} color={Colors.textMuted} />
+              {/* 🛠️ استبدال حزم أيقونات الوصل، المعرض، والكاميرا المكسورة بإيموجيات نصية مستقرة */}
+              <Text style={{ fontSize: 32, marginBottom: 4 }}>📸</Text>
               <Text style={styles.uploadTitle}>{t.uploadTitle}</Text>
               <Text style={styles.uploadSubtitle}>{t.uploadSubtitle}</Text>
               <View style={[styles.uploadActions, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
@@ -401,14 +397,14 @@ export default function DepositScreen() {
                   style={({ pressed }) => [styles.uploadBtn, { opacity: pressed ? 0.8 : 1 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}
                   onPress={handlePickImage}
                 >
-                  <MaterialIcons name="photo-library" size={18} color={Colors.gold} />
+                  <Text style={{ fontSize: 14, marginRight: 2 }}>🖼️</Text>
                   <Text style={styles.uploadBtnText}>{t.gallery}</Text>
                 </Pressable>
                 <Pressable
                   style={({ pressed }) => [styles.uploadBtn, { opacity: pressed ? 0.8 : 1 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}
                   onPress={handleCameraCapture}
                 >
-                  <MaterialIcons name="camera-alt" size={18} color={Colors.gold} />
+                  <Text style={{ fontSize: 14, marginRight: 2 }}>📷</Text>
                   <Text style={styles.uploadBtnText}>{t.camera}</Text>
                 </Pressable>
               </View>
@@ -429,7 +425,8 @@ export default function DepositScreen() {
               <ActivityIndicator color={Colors.textOnGold} />
             ) : (
               <>
-                <MaterialIcons name="send" size={18} color={Colors.textOnGold} style={lang === 'AR' ? { marginLeft: 8 } : { marginRight: 8 }} />
+                {/* 🛠️ استبدال مربع أيقونة الإرسال الطائرة بإيموجي صاعقة شحن ملوكية */}
+                <Text style={[{ fontSize: 14 }, lang === 'AR' ? { marginLeft: 8 } : { marginRight: 8 }]}>⚡</Text>
                 <Text style={GlobalStyles.primaryButtonText}>{t.submitBtn}</Text>
               </>
             )}
