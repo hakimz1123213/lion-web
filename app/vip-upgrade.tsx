@@ -10,7 +10,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { MaterialIcons } from '@expo/vector-icons';
+
+// 🚀 تم تنظيف الملف من مكتبات الأيقونات الخارجية لمنع المربعات البيضاء نهائياً
 import { useAuth } from '@/hooks/useAuth';
 import { useWallet } from '@/hooks/useWallet';
 import { useAlert } from '@/template';
@@ -19,7 +20,7 @@ import { GlobalStyles } from '@/constants/styles';
 import { VIP_TIERS, VIPTier, TASK_TOTAL } from '@/constants/config';
 import { sendVIPUpgradeAlert } from '@/services/discord';
 
-// 🌍 قاموس التعريب الفوري والمدمج محلياً لـ شاشة الـ VIP لمنع أخطاء الـ TypeScript والمسارات
+// 🌍 قاموس التعريب الفوري والمدمج محلياً لـ شاشة الـ VIP
 const vipTranslations: Record<string, Record<string, string>> = {
   EN: {
     vipPlans: "VIP Plans",
@@ -100,19 +101,16 @@ export default function VIPUpgradeScreen() {
 
   if (!user) return null;
 
-  // 📡 التقاط لغة المستخدم الحالية لايف سحابياً من مستند الـ user
   // @ts-ignore
   const lang = user?.language || 'EN';
   const t = vipTranslations[lang] || vipTranslations['EN'];
 
   const handleActivate = async (tier: VIPTier) => {
-    // 1. منع الترقية لنفس المستوى أو أقل
     if (user.vip_level >= tier.level) {
       showAlert(t.planActiveTitle, t.planActiveDesc.replace('{label}', tier.label));
       return;
     }
 
-    // 2. التحقق من الرصيد الإجمالي
     if (user.balance < tier.entryFee) {
       const deficit = (tier.entryFee - user.balance).toFixed(2);
       showAlert(
@@ -126,7 +124,6 @@ export default function VIPUpgradeScreen() {
       return;
     }
 
-    // 3. تأكيد التفعيل الذكي
     showAlert(
       t.unlockConfirmTitle.replace('{label}', tier.label),
       `${t.unlockConfirmDesc1}${user.balance.toFixed(2)} ${t.unlockConfirmDesc2} ${tier.level} ${t.unlockConfirmDesc3}${tier.entryFee} ${t.unlockConfirmDesc4}`,
@@ -138,13 +135,11 @@ export default function VIPUpgradeScreen() {
             setIsProcessing(true);
             const previousLevel = user.vip_level;
             
-            // اللوجيك الملوكي نتاع حكيم: نرسل 0 ليبقى الرصيد ثابتاً وتتحكم فيه شاشة السحب أوتوماتيكياً
             const result = await upgradeVIP(tier.level, 0);
 
             if (result.error === null) {
               await addVIPUpgradeTx(0, tier.level);
 
-              // إرسال التنبيه الفوري لديسكورد لايف
               await sendVIPUpgradeAlert({
                 username: user.username,
                 userId: user.uid,
@@ -175,10 +170,11 @@ export default function VIPUpgradeScreen() {
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       
-      {/* Header الفخم المعدل اتجاهياً هندسياً */}
+      {/* Header */}
       <View style={[styles.header, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <MaterialIcons name="close" size={22} color={Colors.textSecondary} />
+          {/* 🛠️ استبدال مربع زر الإغلاق المكسور بإيموجي صلب */}
+          <Text style={{ fontSize: 14, color: '#fff' }}>❌</Text>
         </Pressable>
         <View style={{ alignItems: 'center' }}>
           <Text style={styles.title}>{t.vipPlans}</Text>
@@ -197,27 +193,34 @@ export default function VIPUpgradeScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
         
-        {/* ملخص الرصيد الحالي المطور اتجاهياً */}
+        {/* ملخص الرصيد الحالي */}
         <View style={[styles.currentBanner, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-          <MaterialIcons name="diamond" size={20} color={Colors.gold} />
+          {/* 🛠️ استبدال المربع الأبيض داخل بانر الرصيد بإيموجي ماسة */}
+          <Text style={{ fontSize: 16 }}>💎</Text>
           <View style={[{ flex: 1 }, lang === 'AR' && { alignItems: 'flex-end' }]}>
             <Text style={styles.bannerMain}>{t.currentPlan}: <Text style={{ color: Colors.gold }}>VIP {user.vip_level}</Text></Text>
             <Text style={styles.bannerSub}>{t.balanceLabel}: <Text style={{ color: Colors.gold }}>${user.balance.toFixed(2)}</Text></Text>
           </View>
         </View>
 
-        {/* كروت الخطط المحدثة تلقائياً من الـ config */}
+        {/* كروت الخطط */}
         {VIP_TIERS.map((tier) => {
           const isActive = user.vip_level === tier.level;
           const isLocked = tier.level > user.vip_level && user.balance < tier.entryFee;
           const progress = Math.min(100, (user.balance / tier.entryFee) * 100);
+
+          // تحديد أيقونة الحالة البديلة الثابتة للزر الأسفل
+          let btnEmoji = '⚡';
+          if (isActive) btnEmoji = '✅';
+          else if (isLocked) btnEmoji = '🔒';
 
           return (
             <View key={tier.level} style={[styles.tierCard, isActive && { borderColor: tier.color, borderWidth: 1.5 }]}>
               
               <View style={[styles.tierHeader, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
                 <View style={[styles.tierIcon, { backgroundColor: tier.color + '15' }]}>
-                  <MaterialIcons name="diamond" size={24} color={tier.color} />
+                  {/* 🛠️ استبدال المربع المكسور داخل أيقونة الباقة بإيموجي الماسة الذكي المقاوم */}
+                  <Text style={{ fontSize: 18 }}>💎</Text>
                 </View>
                 <View style={[{ flex: 1 }, lang === 'AR' && { alignItems: 'flex-end' }]}>
                   <Text style={[styles.tierLabel, { color: tier.color }]}>{tier.label}</Text>
@@ -230,7 +233,7 @@ export default function VIPUpgradeScreen() {
                 )}
               </View>
 
-              {/* شبكة الإحصائيات المحدثة اتجاهياً وعسكرياً */}
+              {/* شبكة الإحصائيات */}
               <View style={[styles.statsGrid, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
                 <View style={styles.statItem}>
                   <Text style={styles.statLabel}>{t.reqBalance}</Text>
@@ -248,7 +251,7 @@ export default function VIPUpgradeScreen() {
                 </View>
               </View>
 
-              {/* شريط التقدم التراكمي الذكي */}
+              {/* شريط التقدم التراكمي */}
               {!isActive && tier.level > user.vip_level && (
                 <View style={styles.progressSection}>
                   <View style={styles.progressTrack}>
@@ -258,7 +261,7 @@ export default function VIPUpgradeScreen() {
                 </View>
               )}
 
-              {/* زر التفعيل الذكي التراكمي المتوافق بالكامل */}
+              {/* زر التفعيل الذكي */}
               <Pressable
                 style={({ pressed }) => [
                   styles.activateBtn,
@@ -269,11 +272,8 @@ export default function VIPUpgradeScreen() {
                 onPress={() => handleActivate(tier)}
                 disabled={isActive}
               >
-                <MaterialIcons 
-                  name={isActive ? "check-circle" : isLocked ? "lock" : "bolt"} 
-                  size={16} 
-                  color={isActive ? tier.color : isLocked ? "#ff4d4d" : "#000"} 
-                />
+                {/* 🛠️ حقن إيموجي الحالة الصلب بداخل كرت الزر السفلي السفينة المحدثة */}
+                <Text style={{ fontSize: 13, marginRight: 2 }}>{btnEmoji}</Text>
                 <Text style={[styles.activateBtnText, { color: isActive ? tier.color : isLocked ? "#ff4d4d" : "#000" }]}>
                   {isActive ? t.currentPlanBtn : isLocked ? (lang === 'AR' ? t.accumulateMore.replace('{amount}', (tier.entryFee - user.balance).toFixed(0)) : t.accumulateMore.replace('{amount}', (tier.entryFee - user.balance).toFixed(0))) : t.unlockBtn.replace('{level}', tier.level.toString())}
                 </Text>
