@@ -26,7 +26,7 @@ const dashboardTranslations: Record<string, Record<string, string>> = {
   EN: {
     goodDay: "Good day,",
     noVip: "No VIP",
-    totalBalance: "TOTAL BALANCE",
+    totalBalance: "MY MONEY",
     deposit: "Deposit",
     withdraw: "Withdraw",
     dailyTask: "Daily Task",
