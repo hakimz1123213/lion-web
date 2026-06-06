@@ -12,9 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
-// 👑 عودة الأيقونات الفاخرة
-import { MaterialIcons, FontAwesome } from '@expo/vector-icons'; 
-
+// 🚀 لا حاجة لمكتبات الأيقونات بعد اليوم! الاعتماد الكلي على الإيموجيات الأصلية المدمجة بالنظام
 import { useAuth } from '@/hooks/useAuth';
 import { useTask } from '@/hooks/useTask';
 import { useWallet } from '@/hooks/useWallet';
@@ -27,7 +25,7 @@ const dashboardTranslations: Record<string, Record<string, string>> = {
   EN: {
     goodDay: "Good day,",
     noVip: "No VIP",
-    totalBalance: "TOTAL BALANCE", // أعدناها كما كانت
+    totalBalance: "MONEY",
     deposit: "Deposit",
     withdraw: "Withdraw",
     dailyTask: "Daily Task",
@@ -91,10 +89,6 @@ function formatAmount(type: string, amount: number): string {
 }
 
 function TxRow({ tx, lang }: { tx: Transaction; lang: string }) {
-  const isReward = tx.type === 'Reward';
-  const isDeposit = tx.type === 'Deposit';
-  const color = tx.type === 'Withdrawal' ? Colors.danger : Colors.success;
-  
   const t = dashboardTranslations[lang] || dashboardTranslations['EN'];
   const txTypeString = tx.type as string;
   const txStatusString = tx.status as string;
@@ -111,17 +105,26 @@ function TxRow({ tx, lang }: { tx: Transaction; lang: string }) {
   else if (lowerStatus === 'completed' || lowerStatus === 'approved' || lowerStatus === 'success') displayStatus = t.completedStatus;
   else if (lowerStatus === 'rejected' || lowerStatus === 'failed') displayStatus = t.rejectedStatus;
 
+  // 🛠️ منطق الإيموجي والألوان المُحسن الذكي
+  let iconEmoji = '⬇️';
+  let iconBg = Colors.infoSurface;
+  const color = tx.type === 'Withdrawal' ? Colors.danger : Colors.success;
+
+  if (tx.type === 'Withdrawal') {
+    iconEmoji = '⬆️';
+    iconBg = Colors.dangerSurface;
+  } else if (tx.type === 'Reward') {
+    iconEmoji = '⭐';
+    iconBg = Colors.goldSurface;
+  } else if (tx.type === 'Referral Bonus') {
+    iconEmoji = '🎁'; // تم استبدال السهم الأحمر بهدية لأنها أرباح!
+    iconBg = Colors.successSurface;
+  }
+
   return (
     <View style={[styles.txRow, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-      <View style={[styles.txIcon, { backgroundColor: isReward ? Colors.goldSurface : isDeposit ? Colors.infoSurface : Colors.dangerSurface }]}>
-        {/* استرجاع الأيقونات */}
-        {isReward ? (
-          <MaterialIcons name="star" size={16} color={Colors.gold} />
-        ) : isDeposit ? (
-          <FontAwesome name="arrow-down" size={14} color={Colors.info} />
-        ) : (
-          <FontAwesome name="arrow-up" size={14} color={Colors.danger} />
-        )}
+      <View style={[styles.txIcon, { backgroundColor: iconBg }]}>
+        <Text style={{ fontSize: 13 }}>{iconEmoji}</Text>
       </View>
       <View style={[{ flex: 1 }, lang === 'AR' && { alignItems: 'flex-end', marginRight: 12 }]}>
         <Text style={styles.txType}>{displayType}</Text>
@@ -146,7 +149,6 @@ export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  // 🛠️ حل مشكلة الـ TypeScript التي كانت تعطل الرفع
   // @ts-ignore
   const lang = user?.language || 'EN';
   const t = dashboardTranslations[lang] || dashboardTranslations['EN'];
@@ -188,7 +190,8 @@ export default function DashboardScreen() {
           style={[styles.vipBadge, lang === 'AR' && { flexDirection: 'row-reverse' }]}
           onPress={() => router.push('/vip-upgrade')}
         >
-          <MaterialIcons name="diamond" size={14} color={userVip > 0 ? tier.color : Colors.textMuted} />
+          {/* 💎 إيموجي الماسة لزر الـ VIP */}
+          <Text style={{ fontSize: 13, marginRight: 2, opacity: userVip > 0 ? 1 : 0.5 }}>💎</Text>
           <Text style={[styles.vipBadgeText, { color: userVip > 0 ? tier.color : Colors.textMuted }]}>
             {userVip > 0 ? tier.label : t.noVip}
           </Text>
@@ -204,14 +207,16 @@ export default function DashboardScreen() {
             style={({ pressed }) => [styles.balanceBtn, { opacity: pressed ? 0.8 : 1 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}
             onPress={() => router.push('/deposit')}
           >
-            <FontAwesome name="arrow-down" size={14} color={Colors.textOnGold} />
+            {/* ⬇️ إيموجي الإيداع */}
+            <Text style={{ fontSize: 14, marginRight: 4 }}>⬇️</Text>
             <Text style={styles.balanceBtnText}>{t.deposit}</Text>
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.balanceBtnOutline, { opacity: pressed ? 0.8 : 1 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}
             onPress={() => router.push('/withdraw')}
           >
-            <FontAwesome name="arrow-up" size={14} color={Colors.gold} />
+            {/* ⬆️ إيموجي السحب */}
+            <Text style={{ fontSize: 14, marginRight: 4 }}>⬆️</Text>
             <Text style={styles.balanceBtnOutlineText}>{t.withdraw}</Text>
           </Pressable>
         </View>
@@ -248,7 +253,8 @@ export default function DashboardScreen() {
         <View style={[GlobalStyles.cardGold, styles.section]}>
           <View style={[GlobalStyles.spaceBetween, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
             <Text style={GlobalStyles.sectionTitle}>{t.potentialReward}</Text>
-            <MaterialIcons name="star" size={16} color={Colors.gold} />
+            {/* ⭐ إيموجي النجمة الفاخرة للجوائز */}
+            <Text style={{ fontSize: 16 }}>⭐</Text>
           </View>
           <Text style={[styles.payoutRange, lang === 'AR' && { textAlign: 'right' }]}>
             ${tier.dailyPayoutMin.toFixed(2)} – ${tier.dailyPayoutMax.toFixed(2)}
@@ -262,12 +268,15 @@ export default function DashboardScreen() {
           style={({ pressed }) => [styles.upgradePrompt, { opacity: pressed ? 0.85 : 1 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}
           onPress={() => router.push('/vip-upgrade')}
         >
-          <MaterialIcons name="diamond" size={20} color={Colors.gold} />
-          <View style={[{ flex: 1, marginLeft: Spacing.sm }, lang === 'AR' && { alignItems: 'flex-end', marginRight: Spacing.sm, marginLeft: 0 }]}>
+          {/* 💎 إيموجي الماسة في كرت الترقية */}
+          <Text style={{ fontSize: 18, marginRight: 8 }}>💎</Text>
+          <View style={[{ flex: 1 }, lang === 'AR' && { alignItems: 'flex-end', marginRight: Spacing.sm, marginLeft: 0 }]}>
             <Text style={styles.upgradeTitle}>{t.activateVip}</Text>
             <Text style={styles.upgradeSubtitle}>{t.earnDaily}</Text>
           </View>
-          <MaterialIcons name={lang === 'AR' ? "chevron-left" : "chevron-right"} size={20} color={Colors.goldDim} />
+          <Text style={{ fontSize: 16, color: Colors.goldDim }}>
+            {lang === 'AR' ? '◀' : '▶'}
+          </Text>
         </Pressable>
       )}
 
