@@ -200,7 +200,11 @@ export default function DashboardScreen() {
             style={({ pressed }) => [styles.balanceBtn, { opacity: pressed ? 0.8 : 1 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}
             onPress={() => router.push('/deposit')}
           >
-            <MaterialIcons name="arrow-downward" size={16} color={Colors.textOnGold} />
+            {Platform.OS === 'web' ? (
+  <i className="fa-solid fa-arrow-down" style={{ fontSize: 16, color: Colors.textOnGold }} />
+) : (
+  <MaterialIcons name="arrow-downward" size={16} color={Colors.textOnGold} />
+)}
             <Text style={styles.balanceBtnText}>{t.deposit}</Text>
           </Pressable>
           <Pressable
