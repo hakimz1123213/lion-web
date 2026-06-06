@@ -5,7 +5,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+
+// 🚀 تم تنظيف استيراد الأيقونات المكسورة المسببة للمربعات البيضاء نهائياً من جذر الملف
 import { useAuth } from '@/hooks/useAuth';
 import { useAlert } from '@/template';
 import { Colors } from '@/constants/theme';
@@ -77,7 +78,6 @@ const securityTranslations: Record<string, Record<string, string>> = {
 };
 
 export default function SecurityScreen() {
-  // 📡 جلب الدالة الملوكية الجديدة لاستعادة الباسورد بالـ OTP من الـ Hook
   // @ts-ignore
   const { user, changeUserPassword, generateAndSaveOTP } = useAuth();
   const { showAlert } = useAlert();
@@ -89,19 +89,16 @@ export default function SecurityScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // التحكم في إظهار وإخفاء كلمات السر بنقاء
   const [secureCurrent, setSecureCurrent] = useState(true);
   const [secureNew, setSecureNew] = useState(true);
   const [secureConfirm, setSecureConfirm] = useState(true);
 
   if (!user) return null;
 
-  // 📡 التقاط رادار لغة العميل الحالية من مستند الـ user سحابياً
   // @ts-ignore
   const lang = user?.language || 'EN';
   const t = securityTranslations[lang] || securityTranslations['EN'];
 
-  // 🔒 دالة معالجة نسيان الباسورد الحالي وإرسال الـ OTP دون تسجيل خروج
   const handleForgotCurrentPassword = async () => {
     try {
       setIsUpdating(true);
@@ -109,7 +106,6 @@ export default function SecurityScreen() {
       setIsUpdating(false);
 
       if (result.error === null) {
-        // 🔥 محاكاة الإرسال في الكونسول للمعاينة الفورية
         console.log("Security Reset OTP Deployed:", result.otpCode);
 
         showAlert(
@@ -166,10 +162,13 @@ export default function SecurityScreen() {
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       
-      {/* Header الملكي المحصن يدعم الاتجاهين */}
+      {/* Header */}
       <View style={[styles.header, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name={lang === 'AR' ? "arrow-forward" : "arrow-back"} size={22} color="#fff" />
+          {/* 🛠️ تعديل 1: استبدال سهم الرجوع المكسور بـ إيموجي نصي سهمي ثابت ومتناسق هندسياً */}
+          <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>
+            {lang === 'AR' ? '◀' : '▶'}
+          </Text>
         </Pressable>
         <Text style={styles.title}>{t.securityTitle}</Text>
         <View style={{ width: 40 }} />
@@ -178,9 +177,10 @@ export default function SecurityScreen() {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
           
-          {/* لوحة التعريف الاستخباراتية (Meta Style) */}
+          {/* لوحة التعريف */}
           <View style={styles.metaBanner}>
-            <MaterialIcons name="security" size={32} color={Colors.gold || '#D4AF37'} />
+            {/* 🛠️ تعديل 2: استبدال مربع درع الحماية المكسور بمنتصف الشاشة بإيموجي درع ذهبي حقيقي صلب */}
+            <Text style={{ fontSize: 32, marginBottom: 4 }}>🛡️</Text>
             <Text style={styles.metaTitle}>{t.loginControl}</Text>
             <Text style={styles.metaDesc}>{t.securityDesc}</Text>
           </View>
@@ -200,7 +200,7 @@ export default function SecurityScreen() {
             </View>
           </View>
 
-          {/* فورم تعديل الباسورد الاحترافي */}
+          {/* فورم تعديل الباسورد */}
           <Text style={[styles.sectionLabel, lang === 'AR' && { textAlign: 'right', marginRight: 5 }]}>{t.updatePasswordLabel}</Text>
           
           {/* 1. الباسورد الحالي */}
@@ -214,7 +214,8 @@ export default function SecurityScreen() {
               onChangeText={setCurrentPassword}
             />
             <Pressable onPress={() => setSecureCurrent(!secureCurrent)} style={[styles.eyeIcon, lang === 'AR' && { left: 15, right: undefined }]}>
-              <Ionicons name={secureCurrent ? "eye-off" : "eye"} size={20} color="#555" />
+              {/* 🛠️ تعديل 3: استبدال مربع العين الفارغ المكسور بـ إيموجيات نصية حية وحركية مدمجة كلياً */}
+              <Text style={{ fontSize: 14 }}>{secureCurrent ? '👁️‍🗨️' : '👁️'}</Text>
             </Pressable>
           </View>
 
@@ -229,7 +230,8 @@ export default function SecurityScreen() {
               onChangeText={setNewPassword}
             />
             <Pressable onPress={() => setSecureNew(!secureNew)} style={[styles.eyeIcon, lang === 'AR' && { left: 15, right: undefined }]}>
-              <Ionicons name={secureNew ? "eye-off" : "eye"} size={20} color="#555" />
+              {/* 🛠️ تعديل 4: استبدال المربع الثاني */}
+              <Text style={{ fontSize: 14 }}>{secureNew ? '👁️‍🗨️' : '👁️'}</Text>
             </Pressable>
           </View>
 
@@ -244,11 +246,12 @@ export default function SecurityScreen() {
               onChangeText={setConfirmPassword}
             />
             <Pressable onPress={() => setSecureConfirm(!secureConfirm)} style={[styles.eyeIcon, lang === 'AR' && { left: 15, right: undefined }]}>
-              <Ionicons name={secureConfirm ? "eye-off" : "eye"} size={20} color="#555" />
+              {/* 🛠️ تعديل 5: استبدال المربع الثالث */}
+              <Text style={{ fontSize: 14 }}>{secureConfirm ? '👁️‍🗨️' : '👁️'}</Text>
             </Pressable>
           </View>
 
-          {/* 🔗 زر استعادة الباسورد الفخم والموجّه هندسياً في المكان المحدّد $100% */}
+          {/* زر استعادة الباسورد */}
           <Pressable 
             onPress={handleForgotCurrentPassword} 
             style={[{ marginTop: 4, paddingVertical: 6, marginBottom: 15 }, lang === 'AR' ? { alignItems: 'flex-start' } : { alignItems: 'flex-end' }]}
@@ -304,7 +307,7 @@ const styles = StyleSheet.create({
   intelVal: { color: '#aaa', fontSize: 13, fontWeight: '700' },
   inputWrapper: { width: '100%', position: 'relative', marginBottom: 15 },
   input: { backgroundColor: '#0A0A0A', color: '#fff', padding: 16, paddingRight: 50, borderRadius: 12, fontSize: 14, borderWidth: 1, borderColor: '#151515', fontWeight: '500' },
-  eyeIcon: { position: 'absolute', right: 15, top: 16, padding: 2 },
+  eyeIcon: { position: 'absolute', right: 15, top: 16, padding: 2, justifyContent: 'center', alignItems: 'center' },
   goldButton: { backgroundColor: Colors.gold || '#D4AF37', paddingVertical: 16, borderRadius: 12, width: '100%', alignItems: 'center', marginTop: 15, shadowColor: '#D4AF37', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 5, elevation: 3 },
   buttonText: { color: '#000000', fontSize: 13, fontWeight: '900', letterSpacing: 1 },
   dangerZone: { marginTop: 40, borderTopWidth: 1, borderTopColor: '#1A1A1A', paddingTop: 25, width: '100%' },
