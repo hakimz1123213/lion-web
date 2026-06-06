@@ -20,6 +20,7 @@ import { GlobalStyles } from '@/constants/styles';
 import { VIP_TIERS, TASK_TOTAL, getVIPTier } from '@/constants/config';
 import { Transaction } from '@/contexts/WalletContext';
 
+
 // 🌍 قاموس التعريب
 const dashboardTranslations: Record<string, Record<string, string>> = {
   EN: {
@@ -112,7 +113,7 @@ function TxRow({ tx, lang }: { tx: Transaction; lang: string }) {
   return (
     <View style={[styles.txRow, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
       <View style={[styles.txIcon, { backgroundColor: isReward ? Colors.goldSurface : isDeposit ? Colors.infoSurface : Colors.dangerSurface }]}>
-        <MaterialIcons
+       <MaterialIcons
           name={isReward ? 'star' : isDeposit ? 'arrow-downward' : 'arrow-upward'}
           size={16}
           color={isReward ? Colors.gold : isDeposit ? Colors.info : Colors.danger}
@@ -183,7 +184,7 @@ export default function DashboardScreen() {
           style={[styles.vipBadge, lang === 'AR' && { flexDirection: 'row-reverse' }]}
           onPress={() => router.push('/vip-upgrade')}
         >
-          <MaterialIcons name="diamond" size={14} color={userVip > 0 ? tier.color : Colors.textMuted} />
+         <MaterialIcons name="diamond" size={14} color={userVip > 0 ? tier.color : Colors.textMuted} />
           <Text style={[styles.vipBadgeText, { color: userVip > 0 ? tier.color : Colors.textMuted }]}>
             {userVip > 0 ? tier.label : t.noVip}
           </Text>
