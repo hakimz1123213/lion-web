@@ -20,36 +20,7 @@ import { GlobalStyles } from '@/constants/styles';
 import { VIP_TIERS, TASK_TOTAL, getVIPTier } from '@/constants/config';
 import { Transaction } from '@/contexts/WalletContext';
 
-// 👑 دالة سحرية لحقن أيقونات ويب حقيقية لـ Vercel وتفادي المربعات الفارغة 🔲
-function WebSafeIcon({ name, size, color }: { name: string; size: number; color: string }) {
-  if (Platform.OS === 'web') {
-    // خريطة تحويل أيقونات الموبايل لأكواد ويب (FontAwesome) شغالة 100% في المتصفح
-    let iconUnicode = '&#xf063;'; // سهم لأسفل افتراضي
-    if (name === 'diamond') iconUnicode = '&#xf3a5;';       // جوهرة الـ VIP
-    if (name === 'arrow-downward') iconUnicode = '&#xf063;'; // سهم إيداع شحن
-    if (name === 'arrow-upward') iconUnicode = '&#xf062;';   // سهم سحب أرباح
-    if (name === 'star') iconUnicode = '&#xf005;';           // نجمة العائد
-    if (name === 'chevron-left') iconUnicode = '&#xf053;';   // سهم لليسار
-    if (name === 'chevron-right') iconUnicode = '&#xf054;';  // سهم لليمين
-
-    return (
-      <Text
-        // @ts-ignore
-        dangerouslySetInnerHTML={{ __html: iconUnicode }}
-        style={{
-          fontFamily: 'FontAwesome',
-          fontSize: size,
-          color: color,
-          textAlign: 'center',
-        }}
-      />
-    );
-  }
-
-  // في التطبيق (الأندرويد) يرجع المكون الأصلي شغال عادي
-  return <MaterialIcons name={name as any} size={size} color={color} />;
-}
-
+// 🌍 قاموس التعريب
 const dashboardTranslations: Record<string, Record<string, string>> = {
   EN: {
     goodDay: "Good day,",
@@ -141,7 +112,7 @@ function TxRow({ tx, lang }: { tx: Transaction; lang: string }) {
   return (
     <View style={[styles.txRow, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
       <View style={[styles.txIcon, { backgroundColor: isReward ? Colors.goldSurface : isDeposit ? Colors.infoSurface : Colors.dangerSurface }]}>
-        <WebSafeIcon
+        <MaterialIcons
           name={isReward ? 'star' : isDeposit ? 'arrow-downward' : 'arrow-upward'}
           size={16}
           color={isReward ? Colors.gold : isDeposit ? Colors.info : Colors.danger}
@@ -212,7 +183,7 @@ export default function DashboardScreen() {
           style={[styles.vipBadge, lang === 'AR' && { flexDirection: 'row-reverse' }]}
           onPress={() => router.push('/vip-upgrade')}
         >
-          <WebSafeIcon name="diamond" size={14} color={userVip > 0 ? tier.color : Colors.textMuted} />
+          <MaterialIcons name="diamond" size={14} color={userVip > 0 ? tier.color : Colors.textMuted} />
           <Text style={[styles.vipBadgeText, { color: userVip > 0 ? tier.color : Colors.textMuted }]}>
             {userVip > 0 ? tier.label : t.noVip}
           </Text>
@@ -229,14 +200,14 @@ export default function DashboardScreen() {
             style={({ pressed }) => [styles.balanceBtn, { opacity: pressed ? 0.8 : 1 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}
             onPress={() => router.push('/deposit')}
           >
-            <WebSafeIcon name="arrow-downward" size={16} color={Colors.textOnGold} />
+            <MaterialIcons name="arrow-downward" size={16} color={Colors.textOnGold} />
             <Text style={styles.balanceBtnText}>{t.deposit}</Text>
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.balanceBtnOutline, { opacity: pressed ? 0.8 : 1 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}
             onPress={() => router.push('/withdraw')}
           >
-            <WebSafeIcon name="arrow-upward" size={16} color={Colors.gold} />
+            <MaterialIcons name="arrow-upward" size={16} color={Colors.gold} />
             <Text style={styles.balanceBtnOutlineText}>{t.withdraw}</Text>
           </Pressable>
         </View>
@@ -275,7 +246,7 @@ export default function DashboardScreen() {
         <View style={[GlobalStyles.cardGold, styles.section]}>
           <View style={[GlobalStyles.spaceBetween, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
             <Text style={GlobalStyles.sectionTitle}>{t.potentialReward}</Text>
-            <WebSafeIcon name="star" size={16} color={Colors.gold} />
+            <MaterialIcons name="star" size={16} color={Colors.gold} />
           </View>
           <Text style={[styles.payoutRange, lang === 'AR' && { textAlign: 'right' }]}>
             ${tier.dailyPayoutMin.toFixed(2)} – ${tier.dailyPayoutMax.toFixed(2)}
@@ -290,12 +261,12 @@ export default function DashboardScreen() {
           style={({ pressed }) => [styles.upgradePrompt, { opacity: pressed ? 0.85 : 1 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}
           onPress={() => router.push('/vip-upgrade')}
         >
-          <WebSafeIcon name="diamond" size={20} color={Colors.gold} />
+          <MaterialIcons name="diamond" size={20} color={Colors.gold} />
           <View style={[{ flex: 1, marginLeft: Spacing.sm }, lang === 'AR' && { alignItems: 'flex-end', marginRight: Spacing.sm, marginLeft: 0 }]}>
             <Text style={styles.upgradeTitle}>{t.activateVip}</Text>
             <Text style={styles.upgradeSubtitle}>{t.earnDaily}</Text>
           </View>
-          <WebSafeIcon name={lang === 'AR' ? "chevron-left" : "chevron-right"} size={20} color={Colors.goldDim} />
+          <MaterialIcons name={lang === 'AR' ? "chevron-left" : "chevron-right"} size={20} color={Colors.goldDim} />
         </Pressable>
       )}
 
@@ -315,7 +286,6 @@ export default function DashboardScreen() {
           </Text>
         ) : (
           recentTxs.map((tx, i) => {
-            const lowerStatus = (tx.status as string).toLowerCase();
             return (
               <View key={tx.id}>
                 <TxRow tx={tx} lang={lang} />
