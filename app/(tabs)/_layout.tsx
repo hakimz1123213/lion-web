@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Platform, View, ActivityIndicator, StyleSheet } from 'react-native';
+import { Platform, View, ActivityIndicator, StyleSheet, Text } from 'react-native';
 import { Tabs, useRouter } from 'expo-router';
-import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/theme';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from '../../services/firebaseConfig'; // 🚨 المسار الصحيح بالرجوع خطوتين للوراء للوصول للخدمات
+import { auth } from '../../services/firebaseConfig'; 
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
@@ -60,8 +59,9 @@ export default function TabLayout() {
           name="index"
           options={{
             title: 'Dashboard',
-            tabBarIcon: ({ color, size }) => (
-              <MaterialIcons name="dashboard" size={size} color={color} />
+            // 🛠️ تعديل 1: حقن إيموجي العداد الفاخر بدقة ومقاومة كاملة لمشاكل الويب
+            tabBarIcon: ({ color }) => (
+              <Text style={{ fontSize: 18, color: color }}>📊</Text>
             ),
           }}
         />
@@ -69,8 +69,9 @@ export default function TabLayout() {
           name="tasks"
           options={{
             title: 'Tasks',
-            tabBarIcon: ({ color, size }) => (
-              <MaterialIcons name="play-circle-filled" size={size} color={color} />
+            // 🛠️ تعديل 2: حقن إيموجي شاشة الفيديو والتشغيل
+            tabBarIcon: ({ color }) => (
+              <Text style={{ fontSize: 18, color: color }}>▶️</Text>
             ),
           }}
         />
@@ -78,8 +79,9 @@ export default function TabLayout() {
           name="wallet"
           options={{
             title: 'Wallet',
-            tabBarIcon: ({ color, size }) => (
-              <MaterialIcons name="account-balance-wallet" size={size} color={color} />
+            // 🛠️ تعديل 3: حقن إيموجي كيس النقود الملوكي
+            tabBarIcon: ({ color }) => (
+              <Text style={{ fontSize: 18, color: color }}>💰</Text>
             ),
           }}
         />
@@ -87,8 +89,9 @@ export default function TabLayout() {
           name="profile"
           options={{
             title: 'Profile',
-            tabBarIcon: ({ color, size }) => (
-              <MaterialIcons name="person" size={size} color={color} />
+            // 🛠️ تعديل 4: حقن إيموجي الماسة الفخمة للبروفايل الشخصي
+            tabBarIcon: ({ color }) => (
+              <Text style={{ fontSize: 18, color: color }}>💎</Text>
             ),
           }}
         />
