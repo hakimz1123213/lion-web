@@ -1,0 +1,68 @@
+{
+  "expo": {
+    "name": "NoirWealth",
+    "slug": "noirwealth",
+    "version": "1.0.1",
+    "orientation": "portrait",
+    "icon": "./assets/images/logo.png",
+    "scheme": "noirwealth",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": false,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.noirwealth.app"
+    },
+    "android": {
+      "package": "com.noirwealth.app",
+      "usesCleartextTraffic": true,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/logo.png",
+        "backgroundColor": "#000000"
+      },
+      "edgeToEdgeEnabled": true,
+      "statusBar": {
+        "barStyle": "light-content",
+        "backgroundColor": "#000000"
+      },
+      "navigationBar": {
+        "barStyle": "light-content",
+        "backgroundColor": "#000000",
+        "buttonColor": "#D4AF37"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/logo.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/logo.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#000000"
+        }
+      ],
+      "expo-web-browser",
+      "expo-video"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d1000ee3-d028-477d-9441-6b11319e6a04"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/d1000ee3-d028-477d-9441-6b11319e6a04"
+    }
+  }
+}
