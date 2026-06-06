@@ -11,7 +11,10 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { MaterialIcons } from '@expo/vector-icons';
+
+// 🛠️ تم إضافة FontAwesome هنا للاستخدام مع الأسهم
+import { MaterialIcons, FontAwesome } from '@expo/vector-icons'; 
+
 import { useAuth } from '@/hooks/useAuth';
 import { useTask } from '@/hooks/useTask';
 import { useWallet } from '@/hooks/useWallet';
@@ -20,8 +23,7 @@ import { GlobalStyles } from '@/constants/styles';
 import { VIP_TIERS, TASK_TOTAL, getVIPTier } from '@/constants/config';
 import { Transaction } from '@/contexts/WalletContext';
 
-
-// 🌍 قاموس التعريب
+// 🌍 قاموس التعريب الفوري والمدمج محلياً لـ لوحة التحكم الرئيسية لمنع أخطاء الـ TypeScript والمسارات
 const dashboardTranslations: Record<string, Record<string, string>> = {
   EN: {
     goodDay: "Good day,",
@@ -79,6 +81,7 @@ const dashboardTranslations: Record<string, Record<string, string>> = {
   }
 };
 
+// ✅ تعديل دالة التاريخ لتتعامل مع النصوص القادمة من الفايربيز
 function formatDate(dateStr: string | number, lang: string): string {
   const d = new Date(dateStr);
   return d.toLocaleDateString(lang === 'AR' ? 'ar-DZ' : 'en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -98,12 +101,14 @@ function TxRow({ tx, lang }: { tx: Transaction; lang: string }) {
   const txTypeString = tx.type as string;
   const txStatusString = tx.status as string;
 
+  // تعريب نوع العملية لايف لداخل الكرت
   let displayType = txTypeString;
   if (txTypeString === 'Deposit') displayType = t.depositType;
   else if (txTypeString === 'Withdrawal') displayType = t.withdrawalType;
   else if (txTypeString === 'Reward') displayType = t.rewardType;
   else if (txTypeString === 'Referral Bonus') displayType = t.referralType;
 
+  // تعريب حالة العملية لايف لداخل الكرت من الفايربيز
   let displayStatus = txStatusString;
   const lowerStatus = txStatusString.toLowerCase();
   if (lowerStatus === 'pending' || lowerStatus === 'waiting') displayStatus = t.pendingStatus;
@@ -113,11 +118,14 @@ function TxRow({ tx, lang }: { tx: Transaction; lang: string }) {
   return (
     <View style={[styles.txRow, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
       <View style={[styles.txIcon, { backgroundColor: isReward ? Colors.goldSurface : isDeposit ? Colors.infoSurface : Colors.dangerSurface }]}>
-       <MaterialIcons
-          name={isReward ? 'star' : isDeposit ? 'arrow-downward' : 'arrow-upward'}
-          size={16}
-          color={isReward ? Colors.gold : isDeposit ? Colors.info : Colors.danger}
-        />
+        {/* 🛠️ استخدام FontAwesome للأسهم و MaterialIcons للنجوم */}
+        {isReward ? (
+          <MaterialIcons name="star" size={16} color={Colors.gold} />
+        ) : isDeposit ? (
+          <FontAwesome name="arrow-down" size={14} color={Colors.info} />
+        ) : (
+          <FontAwesome name="arrow-up" size={14} color={Colors.danger} />
+        )}
       </View>
       <View style={[{ flex: 1 }, lang === 'AR' && { alignItems: 'flex-end', marginRight: 12 }]}>
         <Text style={styles.txType}>{displayType}</Text>
@@ -142,6 +150,7 @@ export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
+  // 📡 التقاط رادار لغة العميل الحالية من مستند الـ user لايف سحابياً من الداتابيز
   // @ts-ignore
   const lang = user?.language || 'EN';
   const t = dashboardTranslations[lang] || dashboardTranslations['EN'];
@@ -184,7 +193,7 @@ export default function DashboardScreen() {
           style={[styles.vipBadge, lang === 'AR' && { flexDirection: 'row-reverse' }]}
           onPress={() => router.push('/vip-upgrade')}
         >
-         <MaterialIcons name="diamond" size={14} color={userVip > 0 ? tier.color : Colors.textMuted} />
+          <MaterialIcons name="diamond" size={14} color={userVip > 0 ? tier.color : Colors.textMuted} />
           <Text style={[styles.vipBadgeText, { color: userVip > 0 ? tier.color : Colors.textMuted }]}>
             {userVip > 0 ? tier.label : t.noVip}
           </Text>
@@ -201,18 +210,16 @@ export default function DashboardScreen() {
             style={({ pressed }) => [styles.balanceBtn, { opacity: pressed ? 0.8 : 1 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}
             onPress={() => router.push('/deposit')}
           >
-            {Platform.OS === 'web' ? (
-  <i className="fa-solid fa-arrow-down" style={{ fontSize: 16, color: Colors.textOnGold }} />
-) : (
-  <MaterialIcons name="arrow-downward" size={16} color={Colors.textOnGold} />
-)}
+            {/* 🛠️ تم وضع FontAwesome هنا لزر الإيداع */}
+            <FontAwesome name="arrow-down" size={14} color={Colors.textOnGold} />
             <Text style={styles.balanceBtnText}>{t.deposit}</Text>
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.balanceBtnOutline, { opacity: pressed ? 0.8 : 1 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}
             onPress={() => router.push('/withdraw')}
           >
-            <MaterialIcons name="arrow-upward" size={16} color={Colors.gold} />
+            {/* 🛠️ تم وضع FontAwesome هنا لزر السحب */}
+            <FontAwesome name="arrow-up" size={14} color={Colors.gold} />
             <Text style={styles.balanceBtnOutlineText}>{t.withdraw}</Text>
           </Pressable>
         </View>
@@ -291,6 +298,7 @@ export default function DashboardScreen() {
           </Text>
         ) : (
           recentTxs.map((tx, i) => {
+            const lowerStatus = (tx.status as string).toLowerCase();
             return (
               <View key={tx.id}>
                 <TxRow tx={tx} lang={lang} />

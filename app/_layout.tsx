@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Linking, Modal, ActivityIndicator, StatusBar } from 'react-native';
 import { Slot } from 'expo-router';
-import { useFonts } from 'expo-font';
-import { MaterialIcons, FontAwesome, FontAwesome5, Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
+
+// 🛠️ استيراد مكتبات الخطوط لحل مشكلة الأيقونات على الويب
+import { useFonts } from 'expo-font';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 // 🚨 المسارات الصحيحة والمضمونة 100% بالصعود خطوة واحدة لجذر المشروع
 // @ts-ignore
@@ -22,6 +25,17 @@ export default function RootLayout() {
   const [features, setFeatures] = useState<string[]>([]);
   const [checking, setChecking] = useState(true);
 
+  // 👑 1. تحميل خطوط الأيقونات برمجياً
+  const [fontsLoaded, fontError] = useFonts({
+    ...FontAwesome.font,
+    ...MaterialIcons.font,
+  });
+
+  // معالجة أخطاء تحميل الخطوط إن وجدت
+  useEffect(() => {
+    if (fontError) throw fontError;
+  }, [fontError]);
+
   // جلب رقم نسخة التطبيق الحالية أوتوماتيكياً (مثلاً 1.0.1)
   const currentVersion = Constants.expoConfig?.version || '1.0.1';
 
@@ -29,7 +43,7 @@ export default function RootLayout() {
     const checkUpdates = async () => {
       try {
         // 🔥 رادار الـ GitHub الخاص بك شغال هنا بنقاء
-       const response = await fetch(`https://raw.githubusercontent.com/hakimz1123213/noirwealth-update/refs/heads/main/update.json?t=${new Date().getTime()}`);
+        const response = await fetch(`https://raw.githubusercontent.com/hakimz1123213/noirwealth-update/refs/heads/main/update.json?t=${new Date().getTime()}`);
         const data = await response.json();
 
         if (data.latestVersion !== currentVersion) {
@@ -48,7 +62,8 @@ export default function RootLayout() {
     checkUpdates();
   }, []);
 
-  if (checking) {
+  // ⏳ 2. ننتظر حتى يكتمل فحص التحديثات وتحميل الأيقونات معاً
+  if (checking || !fontsLoaded) {
     return (
       <View style={styles.loaderContainer}>
         <StatusBar barStyle="light-content" backgroundColor="#000000" />
