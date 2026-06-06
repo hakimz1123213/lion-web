@@ -18,7 +18,9 @@ import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker'; 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { MaterialIcons, FontAwesome5, Ionicons } from '@expo/vector-icons'; 
+
+// 🚀 تم الاستغناء الكلي عن الاستيرادات المعطوبة لمنع ظهور المربعات البيضاء على المتصفح
+
 import { useAuth } from '@/hooks/useAuth'; 
 import { UserProfile } from '@/contexts/AuthContext'; 
 import { useWallet } from '@/hooks/useWallet';
@@ -107,19 +109,18 @@ export default function ProfileScreen() {
   const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null); 
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   
-  const lang = (user as any)?.language || 'EN';
+  // @ts-ignore
+  const lang = user?.language || 'EN';
   const t = translations[lang] || translations['EN'];
 
   const ADMIN_EMAIL = "hakimbmx06@gmail.com"; 
 
-  // 📡 [محرك استدعاء الرادار المحصن بنقاء 100%]
   useEffect(() => {
     if (!user?.uid) return;
 
     const fetchMyNetwork = async () => {
       try {
         setIsSyncing(true);
-        // حقن معرّف الحساب الحالي الشرعي لتشغيل الرادار
         const res = await getReferredUsers(user.uid);
         setReferredUsersList(res || []);
       } catch (err) {
@@ -131,7 +132,6 @@ export default function ProfileScreen() {
 
     fetchMyNetwork();
 
-    // 🔒 تأمين الفحص الحصين: التحقق الآمن لضمان عدم توقف المزامنة إذا كان حقل referredBy مفقوداً في الفايربيز
     if (user.referredBy && user.referredBy.trim() !== "" && !user.referredBy.startsWith("none")) {
       const referrerNameRef = ref(db, `users/${user.referredBy}/username`);
       get(referrerNameRef).then((snapshot) => {
@@ -140,9 +140,9 @@ export default function ProfileScreen() {
         }
       }).catch(err => console.error("Error getting referrer name:", err));
     } else {
-      setReferrerName(null); // الحقل مفقود أو لا يوجد داعٍ، يتم التصفير صامتاً بدون تعليق الواجهة
+      setReferrerName(null);
     }
-  }, [user?.uid, user?.referredBy]); // أضفنا الحقل هنا للمراقبة المتزامنة الحية
+  }, [user?.uid, user?.referredBy]);
 
   if (!user) return null;
 
@@ -238,7 +238,8 @@ export default function ProfileScreen() {
         <View style={[styles.header, { paddingTop: insets.top + Spacing.md }, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
           <Text style={styles.title}>{t.account}</Text>
           <Pressable onPress={handleLogout} style={styles.logoutBtn}>
-            <MaterialIcons name="power-settings-new" size={22} color={Colors.danger} />
+            {/* 🛠️ استبدال المربع الأبيض الأول بإيموجي زر الطاقة الأحمر */}
+            <Text style={{ fontSize: 16 }}>🛑</Text>
           </Pressable>
         </View>
 
@@ -263,7 +264,8 @@ export default function ProfileScreen() {
                 setSelectedImageUri((user as any).profileImage || null); 
                 setIsEditModalVisible(true); 
               }}>
-                <MaterialIcons name="edit" size={18} color={Colors.gold} />
+                {/* 🛠️ استبدال المربع الأبيض الثاني بإيموجي قلم التعديل */}
+                <Text style={{ fontSize: 14 }}>✏️</Text>
               </Pressable>
             </View>
             <Text style={styles.emailText}>{user.email}</Text>
@@ -302,10 +304,10 @@ export default function ProfileScreen() {
 
           <Pressable style={styles.codeContainer} onPress={copyReferralCode}>
             <Text style={styles.codeDisplay}>{user.referralCode || 'GENERATING...'}</Text>
-            <MaterialIcons name="content-copy" size={18} color={Colors.gold} />
+            {/* 🛠️ استبدال مربع أيقونة النسخ بإيموجي ورقتي النسخ */}
+            <Text style={{ fontSize: 14 }}>📋</Text>
           </Pressable>
 
-          {/* 🎯 اللمسة الأسطورية: إظهار اسم الداعي في مربع ذهبي، أو النص الترويجي */}
           {referrerName ? (
             <View style={[{ backgroundColor: 'rgba(212, 175, 55, 0.1)', padding: 12, borderRadius: Radius.md, marginBottom: 15, borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.3)', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
               <Text style={{ color: Colors.gold, fontSize: 13, fontWeight: 'bold' }}>
@@ -316,14 +318,13 @@ export default function ProfileScreen() {
             <Text style={[styles.promoText, lang === 'AR' && { textAlign: 'right' }]}>{t.promoText}</Text>
           )}
 
-          {totalReferralRewards > 0 && (
-            <View style={[styles.earningsBanner, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-              <MaterialIcons name="stars" size={18} color={Colors.gold} />
-              <Text style={styles.earningsInfo}>
-                {lang === 'AR' ? 'إجمالي أرباح الإحالة:' : 'Total Referral Profits:'} <Text style={{ color: Colors.gold, fontWeight: 'bold' }}>${totalReferralRewards.toFixed(2)}</Text>
-              </Text>
-            </View>
-          )}
+          <View style={[styles.earningsBanner, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
+            {/* 🛠️ استبدال مربع بونص الإحالة بإيموجي نجمة ملوكية ذهبية نصية صلبة */}
+            <Text style={{ fontSize: 14 }}>⭐</Text>
+            <Text style={styles.earningsInfo}>
+              {lang === 'AR' ? 'إجمالي أرباح الإحالة:' : 'Total Referral Profits:'} <Text style={{ color: Colors.gold, fontWeight: 'bold' }}>${totalReferralRewards.toFixed(2)}</Text>
+            </Text>
+          </View>
 
           <View style={styles.membersBox}>
             <Text style={[styles.membersHeader, lang === 'AR' && { textAlign: 'right' }]}>{t.referredMembers}</Text>
@@ -348,7 +349,7 @@ export default function ProfileScreen() {
                         </View>
                       )}
                     </View>
-                    {idx < referredUsersList.length - 1 && <View style={styles.listDivider} />}
+                    {idx < referredUsersList.length - 1 && <View style={ViewStyles.listDivider} />}
                   </View>
                 );
               })
@@ -368,10 +369,11 @@ export default function ProfileScreen() {
               onPress={() => router.push('/admin')}
             >
               <View style={[styles.actionLeft, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-                <MaterialIcons name="admin-panel-settings" size={20} color={Colors.gold} />
+                {/* 🛠️ استبدال مربع لوحة الإدارة */}
+                <Text style={{ fontSize: 14 }}>🔑</Text>
                 <Text style={[styles.actionLabel, { color: Colors.gold, fontWeight: 'bold' }]}>{t.adminPanel}</Text>
               </View>
-              <MaterialIcons name={lang === 'AR' ? "chevron-left" : "chevron-right"} size={20} color={Colors.gold} />
+              <Text style={{ color: '#333', fontSize: 14 }}>{lang === 'AR' ? '◀' : '▶'}</Text>
             </Pressable>
           )}
 
@@ -380,22 +382,23 @@ export default function ProfileScreen() {
             onPress={() => setIsLangModalVisible(true)}
           >
             <View style={[styles.actionLeft, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-              <Ionicons name="language-sharp" size={20} color={Colors.gold} />
+              {/* 🛠️ استبدال مربع أيقونة تغيير اللغة */}
+              <Text style={{ fontSize: 14 }}>🌐</Text>
               <Text style={[styles.actionLabel, { color: Colors.gold, fontWeight: 'bold' }]}>{t.languageBtn}</Text>
             </View>
             <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 4 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
               <Text style={{ color: '#444', fontSize: 12, fontWeight: 'bold' }}>{lang === 'AR' ? 'العربية 🇩🇿' : 'English 🇬🇧'}</Text>
-              <MaterialIcons name={lang === 'AR' ? "chevron-left" : "chevron-right"} size={20} color="#151515" />
+              <Text style={{ color: '#151515', fontSize: 14 }}>{lang === 'AR' ? '◀' : '▶'}</Text>
             </View>
           </Pressable>
 
           {[
-            { icon: 'stars', label: t.vipUpgrade, route: '/vip-upgrade', color: Colors.gold },
-            { icon: 'history', label: t.txHistory, route: '/(tabs)/wallet' },
-            { icon: 'verified-user', label: t.securityPass, route: '/security' },
-            { icon: 'help-outline', label: t.supportCenter, onPressCustom: () => setIsSupportModalVisible(true) },
-            { icon: 'info-outline', label: t.aboutUs, url: 'https://noir-879ad.web.app/' },
-          ].map((item, i) => (
+            { icon: '💎', label: t.vipUpgrade, route: '/vip-upgrade' },
+            { icon: '📊', label: t.txHistory, route: '/(tabs)/wallet' },
+            { icon: '🛡️', label: t.securityPass, route: '/security' },
+            { icon: '💬', label: t.supportCenter, onPressCustom: () => setIsSupportModalVisible(true) },
+            { icon: 'ℹ️', label: t.aboutUs, url: 'https://noir-879ad.web.app/' },
+          ].map((item) => (
             <Pressable 
               key={item.label} 
               style={[styles.actionRow, lang === 'AR' && { flexDirection: 'row-reverse' }]} 
@@ -406,18 +409,17 @@ export default function ProfileScreen() {
                   router.push(item.route as any);
                 } else if (item.url) {
                   Linking.openURL(item.url).catch(err => console.error("Error opening link:", err));
-                } else {
-                  showAlert('Notice', 'Coming soon.');
                 }
               }}
             >
               <View style={[styles.actionLeft, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-                <MaterialIcons name={item.icon as any} size={20} color={item.color || Colors.textSecondary} />
+                {/* 🛠️ تفجير كرت الموارد: إظهار الإيموجيات الملوكية النصية البديلة الثابتة على الويب */}
+                <Text style={{ fontSize: 14 }}>{item.icon}</Text>
                 <Text style={[styles.actionLabel, item.label === t.vipUpgrade && { color: Colors.gold, fontWeight: 'bold' }]}>
                   {item.label}
                 </Text>
               </View>
-              <MaterialIcons name={lang === 'AR' ? "chevron-left" : "chevron-right"} size={20} color="#151515" />
+              <Text style={{ color: '#151515', fontSize: 14 }}>{lang === 'AR' ? '◀' : '▶'}</Text>
             </Pressable>
           ))}
         </View>
@@ -437,11 +439,11 @@ export default function ProfileScreen() {
                   <Image source={{ uri: selectedImageUri }} style={styles.interactiveAvatarImg} />
                 ) : (
                   <View style={styles.interactiveAvatarPlaceholder}>
-                    <Ionicons name="camera-outline" size={28} color={Colors.gold} />
+                    <Text style={{ fontSize: 24 }}>📷</Text>
                   </View>
                 )}
                 <View style={styles.cameraPillBadge}>
-                  <Ionicons name="cloud-upload" size={12} color="#000" />
+                  <Text style={{ fontSize: 10, color: '#000' }}>🔼</Text>
                 </View>
               </Pressable>
               <Text style={{ color: '#555', fontSize: 10, fontWeight: 'bold', marginTop: 8 }}>CLICK CIRCLE TO UPLOAD IMAGE</Text>
@@ -472,7 +474,7 @@ export default function ProfileScreen() {
         </View>
       </Modal>
 
-      {/* ─── 🌍 مودال غُرفة اختيار اللغة المحدثة ──────────────── */}
+      {/* ─── 🌍 مودال اختيار اللغة ──────────────── */}
       <Modal visible={isLangModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { paddingBottom: 40 }]}>
@@ -485,7 +487,7 @@ export default function ProfileScreen() {
               onPress={() => changeLanguageSelection('EN')}
             >
               <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>English 🇬🇧</Text>
-              {lang === 'EN' && <MaterialIcons name="check-circle" size={20} color={Colors.gold} />}
+              {lang === 'EN' && <Text style={{ fontSize: 14 }}>✅</Text>}
             </Pressable>
 
             <Pressable 
@@ -493,7 +495,7 @@ export default function ProfileScreen() {
               onPress={() => changeLanguageSelection('AR')}
             >
               <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>العربية 🇩🇿</Text>
-              {lang === 'AR' && <MaterialIcons name="check-circle" size={20} color={Colors.gold} />}
+              {lang === 'AR' && <Text style={{ fontSize: 14 }}>✅</Text>}
             </Pressable>
 
             <Pressable style={[styles.cancelBtn, { marginTop: 15, width: '100%' }]} onPress={() => setIsLangModalVisible(false)}>
@@ -513,7 +515,7 @@ export default function ProfileScreen() {
         <View style={[styles.supportModalContainer, { paddingTop: insets.top }]}>
           <View style={[styles.supportHeader, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
             <Pressable onPress={() => setIsSupportModalVisible(false)} style={styles.supportBackBtn}>
-              <MaterialIcons name={lang === 'AR' ? "arrow-forward-ios" : "arrow-back-ios"} size={20} color={Colors.gold} />
+              <Text style={{ color: Colors.gold, fontSize: 16 }}>{lang === 'AR' ? '▶' : '◀'}</Text>
             </Pressable>
             <Text style={styles.supportHeaderTitle}>{t.supportCenter}</Text>
             <View style={{ width: 44 }} /> 
@@ -530,13 +532,13 @@ export default function ProfileScreen() {
               onPress={() => handleOpenSupportURL(SUPPORT_LINKS.liveChat)}
             >
               <View style={styles.heroIconCircle}>
-                <MaterialIcons name="forum" size={26} color={Colors.gold} />
+                <Text style={{ fontSize: 18 }}>💬</Text>
               </View>
               <View style={[{ flex: 1, gap: 4 }, lang === 'AR' && { alignItems: 'flex-end', marginRight: 16 }]}>
                 <Text style={styles.heroCardTitle}>Live Chat Support</Text>
                 <Text style={styles.heroCardDesc}>Instant response with our support agents right now</Text>
               </View>
-              <MaterialIcons name={lang === 'AR' ? "chevron-left" : "chevron-right"} size={24} color="#333" />
+              <Text style={{ color: '#333', fontSize: 16 }}>{lang === 'AR' ? '◀' : '▶'}</Text>
             </Pressable>
 
             <View style={[styles.supportGridRow, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
@@ -545,7 +547,7 @@ export default function ProfileScreen() {
                 onPress={() => handleOpenSupportURL(SUPPORT_LINKS.telegram)}
               >
                 <View style={[styles.gridIconCircle, { backgroundColor: 'rgba(0, 136, 204, 0.05)', borderColor: '#0088cc44' }]}>
-                  <FontAwesome5 name="telegram-plane" size={26} color="#0088cc" />
+                  <Text style={{ fontSize: 20 }}>✈️</Text>
                 </View>
                 <Text style={styles.supportGridCardTitle}>Telegram</Text>
                 <Text style={styles.gridCardDesc}>Join our official secure community</Text>
@@ -556,7 +558,7 @@ export default function ProfileScreen() {
                 onPress={() => handleOpenSupportURL(SUPPORT_LINKS.email)}
               >
                 <View style={[styles.gridIconCircle, { backgroundColor: 'rgba(212, 175, 55, 0.05)', borderColor: 'rgba(212, 175, 55, 0.2)' }]}>
-                  <MaterialIcons name="alternate-email" size={26} color={Colors.gold} />
+                  <Text style={{ fontSize: 20 }}>✉️</Text>
                 </View>
                 <Text style={styles.supportGridCardTitle}>Email Ticket</Text>
                 <Text style={styles.gridCardDesc}>Send an official financial claim</Text>
@@ -568,6 +570,11 @@ export default function ProfileScreen() {
     </View>
   );
 }
+
+// ─── الستايلات الـ فخمة الملوكية المقاومة للتمدد ─────────────────────────────────
+const ViewStyles = StyleSheet.create({
+  listDivider: { height: 1, backgroundColor: '#0a0a0a' }
+});
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
@@ -609,7 +616,6 @@ const styles = StyleSheet.create({
   memberName: { color: '#fff', fontSize: 14, fontWeight: 'bold' },
   memberMeta: { color: '#444', fontSize: 11, marginTop: 2 },
   mBadge: { borderWidth: 1, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  listDivider: { height: 1, backgroundColor: '#0a0a0a' },
   emptyText: { color: '#222', fontSize: 11, textAlign: 'center', padding: 20 },
 
   actionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 15 },
@@ -618,6 +624,7 @@ const styles = StyleSheet.create({
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'flex-end' },
   modalContent: { backgroundColor: '#080808', padding: 30, borderTopLeftRadius: 30, borderTopRightRadius: 30, borderWidth: 1, borderColor: '#151515' },
+  modalOverlayData: { backgroundColor: '#080808', padding: 30, borderTopLeftRadius: 30, borderTopRightRadius: 30, borderWidth: 1, borderColor: '#151515' },
   modalHandle: { width: 40, height: 4, backgroundColor: '#222', borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
   modalTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold', textAlign: 'center' },
   modalSubtitle: { color: '#555', fontSize: 12, textAlign: 'center', marginBottom: 25, lineHeight: 18 },
