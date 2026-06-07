@@ -168,9 +168,26 @@ export default function VideoAdModal({ visible, videoUrl, onComplete, onClose }:
 }
 
 const styles = StyleSheet.create({
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.97)', justifyContent: 'center', alignItems: 'center' },
-  cardContainer: { width: '90%', alignItems: 'center' },
-  timerContainer: { marginBottom: 25, paddingVertical: 8, paddingHorizontal: 20, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.02)' },
+  modalOverlay: { 
+    flex: 1, 
+    backgroundColor: 'rgba(0, 0, 0, 0.97)', 
+    justifyContent: 'center', 
+    alignItems: 'center',
+    padding: 20 // إضافة حشو أمان لضمان عدم خروج العناصر على الويب
+  },
+  cardContainer: { 
+    width: '100%', 
+    maxWidth: 600, // 👑 السر هنا: نمنع الكرت من التمدد بشكل بشع على شاشات الكمبيوتر العريضة
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  timerContainer: { 
+    marginBottom: 20, 
+    paddingVertical: 8, 
+    paddingHorizontal: 20, 
+    borderRadius: 20, 
+    backgroundColor: 'rgba(255,255,255,0.02)' 
+  },
   timerText: { color: '#D4AF37', fontWeight: 'bold', fontSize: 16, letterSpacing: 0.5 },
   loadingText: { color: '#666', fontWeight: 'bold', fontSize: 14, letterSpacing: 0.5 },
   successText: { color: '#4CAF50', fontWeight: 'bold', fontSize: 16 },
@@ -187,7 +204,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.12,
     shadowRadius: 12,
-    elevation: 6
+    elevation: 6,
+    marginBottom: 20 // إضافة مسافة من الأسفل لحماية الأزرار
   },
   videoStyle: { width: '100%', height: '100%' },
   startAdOverlay: {
@@ -226,13 +244,39 @@ const styles = StyleSheet.create({
     shadowColor: '#D4AF37',
     shadowOpacity: 0.25,
     shadowRadius: 20,
-    elevation: 8
+    elevation: 8,
+    marginBottom: 20
   },
   successTitle: { color: '#D4AF37', fontSize: 22, fontWeight: 'bold', marginTop: 10, letterSpacing: 1 },
   successSub: { color: '#666', fontSize: 13, marginTop: 5, textAlign: 'center' },
-  footer: { marginTop: 35, width: '100%', alignItems: 'center' },
-  claimButton: { backgroundColor: '#D4AF37', paddingVertical: 14, paddingHorizontal: 40, borderRadius: 12 },
+  
+  // 🔘 تنسيق منطقة الأزرار السفلية لمنع اختفائها وعمل محاذاة نظيفة
+  footer: { 
+    marginTop: 15, 
+    width: '100%', 
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  claimButton: { 
+    backgroundColor: '#D4AF37', 
+    paddingVertical: 14, 
+    paddingHorizontal: 40, 
+    borderRadius: 12,
+    width: '100%', // جعل الزر متناسقاً بكامل العرض الأقصى
+    alignItems: 'center'
+  },
   claimButtonText: { color: '#000', fontWeight: '900', fontSize: 15 },
-  closeButton: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 20, backgroundColor: 'rgba(229, 62, 62, 0.04)', borderRadius: 10, borderWidth: 1, borderColor: 'rgba(229, 62, 62, 0.15)' },
+  closeButton: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center',
+    paddingVertical: 12, 
+    paddingHorizontal: 24, 
+    backgroundColor: 'rgba(229, 62, 62, 0.04)', 
+    borderRadius: 10, 
+    borderWidth: 1, 
+    borderColor: 'rgba(229, 62, 62, 0.15)',
+    width: '100%', // يتمدد بكامل عرض الحاوية المحمية 600px لسهولة النقر
+  },
   closeText: { color: '#E53E3E', marginLeft: 6, fontWeight: 'bold', fontSize: 13 }
 });
