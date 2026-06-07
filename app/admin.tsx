@@ -5,11 +5,10 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons, FontAwesome5, MaterialIcons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { ref, get, update, onValue } from 'firebase/database'; 
 import * as Clipboard from 'expo-clipboard'; 
 
-// المسارات المعتمدة والمحصنة في مشروعك
 import { useAuth } from '../hooks/useAuth';
 import { useWallet } from '../hooks/useWallet';
 import { useAlert } from '../template';
@@ -55,7 +54,6 @@ export default function AdminScreen() {
 
   const [fadeAnim] = useState(new Animated.Value(0));
 
-  // 1️⃣ ⚡ [خط البث الحي والمباشر للـ Requests والسجل التاريخي معاً]
   useEffect(() => {
     if (!user?.uid || !isSuperAdmin(user.email)) return;
 
@@ -91,8 +89,6 @@ export default function AdminScreen() {
     return () => unsubscribeTxs();
   }, [user?.uid, user?.email]);
 
-
-  // 2️⃣ 📊 [دالة الحسابات والإحصائيات المفرزة والمطهرة 100% من نود platform_finances]
   const loadData = useCallback(async () => {
     if (!user?.uid) return;
 
@@ -113,7 +109,6 @@ export default function AdminScreen() {
       }
       setAllUsers(usersArray);
 
-      // 📡 القراءة المباشرة من نود الأرباح الصافي platform_finances/totals لعدم لقط الـ Transactions العشوائية
       const financeSnap = await get(ref(db, 'platform_finances/totals'));
       
       let pureDepositsVolume = 0;
@@ -299,320 +294,319 @@ export default function AdminScreen() {
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.hSub}>MASTER COMMAND</Text>
-          <Text style={styles.hTitle}>NoirWealth <Text style={{color: Colors.gold}}>Master</Text></Text>
+      <View style={styles.headerContainer}>
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.hSub}>MASTER COMMAND</Text>
+            <Text style={styles.hTitle}>NoirWealth <Text style={{color: Colors.gold}}>Master</Text></Text>
+          </View>
+          <Pressable onPress={loadData} style={styles.refreshBtn} disabled={processingId !== null}>
+            <Text style={{ fontSize: 24 }}>🔄</Text>
+          </Pressable>
         </View>
-        <Pressable onPress={loadData} style={styles.refreshBtn} disabled={processingId !== null}>
-          <Ionicons name="reload-circle" size={32} color={Colors.gold} />
-        </Pressable>
       </View>
 
-      {/* Tabs Bar */}
-      <View style={styles.tabBar}>
-        {['overview', 'requests', 'users', 'historique'].map((t) => (
-          <Pressable 
-            key={t} 
-            disabled={processingId !== null}
-            onPress={() => { 
-              setActiveTab(t as any); 
-              if (t !== 'users') setShowVipOnly(false);
-            }} 
-            style={[styles.tab, activeTab === t && styles.tabActive]}
-          >
-            <Text style={[styles.tabLabel, activeTab === t && { color: '#000' }]}>{t.toUpperCase()}</Text>
-          </Pressable>
-        ))}
+      <View style={styles.tabBarContainer}>
+        <View style={styles.tabBar}>
+          {['overview', 'requests', 'users', 'historique'].map((t) => (
+            <Pressable 
+              key={t} 
+              disabled={processingId !== null}
+              onPress={() => { 
+                setActiveTab(t as any); 
+                if (t !== 'users') setShowVipOnly(false);
+              }} 
+              style={[styles.tab, activeTab === t && styles.tabActive]}
+            >
+              <Text style={[styles.tabLabel, activeTab === t && { color: '#000' }]}>{t.toUpperCase()}</Text>
+            </Pressable>
+          ))}
+        </View>
       </View>
 
       <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
         {isLoading && !isRefreshing ? (
           <View style={styles.center}><ActivityIndicator size="large" color={Colors.gold} /></View>
         ) : (
-          <View style={{ flex: 1 }}>
-            
-            {/* ─── 1. OVERVIEW ─── */}
-            {activeTab === 'overview' && (
-              <ScrollView 
-                showsVerticalScrollIndicator={false} 
-                contentContainerStyle={styles.scrollContent}
-                refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={loadData} tintColor={Colors.gold} />}
-              >
-                <View style={styles.mainProfitCard}>
-                  <View style={styles.glassEffect} />
-                  <View style={styles.cardContent}>
-                    <Text style={styles.cardLabel}>TOTAL PLATFORM PROFIT (PURE DEPOSITS VOLUME)</Text>
-                    <Text style={styles.cardValue}>${stats.platformProfit.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</Text>
-                    <View style={styles.splitGrid}>
-                      <View style={styles.splitBox}>
-                        <Text style={styles.splitTitle}>LATCHA SHARE (80%)</Text>
-                        <Text style={[styles.splitValue, {color: Colors.gold}]}>${stats.latchaShare.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</Text>
-                      </View>
-                      <View style={styles.splitDivider} />
-                      <View style={styles.splitBox}>
-                        <Text style={styles.splitTitle}>HAKIM SHARE (20%)</Text>
-                        <Text style={styles.splitValue}>${stats.hakimShare.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</Text>
+          <View style={{ flex: 1, alignItems: 'center', width: '100%' }}>
+            <View style={{ flex: 1, width: '100%', maxWidth: 850 }}>
+              
+              {activeTab === 'overview' && (
+                <ScrollView 
+                  showsVerticalScrollIndicator={false} 
+                  contentContainerStyle={styles.scrollContent}
+                  refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={loadData} tintColor={Colors.gold} />}
+                >
+                  <View style={styles.mainProfitCard}>
+                    <View style={styles.glassEffect} />
+                    <View style={styles.cardContent}>
+                      <Text style={styles.cardLabel}>TOTAL PLATFORM PROFIT (PURE DEPOSITS VOLUME)</Text>
+                      <Text style={styles.cardValue}>${stats.platformProfit.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</Text>
+                      <View style={styles.splitGrid}>
+                        <View style={styles.splitBox}>
+                          <Text style={styles.splitTitle}>LATCHA SHARE (80%)</Text>
+                          <Text style={[styles.splitValue, {color: Colors.gold}]}>${stats.latchaShare.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</Text>
+                        </View>
+                        <View style={styles.splitDivider} />
+                        <View style={styles.splitBox}>
+                          <Text style={styles.splitTitle}>HAKIM SHARE (20%)</Text>
+                          <Text style={styles.splitValue}>${stats.hakimShare.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</Text>
+                        </View>
                       </View>
                     </View>
                   </View>
-                </View>
 
-                <Text style={styles.sectionTitle}>COMMAND TILES</Text>
-                <View style={styles.commandGrid}>
-                   {[
-                     { label: 'Pending Txs', val: pendingTxs.length, icon: 'time-outline', color: '#FFD700', action: () => { setActiveTab('requests'); setShowVipOnly(false); } },
-                     { label: 'Active Users', val: stats.activeUsers, icon: 'people-outline', color: '#fff', action: () => { setActiveTab('users'); setShowVipOnly(false); } },
-                     { label: 'VIP Holders', val: stats.vipHolders, icon: 'diamond-outline', color: '#00EAFF', action: () => { setActiveTab('users'); setShowVipOnly(true); } },
-                     { label: 'Total Logs', val: historyTxs.length, icon: 'folder-open-outline', color: Colors.gold, action: () => { setActiveTab('historique'); setShowVipOnly(false); } }
-                   ].map((item, i) => (
-                     <Pressable key={i} style={styles.commandTile} onPress={item.action} disabled={processingId !== null}>
-                       <Ionicons name={item.icon as any} size={22} color={item.color} />
-                       <Text style={styles.tileVal}>{item.val}</Text>
-                       <Text style={styles.tileLabel}>{item.label}</Text>
-                     </Pressable>
-                   ))}
-                </View>
-
-                <Text style={styles.sectionTitle}>FINANCIAL INTELLIGENCE</Text>
-                <View style={styles.financeBox}>
-                  {[
-                    { label: 'Total Volume (Pure Deposits)', val: stats.totalDeposits, color: Colors.success, icon: 'trending-up' },
-                    { label: 'Total Withdrawals', val: stats.totalWithdrawals, color: Colors.danger, icon: 'trending-down' },
-                    { label: 'System Capital', val: allUsers.reduce((sum, u) => sum + (parseFloat(u.balance?.toString()) || 0), 0), color: Colors.gold, icon: 'account-balance' }
-                  ].map((item, i) => (
-                    <View key={i} style={[styles.fRow, i === 2 && { borderBottomWidth: 0 }]}>
-                      <MaterialIcons name={item.icon as any} size={18} color={item.color} />
-                      <Text style={styles.fLabel}>{item.label}</Text>
-                      <Text style={[styles.fVal, { color: item.color }]}>${item.val.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</Text>
-                    </View>
-                  ))}
-                </View>
-              </ScrollView>
-            )}
-
-            {/* ─── 2. REQUESTS ─── */}
-            {activeTab === 'requests' && (
-              <FlatList
-                data={pendingTxs}
-                keyExtractor={(item) => item.id}
-                contentContainerStyle={styles.listPadding}
-                renderItem={({ item }) => {
-                  const isCurrentProcessing = processingId === item.id;
-                  return (
-                    <View style={styles.luxuryReqCard}>
-                      <View style={styles.reqTop}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.reqName}>{item.username || 'Unknown User'}</Text>
-                          <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center', marginTop: 4 }}>
-                            <View style={[styles.reqBadge, { marginTop: 0, backgroundColor: (item.type || 'Deposit') === 'Deposit' ? '#00FF0015' : '#FF000015' }]}>
-                              <Text style={{ color: (item.type || 'Deposit') === 'Deposit' ? '#00FF00' : '#FF0000', fontSize: 10, fontWeight: 'bold' }}>{(item.type || 'Deposit').toUpperCase()}</Text>
-                            </View>
-                            <Text style={{ color: '#444', fontSize: 11 }}>ID: {item.userId ? item.userId.substring(0,6) : 'N/A'}</Text>
-                          </View>
-                        </View>
-                        <Text style={styles.reqAmount}>${(item.amount || item.value || 0).toLocaleString()}</Text>
-                      </View>
-
-                      {item.type === 'Deposit' && (
-                        <View style={styles.txidIntelBlock}>
-                          <Text style={styles.txidBlockLabel}>TRANSACTION HASH :</Text>
-                          <View style={styles.txidRow}>
-                            <Text style={styles.txidTextString} numberOfLines={1} selectable>
-                              {item.txid || '⚠️ Missing Hash Code'}
-                            </Text>
-                            {item.txid && (
-                              <Pressable 
-                                style={styles.txidMiniCopyBtn}
-                                onPress={async () => {
-                                  await Clipboard.setStringAsync(item.txid);
-                                  showAlert('Copied!', 'TXID Hash copied to admin clipboard.');
-                                }}
-                              >
-                                <MaterialIcons name="content-copy" size={14} color={Colors.gold} />
-                                <Text style={{ color: Colors.gold, fontSize: 10, fontWeight: 'bold' }}>Copy</Text>
-                              </Pressable>
-                            )}
-                          </View>
-                        </View>
-                      )}
-                      
-                      {item.proofImageUri && item.proofImageUri !== 'No image/TXID Mode' && (
-                        <Pressable style={styles.proofFrame} onPress={() => setPreviewImage(item.proofImageUri || null)} disabled={processingId !== null}>
-                          <Image source={{ uri: item.proofImageUri }} style={styles.proofImg} contentFit="cover" />
-                          <View style={styles.zoomIndicator}>
-                            <Ionicons name="scan-outline" size={18} color="#fff" />
-                            <Text style={styles.zoomText}>Click to Zoom</Text>
-                          </View>
-                        </Pressable>
-                      )}
-
-                      <View style={styles.reqActions}>
-                        <Pressable 
-                          style={[styles.miniBtnRej, processingId !== null && { opacity: 0.4 }]} 
-                          onPress={() => handleReject(item.id)}
-                          disabled={processingId !== null}
-                        >
-                          <MaterialIcons name="close" size={18} color="#fff" />
-                          <Text style={styles.miniBtnText}>REJECT</Text>
-                        </Pressable>
-                        
-                        <Pressable 
-                          style={[styles.miniBtnApp, processingId !== null && { opacity: 0.6 }]} 
-                          onPress={() => handleApprove(item)}
-                          disabled={processingId !== null}
-                        >
-                          {isCurrentProcessing ? (
-                            <ActivityIndicator size="small" color="#000" />
-                          ) : (
-                            <>
-                              <Ionicons name="checkmark" size={18} color="#000" />
-                              <Text style={[styles.miniBtnText, { color: '#000' }]}>APPROVE</Text>
-                            </>
-                          )}
-                        </Pressable>
-                      </View>
-                    </View>
-                  );
-                }}
-                ListEmptyComponent={<Text style={styles.emptyText}>No pending operations.</Text>}
-              />
-            )}
-
-            {/* ─── 3. USERS ─── */}
-            {activeTab === 'users' && (
-              <View style={{ flex: 1 }}>
-                <View style={styles.searchContainer}>
-                  <Ionicons name="search" size={18} color={Colors.gold} />
-                  <TextInput 
-                    style={styles.searchInput} 
-                    placeholder="Search user identity..." 
-                    placeholderTextColor="#444" 
-                    value={searchQuery} 
-                    onChangeText={setSearchQuery} 
-                    editable={processingId === null} 
-                  />
-                </View>
-
-                {showVipOnly && (
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 25, marginBottom: 15, alignItems: 'center' }}>
-                    <Text style={{ color: '#00EAFF', fontSize: 12, fontWeight: 'bold' }}>💎 Showing VIP Holders Only ({filteredUsers.length})</Text>
-                    <Pressable onPress={() => setShowVipOnly(false)} disabled={processingId !== null}>
-                      <Text style={{ color: Colors.gold, fontSize: 12, fontWeight: 'bold', textDecorationLine: 'underline' }}>Clear Filter</Text>
-                    </Pressable>
+                  <Text style={styles.sectionTitle}>COMMAND TILES</Text>
+                  <View style={styles.commandGrid}>
+                     {[
+                       { label: 'Pending Txs', val: pendingTxs.length, icon: '⏳', action: () => { setActiveTab('requests'); setShowVipOnly(false); } },
+                       { label: 'Active Users', val: stats.activeUsers, icon: '👥', action: () => { setActiveTab('users'); setShowVipOnly(false); } },
+                       { label: 'VIP Holders', val: stats.vipHolders, icon: '💎', action: () => { setActiveTab('users'); setShowVipOnly(true); } },
+                       { label: 'Total Logs', val: historyTxs.length, icon: '📂', action: () => { setActiveTab('historique'); setShowVipOnly(false); } }
+                     ].map((item, i) => (
+                       <Pressable key={i} style={styles.commandTile} onPress={item.action} disabled={processingId !== null}>
+                         <Text style={{ fontSize: 18 }}>{item.icon}</Text>
+                         <Text style={styles.tileVal}>{item.val}</Text>
+                         <Text style={styles.stylesTileLabel}>{item.label}</Text>
+                       </Pressable>
+                     ))}
                   </View>
-                )}
 
+                  <Text style={styles.sectionTitle}>FINANCIAL INTELLIGENCE</Text>
+                  <View style={styles.financeBox}>
+                    {[
+                      { label: 'Total Volume (Pure Deposits)', val: stats.totalDeposits, color: Colors.success, icon: '📈' },
+                      { label: 'Total Withdrawals', val: stats.totalWithdrawals, color: Colors.danger, icon: '📉' },
+                      { label: 'System Capital', val: allUsers.reduce((sum, u) => sum + (parseFloat(u.balance?.toString()) || 0), 0), color: Colors.gold, icon: '🏦' }
+                    ].map((item, i) => (
+                      <View key={i} style={[styles.fRow, i === 2 && { borderBottomWidth: 0 }]}>
+                        <Text style={{ fontSize: 14, marginRight: 4 }}>{item.icon}</Text>
+                        <Text style={styles.fLabel}>{item.label}</Text>
+                        <Text style={[styles.fVal, { color: item.color }]}>${item.val.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </ScrollView>
+              )}
+
+              {activeTab === 'requests' && (
                 <FlatList
-                  data={filteredUsers}
-                  keyExtractor={(item) => item.uid}
+                  data={pendingTxs}
+                  keyExtractor={(item) => item.id}
                   contentContainerStyle={styles.listPadding}
                   renderItem={({ item }) => {
-                    const tier = getVIPTier(item.vip_level || 0);
-                    const totalReferredCount = allUsers.filter(u => u.referredBy === item.uid).length;
-                    const networkEarnings = historyTxs
-                      .filter(t => t.userId === item.uid && t.type === 'Referral Bonus')
-                      .reduce((sum, t) => sum + (parseFloat(t.amount || 0) || 0), 0);
-
+                    const isCurrentProcessing = processingId === item.id;
                     return (
-                      <View style={styles.userEliteCard}>
-                        <View style={[styles.uAvatar, { borderColor: tier.color }]}>
-                          {item.profileImage ? (
-                            <Image source={{ uri: item.profileImage }} style={{ width: '100%', height: '100%', borderRadius: 24 }} />
-                          ) : (
-                            <Text style={{ color: tier.color, fontWeight: 'bold' }}>{item.username ? item.username[0].toUpperCase() : 'U'}</Text>
-                          )}
-                        </View>
-                        <View style={{ flex: 1, marginLeft: 15 }}>
-                          <Text style={styles.uName}>{item.username}</Text>
-                          <Text style={styles.uEmail}>{item.email}</Text>
-                          
-                          <View style={styles.uBadgeRow}>
-                             <Text style={[styles.uVipTag, { color: tier.color }]}>VIP {item.vip_level}</Text>
-                             <Text style={styles.uBalanceTag}>${(parseFloat(item.balance?.toString()) || 0).toFixed(2)}</Text>
+                      <View style={styles.luxuryReqCard}>
+                        <View style={styles.reqTop}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.reqName}>{item.username || 'Unknown User'}</Text>
+                            <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center', marginTop: 4 }}>
+                              <View style={[styles.reqBadge, { marginTop: 0, backgroundColor: (item.type || 'Deposit') === 'Deposit' ? '#00FF0015' : '#FF000015' }]}>
+                                <Text style={{ color: (item.type || 'Deposit') === 'Deposit' ? '#00FF00' : '#FF0000', fontSize: 10, fontWeight: 'bold' }}>{(item.type || 'Deposit').toUpperCase()}</Text>
+                              </View>
+                              <Text style={{ color: '#444', fontSize: 11 }}>ID: {item.userId ? item.userId.substring(0,6) : 'N/A'}</Text>
+                            </View>
                           </View>
+                          <Text style={styles.reqAmount}>${(item.amount || item.value || 0).toLocaleString()}</Text>
+                        </View>
 
-                          <View style={styles.uNetworkIntelRow}>
-                            <View style={styles.uNetworkStatItem}>
-                              <Ionicons name="people-sharp" size={11} color="#888" />
-                              <Text style={styles.uNetworkStatText}>Refs: <Text style={{color: '#fff', fontWeight: 'bold'}}>{totalReferredCount}</Text></Text>
-                            </View>
-                            <View style={styles.uNetworkStatDivider} />
-                            <View style={styles.uNetworkStatItem}>
-                              <FontAwesome5 name="gift" size={10} color={Colors.gold} />
-                              <Text style={styles.uNetworkStatText}>Earned: <Text style={{color: Colors.gold, fontWeight: 'bold'}}>${networkEarnings.toFixed(2)}</Text></Text>
+                        {item.type === 'Deposit' && (
+                          <View style={styles.txidIntelBlock}>
+                            <Text style={styles.txidBlockLabel}>TRANSACTION HASH :</Text>
+                            <View style={styles.txidRow}>
+                              <Text style={styles.txidTextString} numberOfLines={1} selectable>
+                                {item.txid || '⚠️ Missing Hash Code'}
+                              </Text>
+                              {item.txid && (
+                                <Pressable 
+                                  style={styles.txidMiniCopyBtn}
+                                  onPress={async () => {
+                                    await Clipboard.setStringAsync(item.txid);
+                                    showAlert('Copied!', 'TXID Hash copied to admin clipboard.');
+                                  }}
+                                >
+                                  <Text style={{ fontSize: 11 }}>📋</Text>
+                                  <Text style={{ color: Colors.gold, fontSize: 10, fontWeight: 'bold' }}>Copy</Text>
+                                </Pressable>
+                              )}
                             </View>
                           </View>
+                        )}
+                        
+                        {item.proofImageUri && item.proofImageUri !== 'No image/TXID Mode' && (
+                          <Pressable style={styles.proofFrame} onPress={() => setPreviewImage(item.proofImageUri || null)} disabled={processingId !== null}>
+                            <Image source={{ uri: item.proofImageUri }} style={styles.proofImg} contentFit="cover" />
+                            <View style={styles.zoomIndicator}>
+                              <Text style={{ fontSize: 12 }}>🔍</Text>
+                              <Text style={styles.zoomText}>Click to Zoom</Text>
+                            </View>
+                          </Pressable>
+                        )}
+
+                        <View style={styles.reqActions}>
+                          <Pressable 
+                            style={[styles.miniBtnRej, processingId !== null && { opacity: 0.4 }]} 
+                            onPress={() => handleReject(item.id)}
+                            disabled={processingId !== null}
+                          >
+                            <Text style={{ fontSize: 12, marginRight: 2 }}>❌</Text>
+                            <Text style={styles.miniBtnText}>REJECT</Text>
+                          </Pressable>
+                          
+                          <Pressable 
+                            style={[styles.miniBtnApp, processingId !== null && { opacity: 0.6 }]} 
+                            onPress={() => handleApprove(item)}
+                            disabled={processingId !== null}
+                          >
+                            {isCurrentProcessing ? (
+                              <ActivityIndicator size="small" color="#000" />
+                            ) : (
+                              <>
+                                <Text style={{ fontSize: 12, marginRight: 2 }}>✅</Text>
+                                <Text style={[styles.miniBtnText, { color: '#000' }]}>APPROVE</Text>
+                              </>
+                            )}
+                          </Pressable>
                         </View>
-                        <Pressable style={styles.uEditBtn} disabled={processingId !== null} onPress={() => { setEditingUser(item); setNewBalance(item.balance?.toString() || '0'); setNewVip(item.vip_level || 0); }}>
-                          <Ionicons name="settings-sharp" size={18} color={Colors.gold} />
-                        </Pressable>
                       </View>
                     );
                   }}
+                  ListEmptyComponent={<Text style={styles.emptyText}>No pending operations.</Text>}
                 />
-              </View>
-            )}
+              )}
 
-            {/* ─── 4. HISTORIQUE ─── */}
-            {activeTab === 'historique' && (
-              <View style={{ flex: 1 }}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.historyFilterBar}>
-                  {['ALL', 'Deposit', 'Withdrawal', 'Reward', 'Referral Bonus', 'VIP Upgrade'].map((f) => (
-                    <Pressable 
-                      key={f} 
-                      onPress={() => handleHistoryFilter(f)} 
-                      style={[styles.historyFilterTab, historyFilter === f && { backgroundColor: Colors.gold }]}
-                    >
-                      <Text style={[styles.historyFilterLabel, historyFilter === f && { color: '#000' }]}>{f.toUpperCase()}</Text>
-                    </Pressable>
-                  ))}
-                </ScrollView>
+              {activeTab === 'users' && (
+                <View style={{ flex: 1, width: '100%' }}>
+                  <View style={styles.searchContainer}>
+                    <Text style={{ fontSize: 14, marginRight: 6 }}>🔍</Text>
+                    <TextInput 
+                      style={styles.searchInput} 
+                      placeholder="Search user identity..." 
+                      placeholderTextColor="#444" 
+                      value={searchQuery} 
+                      onChangeText={setSearchQuery} 
+                      editable={processingId === null} 
+                    />
+                  </View>
 
-                <View style={styles.historySummaryCard}>
-                  <Text style={styles.hSumTitle}>FILTERED LOGS: <Text style={{color: Colors.gold}}>{filteredHistory.length}</Text></Text>
-                  <Text style={styles.hSumValue}>
-                    Total Value: ${filteredHistory.reduce((sum, t) => sum + (parseFloat(t.amount || 0) || 0), 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-                  </Text>
-                </View>
-
-                <FlatList
-                  data={filteredHistory}
-                  keyExtractor={(item) => item.id}
-                  contentContainerStyle={styles.listPadding}
-                  renderItem={({ item }) => (
-                    <View style={styles.historyLogCard}>
-                      <View style={styles.logHeader}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.logUser}>{item.username || 'System Log'}</Text>
-                          <Text style={styles.logNote}>{item.note || 'No description provided.'}</Text>
-                        </View>
-                        <View style={{ alignItems: 'flex-end' }}>
-                          <Text style={styles.logAmount}>${(item.amount || 0).toLocaleString()}</Text>
-                          <Text style={[styles.logStatus, { color: getStatusColor(item.status) }]}>{(item.status || 'Completed').toUpperCase()}</Text>
-                        </View>
-                      </View>
-                      <View style={styles.logFooter}>
-                        <Text style={styles.logTypeTag}>{item.type || 'Transaction'}</Text>
-                        <Text style={styles.logDate}>{item.createdAt ? new Date(item.createdAt).toLocaleString() : 'N/A'}</Text>
-                      </View>
+                  {showVipOnly && (
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 25, marginBottom: 15, alignItems: 'center' }}>
+                      <Text style={{ color: '#00EAFF', fontSize: 12, fontWeight: 'bold' }}>💎 Showing VIP Holders Only ({filteredUsers.length})</Text>
+                      <Pressable onPress={() => setShowVipOnly(false)} disabled={processingId !== null}>
+                        <Text style={{ color: Colors.gold, fontSize: 12, fontWeight: 'bold', textDecorationLine: 'underline' }}>Clear Filter</Text>
+                      </Pressable>
                     </View>
                   )}
-                  ListEmptyComponent={<Text style={styles.emptyText}>No records match this query.</Text>}
-                />
-              </View>
-            )}
 
+                  <FlatList
+                    data={filteredUsers}
+                    keyExtractor={(item) => item.uid}
+                    contentContainerStyle={styles.listPadding}
+                    renderItem={({ item }) => {
+                      const tier = getVIPTier(item.vip_level || 0);
+                      const totalReferredCount = allUsers.filter(u => u.referredBy === item.uid).length;
+                      const networkEarnings = historyTxs
+                        .filter(t => t.userId === item.uid && t.type === 'Referral Bonus')
+                        .reduce((sum, t) => sum + (parseFloat(t.amount || 0) || 0), 0);
+
+                      return (
+                        <View style={styles.userEliteCard}>
+                          <View style={[styles.uAvatar, { borderColor: tier.color }]}>
+                            {item.profileImage ? (
+                              <Image source={{ uri: item.profileImage }} style={{ width: '100%', height: '100%', borderRadius: 24 }} />
+                            ) : (
+                              <Text style={{ color: tier.color, fontWeight: 'bold' }}>{item.username ? item.username[0].toUpperCase() : 'U'}</Text>
+                            )}
+                          </View>
+                          <View style={{ flex: 1, marginLeft: 15 }}>
+                            <Text style={styles.uName}>{item.username}</Text>
+                            <Text style={styles.uEmail}>{item.email}</Text>
+                            
+                            <View style={styles.uBadgeRow}>
+                               <Text style={[styles.uVipTag, { color: tier.color }]}>VIP {item.vip_level}</Text>
+                               <Text style={styles.uBalanceTag}>${(parseFloat(item.balance?.toString()) || 0).toFixed(2)}</Text>
+                            </View>
+
+                            <View style={styles.uNetworkIntelRow}>
+                              <View style={styles.uNetworkStatItem}>
+                                <Text style={{ fontSize: 11 }}>👥</Text>
+                                <Text style={styles.uNetworkStatText}>Refs: <Text style={{color: '#fff', fontWeight: 'bold'}}>{totalReferredCount}</Text></Text>
+                              </View>
+                              <View style={styles.uNetworkStatDivider} />
+                              <View style={styles.uNetworkStatItem}>
+                                <Text style={{ fontSize: 11 }}>🎁</Text>
+                                <Text style={styles.uNetworkStatText}>Earned: <Text style={{color: Colors.gold, fontWeight: 'bold'}}>${networkEarnings.toFixed(2)}</Text></Text>
+                              </View>
+                            </View>
+                          </View>
+                          <Pressable style={styles.uEditBtn} disabled={processingId !== null} onPress={() => { setEditingUser(item); setNewBalance(item.balance?.toString() || '0'); setNewVip(item.vip_level || 0); }}>
+                            <Text style={{ fontSize: 14 }}>⚙️</Text>
+                          </Pressable>
+                        </View>
+                      );
+                    }}
+                  />
+                </View>
+              )}
+
+              {activeTab === 'historique' && (
+                <View style={{ flex: 1, width: '100%' }}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.historyFilterBar}>
+                    {['ALL', 'Deposit', 'Withdrawal', 'Reward', 'Referral Bonus', 'VIP Upgrade'].map((f) => (
+                      <Pressable 
+                        key={f} 
+                        onPress={() => handleHistoryFilter(f)} 
+                        style={[styles.historyFilterTab, historyFilter === f && { backgroundColor: Colors.gold }]}
+                      >
+                        <Text style={[styles.historyFilterLabel, historyFilter === f && { color: '#000' }]}>{f.toUpperCase()}</Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+
+                  <View style={styles.historySummaryCard}>
+                    <Text style={styles.hSumTitle}>FILTERED LOGS: <Text style={{color: Colors.gold}}>{filteredHistory.length}</Text></Text>
+                    <Text style={styles.hSumValue}>
+                      Total Value: ${filteredHistory.reduce((sum, t) => sum + (parseFloat(t.amount || 0) || 0), 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                    </Text>
+                  </View>
+
+                  <FlatList
+                    data={filteredHistory}
+                    keyExtractor={(item) => item.id}
+                    contentContainerStyle={styles.listPadding}
+                    renderItem={({ item }) => (
+                      <View style={styles.historyLogCard}>
+                        <View style={styles.logHeader}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.logUser}>{item.username || 'System Log'}</Text>
+                            <Text style={styles.logNote}>{item.note || 'No description provided.'}</Text>
+                          </View>
+                          <View style={{ alignItems: 'flex-end' }}>
+                            <Text style={styles.logAmount}>${(item.amount || 0).toLocaleString()}</Text>
+                            <Text style={[styles.logStatus, { color: getStatusColor(item.status) }]}>{(item.status || 'Completed').toUpperCase()}</Text>
+                          </View>
+                        </View>
+                        <View style={styles.logFooter}>
+                          <Text style={styles.logTypeTag}>{item.type || 'Transaction'}</Text>
+                          <Text style={styles.logDate}>{item.createdAt ? new Date(item.createdAt).toLocaleString() : 'N/A'}</Text>
+                        </View>
+                      </View>
+                    )}
+                    ListEmptyComponent={<Text style={styles.emptyText}>No records match this query.</Text>}
+                  />
+                </View>
+              )}
+
+            </View>
           </View>
         )}
       </Animated.View>
 
-      {/* Full Screen Image Preview Modal */}
       <Modal visible={!!previewImage} transparent animationType="fade">
         <Pressable style={styles.previewModalOverlay} onPress={() => setPreviewImage(null)}>
           <TouchableOpacity style={styles.previewCloseBtn} onPress={() => setPreviewImage(null)}>
-            <Ionicons name="close-circle-sharp" size={42} color="#fff" />
+            <Text style={{ fontSize: 32 }}>❌</Text>
           </TouchableOpacity>
           {previewImage && (
             <Image source={{ uri: previewImage }} style={styles.fullPreviewImg} contentFit="contain" />
@@ -620,7 +614,6 @@ export default function AdminScreen() {
         </Pressable>
       </Modal>
 
-      {/* Edit User Profile Modal */}
       <Modal visible={!!editingUser} transparent animationType="slide">
         <View style={styles.modal}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.mContent}>
@@ -634,7 +627,7 @@ export default function AdminScreen() {
                   {editingUser?.profileImage ? (
                     <Image source={{ uri: editingUser.profileImage }} style={{ width: '100%', height: '100%' }} />
                   ) : (
-                    <Ionicons name="person" size={26} color="#333" />
+                    <Text style={{ fontSize: 24 }}>👤</Text>
                   )}
                 </View>
               </View>
@@ -708,7 +701,7 @@ export default function AdminScreen() {
                 }} 
                 onPress={() => handleDeleteUserExecution(editingUser)}
               >
-                <MaterialIcons name="delete-forever" size={22} color="#ff4d4d" />
+                <Text style={{ fontSize: 16 }}>🗑️</Text>
                 <Text style={{ color: '#ff4d4d', fontSize: 13, fontWeight: 'bold', letterSpacing: 1 }}>
                   DELETE THIS ACCOUNT NODE
                 </Text>
@@ -732,18 +725,22 @@ export default function AdminScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#000' },
+  screen: { flex: 1, backgroundColor: '#000', alignItems: 'center' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 25 },
+  headerContainer: { width: '100%', alignItems: 'center' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 25, width: '100%', maxWidth: 850 },
   hSub: { color: '#333', fontSize: 10, fontWeight: 'bold', letterSpacing: 2 },
   hTitle: { color: '#fff', fontSize: 24, fontWeight: 'bold' },
-  refreshBtn: { padding: 5 },
-  tabBar: { flexDirection: 'row', backgroundColor: '#050505', marginHorizontal: 20, borderRadius: 20, padding: 5, borderWidth: 1, borderColor: '#111', marginBottom: 15 },
-  tab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 15 },
+  refreshBtn: { padding: 5, justifyContent: 'center', alignItems: 'center' },
+  
+  tabBarContainer: { width: '100%', alignItems: 'center' },
+  tabBar: { flexDirection: 'row', backgroundColor: '#050505', borderRadius: 20, padding: 5, borderWidth: 1, borderColor: '#111', marginBottom: 15, width: '90%', maxWidth: 850 },
+  tab: { flex: 1, paddingVertical: 14, alignItems: 'center', justifyContent: 'center', borderRadius: 15 },
   tabActive: { backgroundColor: Colors.gold },
-  tabLabel: { color: '#444', fontSize: 10, fontWeight: 'bold' },
+  tabLabel: { color: '#444', fontSize: 11, fontWeight: 'bold', letterSpacing: 0.5 },
+  
   scrollContent: { padding: 20, paddingBottom: 50 },
-  mainProfitCard: { height: 200, borderRadius: 30, overflow: 'hidden', marginBottom: 25, borderWidth: 1, borderColor: '#151515' },
+  mainProfitCard: { height: 200, borderRadius: 30, overflow: 'hidden', marginBottom: 25, borderWidth: 1, borderColor: '#151515', width: '100%' },
   glassEffect: { ...StyleSheet.absoluteFillObject, backgroundColor: '#080808', opacity: 0.8 },
   cardContent: { flex: 1, padding: 25, justifyContent: 'center', alignItems: 'center' },
   cardLabel: { color: '#333', fontSize: 9, fontWeight: 'bold', letterSpacing: 2, marginBottom: 8 },
@@ -753,21 +750,21 @@ const styles = StyleSheet.create({
   splitTitle: { color: '#222', fontSize: 8, fontWeight: 'bold', marginBottom: 4 },
   splitValue: { fontSize: 18, fontWeight: 'bold', color: '#fff' },
   splitDivider: { width: 1, height: 30, backgroundColor: '#111' },
-  commandGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 25 },
+  commandGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 25, width: '100%', justifyContent: 'space-between' },
   commandTile: { width: '48%', backgroundColor: '#080808', padding: 20, borderRadius: 25, borderWidth: 1, borderColor: '#111', gap: 8 },
   tileVal: { color: '#fff', fontSize: 20, fontWeight: 'bold' },
-  tileLabel: { color: '#333', fontSize: 9, fontWeight: 'bold' },
+  stylesTileLabel: { color: '#333', fontSize: 9, fontWeight: 'bold' },
   sectionTitle: { color: '#333', fontSize: 10, fontWeight: 'bold', marginTop: 10, marginBottom: 15, marginLeft: 10, letterSpacing: 1.5 },
-  financeBox: { backgroundColor: '#080808', borderRadius: 25, padding: 5, borderWidth: 1, borderColor: '#111' },
+  financeBox: { backgroundColor: '#080808', borderRadius: 25, padding: 5, borderWidth: 1, borderColor: '#111', width: '100%' },
   fRow: { flexDirection: 'row', alignItems: 'center', padding: 18, borderBottomWidth: 1, borderBottomColor: '#050505' },
   fLabel: { flex: 1, color: '#666', fontSize: 13, marginLeft: 12 },
   fVal: { fontWeight: 'bold', fontSize: 15 },
-  luxuryReqCard: { backgroundColor: '#080808', marginHorizontal: 20, marginBottom: 15, borderRadius: 25, padding: 20, borderWidth: 1, borderColor: '#151515' },
+  luxuryReqCard: { backgroundColor: '#080808', marginBottom: 15, borderRadius: 25, padding: 20, borderWidth: 1, borderColor: '#151515', width: '100%' },
   reqTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   reqName: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
   reqBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginTop: 5 },
   reqAmount: { color: Colors.gold, fontSize: 22, fontWeight: 'bold' },
-  proofFrame: { width: '100%', height: 200, borderRadius: 20, overflow: 'hidden', marginTop: 15, borderWidth: 1, borderColor: '#111', position: 'relative' },
+  proofFrame: { width: '100%', height: 240, borderRadius: 20, overflow: 'hidden', marginTop: 15, borderWidth: 1, borderColor: '#111', position: 'relative' },
   proofImg: { width: '100%', height: '100%' },
   zoomIndicator: { position: 'absolute', bottom: 10, right: 10, backgroundColor: 'rgba(0,0,0,0.7)', flexDirection: 'row', paddingVertical: 4, paddingHorizontal: 10, borderRadius: 10, alignItems: 'center', gap: 5, borderWidth: 1, borderColor: '#222' },
   zoomText: { color: '#fff', fontSize: 10, fontWeight: 'bold' },
@@ -778,40 +775,41 @@ const styles = StyleSheet.create({
   miniBtnApp: { flex: 2, backgroundColor: Colors.gold, flexDirection: 'row', padding: 15, borderRadius: 15, justifyContent: 'center', alignItems: 'center', gap: 8 },
   miniBtnRej: { flex: 1, backgroundColor: '#111', flexDirection: 'row', padding: 15, borderRadius: 15, justifyContent: 'center', alignItems: 'center', gap: 8 },
   miniBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 12 },
-  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#080808', margin: 20, paddingHorizontal: 15, borderRadius: 15, borderWidth: 1, borderColor: '#151515' },
+  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#080808', marginVertical: 20, paddingHorizontal: 15, borderRadius: 15, borderWidth: 1, borderColor: '#151515', width: '100%' },
   searchInput: { flex: 1, padding: 15, color: '#fff' },
-  userEliteCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#080808', marginHorizontal: 20, marginBottom: 10, padding: 18, borderRadius: 25, borderWidth: 1, borderColor: '#111' },
+  userEliteCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#080808', marginBottom: 10, padding: 18, borderRadius: 25, borderWidth: 1, borderColor: '#111', width: '100%' },
   uAvatar: { width: 48, height: 48, borderRadius: 24, borderWidth: 2, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' },
   uName: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
   uEmail: { color: '#444', fontSize: 11, marginBottom: 5 },
   uBadgeRow: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   uVipTag: { fontSize: 10, fontWeight: 'bold' },
+  uBadgeLabel: { color: '#333', fontSize: 9, fontWeight: 'bold' },
   uBalanceTag: { color: Colors.gold, fontSize: 11, fontWeight: 'bold' },
-  uEditBtn: { padding: 12, backgroundColor: '#050505', borderRadius: 15, borderWidth: 1, borderColor: '#151515' },
-  modal: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'flex-end' },
-  mContent: { backgroundColor: '#080808', padding: 30, borderTopLeftRadius: 35, borderTopRightRadius: 35, borderWidth: 1, borderColor: '#1A1A1A', maxHeight: '90%' },
+  uEditBtn: { padding: 12, backgroundColor: '#050505', borderRadius: 15, borderWidth: 1, borderColor: '#151515', justifyContent: 'center', alignItems: 'center' },
+  modal: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'flex-end', alignItems: 'center', width: '100%' },
+  mContent: { backgroundColor: '#080808', padding: 30, borderTopLeftRadius: 35, borderTopRightRadius: 35, borderWidth: 1, borderColor: '#1A1A1A', maxHeight: '90%', width: '100%', maxWidth: 700 },
   mContentScrollView: { paddingBottom: 30 },
   mHandle: { width: 40, height: 4, backgroundColor: '#222', borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
   mTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold', textAlign: 'center' },
   mSub: { color: Colors.gold, fontSize: 12, textAlign: 'center', marginBottom: 25, fontWeight: 'bold' },
   mLabel: { color: '#444', fontSize: 10, fontWeight: 'bold', marginBottom: 10, letterSpacing: 1 },
   mInput: { backgroundColor: '#000', color: Colors.gold, padding: 18, borderRadius: 15, fontSize: 22, fontWeight: 'bold', borderWidth: 1, borderColor: '#111', textAlign: 'center', marginBottom: 25 },
-  vipPicker: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 35 },
+  vipPicker: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 35, width: '100%' },
   vipOpt: { width: 38, height: 38, borderRadius: 10, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#111' },
   vipOptText: { color: '#fff', fontWeight: 'bold', fontSize: 12 },
-  mActions: { flexDirection: 'row', gap: 12, marginTop: 10 },
+  mActions: { flexDirection: 'row', gap: 12, marginTop: 10, width: '100%' },
   mBtnS: { flex: 2, backgroundColor: Colors.gold, padding: 18, borderRadius: 15, alignItems: 'center' },
   mBtnC: { flex: 1, backgroundColor: '#111', padding: 18, borderRadius: 15, alignItems: 'center' },
-  listPadding: { paddingBottom: 150 },
+  listPadding: { paddingBottom: 150, width: '100%' },
   emptyText: { color: '#444', textAlign: 'center', marginTop: 50, fontWeight: 'bold' },
 
-  historyFilterBar: { paddingHorizontal: 20, gap: 10, height: 50, marginBottom: 15 },
+  historyFilterBar: { paddingHorizontal: 20, gap: 10, height: 50, marginBottom: 15, width: '100%' },
   historyFilterTab: { backgroundColor: '#080808', paddingHorizontal: 16, height: 38, borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#111' },
   historyFilterLabel: { color: '#666', fontSize: 10, fontWeight: 'bold' },
-  historySummaryCard: { backgroundColor: '#050505', marginHorizontal: 20, borderRadius: 15, padding: 15, borderWidth: 1, borderColor: '#111', marginBottom: 15 },
+  historySummaryCard: { backgroundColor: '#050505', borderRadius: 15, padding: 15, borderWidth: 1, borderColor: '#111', marginBottom: 15, width: '100%' },
   hSumTitle: { color: '#666', fontSize: 10, fontWeight: 'bold', letterSpacing: 1 },
   hSumValue: { color: '#fff', fontSize: 16, fontWeight: 'bold', marginTop: 5 },
-  historyLogCard: { backgroundColor: '#080808', marginHorizontal: 20, marginBottom: 10, borderRadius: 20, padding: 18, borderWidth: 1, borderColor: '#111' },
+  historyLogCard: { backgroundColor: '#080808', marginBottom: 10, borderRadius: 20, padding: 18, borderWidth: 1, borderColor: '#111', width: '100%' },
   logHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   logUser: { color: '#fff', fontSize: 15, fontWeight: 'bold' },
   logNote: { color: '#555', fontSize: 11, marginTop: 4, lineHeight: 16 },
@@ -820,13 +818,13 @@ const styles = StyleSheet.create({
   logFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 15, borderTopWidth: 1, borderTopColor: '#030303', paddingTop: 10 },
   logTypeTag: { color: Colors.gold, backgroundColor: '#161204', fontSize: 9, fontWeight: 'bold', paddingVertical: 3, paddingHorizontal: 8, borderRadius: 6, overflow: 'hidden' },
   logDate: { color: '#333', fontSize: 10, fontWeight: 'bold' },
-  intelBox: { backgroundColor: '#000', borderRadius: 20, padding: 15, borderWidth: 1, borderColor: '#111', marginBottom: 20 },
+  intelBox: { backgroundColor: '#000', borderRadius: 20, padding: 15, borderWidth: 1, borderColor: '#111', marginBottom: 20, width: '100%' },
   intelTitle: { color: Colors.gold, fontSize: 10, fontWeight: 'bold', letterSpacing: 1, marginBottom: 15, borderBottomWidth: 1, borderBottomColor: '#080808', paddingBottom: 8 },
   intelRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#050505' },
   intelLabel: { color: '#555', fontSize: 12, fontWeight: '600' },
   intelVal: { color: '#fff', fontSize: 12, fontWeight: '700', maxWidth: '65%', textAlign: 'right' },
 
-  txidIntelBlock: { backgroundColor: '#020202', padding: 12, borderRadius: 14, borderWidth: 1, borderColor: '#121212', marginTop: 15, gap: 5 },
+  txidIntelBlock: { backgroundColor: '#020202', padding: 12, borderRadius: 14, borderWidth: 1, borderColor: '#121212', marginTop: 15, gap: 5, width: '100%' },
   txidBlockLabel: { color: '#444', fontSize: 9, fontWeight: 'bold', letterSpacing: 0.5 },
   txidRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
   txidTextString: { flex: 1, color: Colors.gold, fontSize: 13, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', fontWeight: 'bold' },
