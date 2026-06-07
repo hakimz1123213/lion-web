@@ -37,6 +37,7 @@ const adTranslations: Record<string, Record<string, string>> = {
 };
 
 // 🚀 1. المكون الداخلي المنفصل
+// 🚀 1. المكون الداخلي المنفصل: المحصن لتوليد الصوت على الويب رغماً عن المتصفحات
 function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: string, onComplete: () => void, onClose: () => void, lang: string }) {
   const [timeLeft, setTimeLeft] = useState(15);
   const [isFinished, setIsFinished] = useState(false);
@@ -44,40 +45,33 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
 
   const t = adTranslations[lang] || adTranslations['EN'];
 
+  // 👑 الطُعم: نخبر المتصفح أن الفيديو مكتوم في البداية لكي يقبله ولا يحظر الصوت لاحقاً
   const player = useVideoPlayer(videoUrl, (p) => {
     p.loop = false;
-    p.muted = false;  // 🔊 نطلب الصوت علناً وبقوة
-    p.volume = 1.0;   // 100% مستوى الصوت
+    p.muted = true;  // 🤫 مكتوم مؤقتاً كطعم للمتصفح
+    p.volume = 1.0;  
   });
 
-  // 🔊 دالة البث المتزامنة المحصنة لكسر حظر الصوت في المتصفحات
-  const handlePlayAdWithSound = async () => {
+  // 🔊 دالة تفجير الصوت بداخل المتصفح عند النقر الصريح
+  const handlePlayAdWithSound = () => {
     if (player) {
-      try {
-        // 1. نجبر المشغل على إلغاء الكتم أولاً وضبط أعلى مستوى صوت
-        player.muted = false;
-        player.volume = 1.0;
-        
-        // 2. نقوم بالتشغيل
-        player.play();
-        setIsPlaying(true);
-        
-        // 3. خدعة الويب الاحترافية: إعادة تأكيد الغاء الكتم بعد جزء من الثانية لضمان استجابة المتصفح
-        setTimeout(() => {
-          if (player) {
-            player.muted = false;
-            player.volume = 1.0;
-          }
-        }, 100);
-        
-      } catch (error) {
-        console.error("Browser blocked audio injection:", error);
-        // إذا اعترض المتصفح، نشغل الفيديو على الأقل لكي لا تتعطل مهام المستخدم
-        player.play();
-        setIsPlaying(true);
-      }
+      // كسر الكتم برمجياً في نفس ثانية ضغط المستخدم
+      player.muted = false;
+      player.volume = 1.0;
+      player.play();
+      setIsPlaying(true);
+
+      // تأكيد عنيف بعد 100 ملي ثانية لضمان أن المتصفح لم يقم بإعادة الكتم تلقائياً
+      setTimeout(() => {
+        if (player) {
+          player.muted = false;
+          player.volume = 1.0;
+        }
+      }, 100);
     }
   };
+
+  // عداد الـ 15 ثانية المستقر
   useEffect(() => {
     let timer: any; 
     if (isPlaying && timeLeft > 0) {
@@ -122,7 +116,6 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
           {!isPlaying && (
             <Pressable style={styles.startAdOverlay} onPress={handlePlayAdWithSound}>
               <View style={styles.playIconCircle}>
-                {/* 🛠️ تعديل 1: استبدال أيقونة مكبر الصوت المكسورة بإيموجي نصي صلب ومحاذاته مركزياً */}
                 <Text style={{ fontSize: 26, color: '#000', textAlign: 'center' }}>🔊</Text>
               </View>
               <Text style={styles.startAdTitle}>{t.watchWithSound}</Text>
@@ -132,16 +125,15 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
 
         </View>
       ) : (
-        /* كارت الأرباح الفاخر لـ NoirWealth مترجم */
+        /* كارت الأرباح الفاخر */
         <View style={styles.successBox}>
-          {/* 🛠️ تعديل 2: استبدال علامة التحقق الخضراء الكبيرة بإيموجي نصي مدمج ممتاز */}
           <Text style={{ fontSize: 60, marginBottom: 10 }}>✅</Text>
           <Text style={styles.successTitle}>{t.rewardReady}</Text>
           <Text style={styles.successSub}>{t.clickConfirm}</Text>
         </View>
       )}
 
-      {/* 🔘 أزرار التحكم السفلية المترجمة والموجهة */}
+      {/* 🔘 أزرار التحكم السفلية */}
       <View style={styles.footer}>
         {isFinished ? (
           <TouchableOpacity style={styles.claimButton} onPress={onComplete}>
@@ -152,7 +144,6 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
             style={[styles.closeButton, lang === 'AR' && { flexDirection: 'row-reverse' }]} 
             onPress={() => { player.pause(); onClose(); }}
           >
-            {/* 🛠️ تعديل 3: استبدال أيقونة الإغلاق الحمراء المكسورة بإيموجي نصي ثابت ومقاوم لمشاكل الويب */}
             <Text style={[{ fontSize: 13 }, lang === 'AR' ? { marginRight: 2 } : { marginLeft: 2 }]}>❌</Text>
             <Text style={[styles.closeText, lang === 'AR' && { marginRight: 6, marginLeft: 0 }]}>{t.cancelTask}</Text>
           </TouchableOpacity>
