@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { Modal, View, Text, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
-import { useVideoPlayer, VideoView } from 'expo-video';
-import { useAuth } from '@/hooks/useAuth'; // استيراد الأوث لالتقاط الرادار السحابي للغة
+import React, { useState, useEffect, useRef } from 'react';
+import { Modal, View, Text, StyleSheet, TouchableOpacity, Pressable, Platform } from 'react-native';
+import { useAuth } from '@/hooks/useAuth';
 
 interface VideoAdModalProps {
   visible: boolean;
@@ -10,7 +9,6 @@ interface VideoAdModalProps {
   onClose: () => void;
 }
 
-// 🌍 قاموس التعريب الفوري والمدمج محلياً لـ مودال الإعلانات
 const adTranslations: Record<string, Record<string, string>> = {
   EN: {
     secureAudio: "🔒 Secure Audio Connection Ready",
@@ -36,42 +34,39 @@ const adTranslations: Record<string, Record<string, string>> = {
   }
 };
 
-// 🚀 1. المكون الداخلي المنفصل
-// 🚀 1. المكون الداخلي المنفصل: المحصن لتوليد الصوت على الويب رغماً عن المتصفحات
-// 🚀 1. المكون الداخلي المنفصل: المحصن والمطهر برمجياً لإطلاق الصوت على الويب رغماً عن القيود
 function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: string, onComplete: () => void, onClose: () => void, lang: string }) {
   const [timeLeft, setTimeLeft] = useState(15);
   const [isFinished, setIsFinished] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-
+  
+  // استخدام مرجع Ref للتحكم في عنصر الفيديو مباشرة على الويب
+  const videoRef = useRef<any>(null);
   const t = adTranslations[lang] || adTranslations['EN'];
 
-  // 👑 التعديل الحاسم: نلغي كتم الصوت البرمجي هنا تماماً لكي لا يدمر المتصفح قنوات الصوت عند ولادة المشغل
-  const player = useVideoPlayer(videoUrl, (p) => {
-    p.loop = false;
-    p.volume = 1.0;  // نثبت مستوى الصوت ديريكت عند أعلى درجة 100%
-  });
-
-  // 🔊 دالة البث والتشغيل بقوة كسر الحظر الصريح عند نقرة الإصبع
+  // دالة تشغيل الفيديو وكسر حظر الصوت العنيف في المتصفحات
   const handlePlayAdWithSound = () => {
-    if (player) {
-      // نرسل الأوامر الصارمة للجافا سكريبت لفتح الصوت والبدء الفوري
-      player.muted = false;
-      player.volume = 1.0;
-      player.play();
-      setIsPlaying(true);
-
-      // حماية سريعة لإعادة التأكيد بعد جزء من الثانية
-      setTimeout(() => {
-        if (player) {
-          player.muted = false;
-          player.volume = 1.0;
+    setIsPlaying(true);
+    
+    if (Platform.OS === 'web') {
+      // 👑 الخدعة الذهبية الصارمة على الويب للوصول لجذر الـ HTML5 وعنصر الفيديو ديريكت
+      const videoElement = videoRef.current;
+      if (videoElement) {
+        videoElement.muted = false; // إلغاء كتم الصوت
+        videoElement.volume = 1.0;  // رفع الصوت لأعلى درجة
+        
+        // تشغيل برمجياً مدعوماً بنقرة صريحة
+        const playPromise = videoElement.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((error: any) => {
+            console.log("Autoplay blocked, forcing play again:", error);
+            videoElement.play();
+          });
         }
-      }, 150);
+      }
     }
   };
 
-  // عداد الـ 15 ثانية المستقر
+  // حارس الـ 15 ثانية اليومي المستقر
   useEffect(() => {
     let timer: any; 
     if (isPlaying && timeLeft > 0) {
@@ -80,7 +75,9 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
       }, 1000);
     } else if (timeLeft === 0) {
       setIsFinished(true);
-      if (player) player.pause();
+      if (Platform.OS === 'web' && videoRef.current) {
+        videoRef.current.pause();
+      }
     }
     return () => {
       if (timer) clearInterval(timer);
@@ -90,7 +87,7 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
   return (
     <View style={styles.cardContainer}>
       
-      {/* ⏳ شريط الحالة العلوي المترجم */}
+      {/* ⏳ شريط الحالة العلوي */}
       <View style={styles.timerContainer}>
         {!isPlaying ? (
           <Text style={styles.loadingText}>{t.secureAudio}</Text>
@@ -101,26 +98,35 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
         )}
       </View>
 
-      {/* 📺 مربع العرض المركزي الصامد والمحمي من الـ Pause */}
+      {/* 📺 مربع العرض المركزي المقاوم تماماً لمشاكل الـ Pause */}
       {!isFinished ? (
         <View style={styles.videoBox}>
-          <View style={{ width: '100%', height: '100%', position: 'relative' }}>
-            <VideoView 
-              player={player} 
-              style={styles.videoStyle} 
-              contentFit="cover"
-              nativeControls={false} // إغلاق أدوات المتصفح لتأمين الحماية
-            />
+          <View style={{ width: '100%', height: '100%', position: 'relative', backgroundColor: '#000' }}>
+            
+            {Platform.OS === 'web' ? (
+              /* 👑 هندسة التطهير: حقن عنصر فيديو HTML5 أصلي ومباشر على الويب لحل مشكلة قنوات الصوت نهائياً */
+              <video
+                ref={videoRef}
+                src={videoUrl}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                playsInline
+                controls={false} // إلغاء الأزرار لمنع الـ Pause
+                disablePictureInPicture
+                controlsList="nodownload nofullscreen noremoteplayback"
+              />
+            ) : (
+              <View style={{ flex: 1, backgroundColor: '#000' }} />
+            )}
 
-            {/* 👑 حارس الأمان الشفاف لمنع الـ Pause وتوجيه الصوت والتشغيل برمجياً */}
+            {/* 🛡️ حارس الأمان الشفاف لمنع الـ Pause وتوجيه الصوت والتشغيل برمجياً */}
             {isPlaying && (
               <Pressable 
                 style={StyleSheet.absoluteFill} 
                 onPress={() => {
-                  if (player) {
-                    player.muted = false;
-                    player.volume = 1.0;
-                    player.play(); // إعادة تأكيد البث الفوري ومنع التعليق
+                  if (Platform.OS === 'web' && videoRef.current) {
+                    videoRef.current.muted = false;
+                    videoRef.current.volume = 1.0;
+                    videoRef.current.play(); // إعادة تأكيد البث ومنع التعليق
                   }
                 }} 
               />
@@ -157,7 +163,10 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
         ) : (
           <TouchableOpacity 
             style={[styles.closeButton, lang === 'AR' && { flexDirection: 'row-reverse' }]} 
-            onPress={() => { player.pause(); onClose(); }}
+            onPress={() => { 
+              if (Platform.OS === 'web' && videoRef.current) videoRef.current.pause();
+              onClose(); 
+            }}
           >
             <Text style={[{ fontSize: 13 }, lang === 'AR' ? { marginRight: 2 } : { marginLeft: 2 }]}>❌</Text>
             <Text style={[styles.closeText, lang === 'AR' && { marginRight: 6, marginLeft: 0 }]}>{t.cancelTask}</Text>
@@ -169,10 +178,8 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
   );
 }
 
-// 🚀 2. المكون الرئيسي
 export default function VideoAdModal({ visible, videoUrl, onComplete, onClose }: VideoAdModalProps) {
   const { user } = useAuth();
-  
   // @ts-ignore
   const lang = user?.language || 'EN';
 
@@ -193,26 +200,9 @@ export default function VideoAdModal({ visible, videoUrl, onComplete, onClose }:
 }
 
 const styles = StyleSheet.create({
-  modalOverlay: { 
-    flex: 1, 
-    backgroundColor: 'rgba(0, 0, 0, 0.97)', 
-    justifyContent: 'center', 
-    alignItems: 'center',
-    padding: 20 
-  },
-  cardContainer: { 
-    width: '100%', 
-    maxWidth: 850, // 👑 تم تكبير العرض هنا ليعطي مساحة فخمة وممتازة للفيديو والأزرار
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  timerContainer: { 
-    marginBottom: 20, 
-    paddingVertical: 8, 
-    paddingHorizontal: 20, 
-    borderRadius: 20, 
-    backgroundColor: 'rgba(255,255,255,0.02)' 
-  },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.97)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  cardContainer: { width: '100%', maxWidth: 850, alignItems: 'center', justifyContent: 'center' },
+  timerContainer: { marginBottom: 20, paddingVertical: 8, paddingHorizontal: 20, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.02)' },
   timerText: { color: '#D4AF37', fontWeight: 'bold', fontSize: 16, letterSpacing: 0.5 },
   loadingText: { color: '#666', fontWeight: 'bold', fontSize: 14, letterSpacing: 0.5 },
   successText: { color: '#4CAF50', fontWeight: 'bold', fontSize: 16 },
@@ -233,74 +223,16 @@ const styles = StyleSheet.create({
     marginBottom: 20 
   },
   videoStyle: { width: '100%', height: '100%' },
-  startAdOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#050505',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-    zIndex: 40
-  },
-  playIconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#D4AF37',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-    shadowColor: '#D4AF37',
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 5
-  },
-  startAdTitle: { color: '#D4AF37', fontSize: 16, fontWeight: '900', letterSpacing: 1, textAlign: 'center' }, // تكبير الخط قليلاً ليتناسب مع الحجم الجديد
+  startAdOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: '#050505', justifyContent: 'center', alignItems: 'center', padding: 20, zIndex: 40 },
+  playIconCircle: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#D4AF37', justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
+  startAdTitle: { color: '#D4AF37', fontSize: 16, fontWeight: '900', letterSpacing: 1, textAlign: 'center' },
   startAdSub: { color: '#444', fontSize: 12, marginTop: 5, fontWeight: 'bold', textAlign: 'center' },
-  successBox: {
-    width: '100%',
-    aspectRatio: 16 / 9,
-    backgroundColor: '#080808',
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: '#D4AF37',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-    shadowColor: '#D4AF37',
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 8,
-    marginBottom: 20
-  },
+  successBox: { width: '100%', aspectRatio: 16 / 9, backgroundColor: '#080808', borderRadius: 16, borderWidth: 1.5, borderColor: '#D4AF37', justifyContent: 'center', alignItems: 'center', padding: 20, marginBottom: 20 },
   successTitle: { color: '#D4AF37', fontSize: 24, fontWeight: 'bold', marginTop: 10, letterSpacing: 1 },
   successSub: { color: '#666', fontSize: 14, marginTop: 5, textAlign: 'center' },
-  
-  footer: { 
-    marginTop: 15, 
-    width: '100%', 
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  claimButton: { 
-    backgroundColor: '#D4AF37', 
-    paddingVertical: 15, 
-    paddingHorizontal: 40, 
-    borderRadius: 12,
-    width: '100%', 
-    alignItems: 'center'
-  },
+  footer: { marginTop: 15, width: '100%', alignItems: 'center', justifyContent: 'center' },
+  claimButton: { backgroundColor: '#D4AF37', paddingVertical: 15, paddingHorizontal: 40, borderRadius: 12, width: '100%', alignItems: 'center' },
   claimButtonText: { color: '#000', fontWeight: '900', fontSize: 16 },
-  closeButton: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'center',
-    paddingVertical: 14, 
-    paddingHorizontal: 24, 
-    backgroundColor: 'rgba(229, 62, 62, 0.04)', 
-    borderRadius: 10, 
-    borderWidth: 1, 
-    borderColor: 'rgba(229, 62, 62, 0.15)',
-    width: '100%', 
-  },
+  closeButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, paddingHorizontal: 24, backgroundColor: 'rgba(229, 62, 62, 0.04)', borderRadius: 10, borderWidth: 1, borderColor: 'rgba(229, 62, 62, 0.15)', width: '100%' },
   closeText: { color: '#E53E3E', marginLeft: 6, fontWeight: 'bold', fontSize: 14 }
 });
