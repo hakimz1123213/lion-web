@@ -34,6 +34,7 @@ export default function AdminScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [historySearchQuery, setHistorySearchQuery] = useState(''); // 🔍 الحالة الجديدة المخصصة لبحث التاريخ
   const [showVipOnly, setShowVipOnly] = useState(false);
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [newBalance, setNewBalance] = useState('');
@@ -54,6 +55,7 @@ export default function AdminScreen() {
 
   const [fadeAnim] = useState(new Animated.Value(0));
 
+  // جلب البيانات الحيّة من فايربيز
   useEffect(() => {
     if (!user?.uid || !isSuperAdmin(user.email)) return;
 
@@ -75,12 +77,9 @@ export default function AdminScreen() {
 
         const sortedHistory = txsArray.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
         setHistoryTxs(sortedHistory);
-        setFilteredHistory(sortedHistory);
-        setHistoryFilter('ALL');
       } else {
         setPendingTxs([]);
         setHistoryTxs([]);
-        setFilteredHistory([]);
       }
     }, (error) => {
       console.error("Live Transactions Stream Error:", error);
@@ -88,6 +87,25 @@ export default function AdminScreen() {
 
     return () => unsubscribeTxs();
   }, [user?.uid, user?.email]);
+
+  // 🛡️ محرك الفلترة الذكي والتفاعلي لقسم التاريخ (يجمع بين فلتر الأزرار وشريط البحث)
+  useEffect(() => {
+    let result = historyTxs;
+
+    // 1. تصفية حسب نوع المعاملة (الزر المختار)
+    if (historyFilter !== 'ALL') {
+      result = result.filter(t => (t.type || '').toUpperCase() === historyFilter.toUpperCase());
+    }
+
+    // 2. تصفية حسب اسم المستخدم المبحوث عنه
+    if (historySearchQuery.trim() !== '') {
+      result = result.filter(t => 
+        t.username?.toLowerCase().includes(historySearchQuery.toLowerCase())
+      );
+    }
+
+    setFilteredHistory(result);
+  }, [historyTxs, historyFilter, historySearchQuery]);
 
   const loadData = useCallback(async () => {
     if (!user?.uid) return;
@@ -168,11 +186,6 @@ export default function AdminScreen() {
 
   const handleHistoryFilter = (filterType: string) => {
     setHistoryFilter(filterType);
-    if (filterType === 'ALL') {
-      setFilteredHistory(historyTxs);
-    } else {
-      setFilteredHistory(historyTxs.filter(t => (t.type || '').toUpperCase() === filterType.toUpperCase()));
-    }
   };
 
   const handleDeleteUserExecution = (targetUser: any) => {
@@ -358,18 +371,18 @@ export default function AdminScreen() {
 
                   <Text style={styles.sectionTitle}>COMMAND TILES</Text>
                   <View style={styles.commandGrid}>
-                     {[
-                       { label: 'Pending Txs', val: pendingTxs.length, icon: '⏳', action: () => { setActiveTab('requests'); setShowVipOnly(false); } },
-                       { label: 'Active Users', val: stats.activeUsers, icon: '👥', action: () => { setActiveTab('users'); setShowVipOnly(false); } },
-                       { label: 'VIP Holders', val: stats.vipHolders, icon: '💎', action: () => { setActiveTab('users'); setShowVipOnly(true); } },
-                       { label: 'Total Logs', val: historyTxs.length, icon: '📂', action: () => { setActiveTab('historique'); setShowVipOnly(false); } }
-                     ].map((item, i) => (
-                       <Pressable key={i} style={styles.commandTile} onPress={item.action} disabled={processingId !== null}>
-                         <Text style={{ fontSize: 18 }}>{item.icon}</Text>
-                         <Text style={styles.tileVal}>{item.val}</Text>
-                         <Text style={styles.tileLabel}>{item.label}</Text>
-                       </Pressable>
-                     ))}
+                      {[
+                        { label: 'Pending Txs', val: pendingTxs.length, icon: '⏳', action: () => { setActiveTab('requests'); setShowVipOnly(false); } },
+                        { label: 'Active Users', val: stats.activeUsers, icon: '👥', action: () => { setActiveTab('users'); setShowVipOnly(false); } },
+                        { label: 'VIP Holders', val: stats.vipHolders, icon: '💎', action: () => { setActiveTab('users'); setShowVipOnly(true); } },
+                        { label: 'Total Logs', val: historyTxs.length, icon: '📂', action: () => { setActiveTab('historique'); setShowVipOnly(false); } }
+                      ].map((item, i) => (
+                        <Pressable key={i} style={styles.commandTile} onPress={item.action} disabled={processingId !== null}>
+                          <Text style={{ fontSize: 18 }}>{item.icon}</Text>
+                          <Text style={styles.tileVal}>{item.val}</Text>
+                          <Text style={styles.tileLabel}>{item.label}</Text>
+                        </Pressable>
+                      ))}
                   </View>
 
                   <Text style={styles.sectionTitle}>FINANCIAL INTELLIGENCE</Text>
@@ -570,6 +583,19 @@ export default function AdminScreen() {
                       </Pressable>
                     ))}
                   </ScrollView>
+
+                  {/* 🔍 شريط البحث الجديد الفخم المخصص لقسم الأرشيف والتاريخ */}
+                  <View style={[styles.searchContainer, { marginTop: 0, marginBottom: 15 }]}>
+                    <Text style={{ fontSize: 14, marginRight: 6 }}>🔍</Text>
+                    <TextInput 
+                      style={styles.searchInput} 
+                      placeholder="Search history by username..." 
+                      placeholderTextColor="#444" 
+                      value={historySearchQuery} 
+                      onChangeText={setHistorySearchQuery} 
+                      editable={processingId === null} 
+                    />
+                  </View>
 
                   <View style={styles.historySummaryCard}>
                     <Text style={styles.hSumTitle}>FILTERED LOGS: <Text style={{color: Colors.gold}}>{filteredHistory.length}</Text></Text>
@@ -810,7 +836,6 @@ const styles = StyleSheet.create({
   listPadding: { paddingBottom: 150, width: '100%' },
   emptyText: { color: '#444', textAlign: 'center', marginTop: 50, fontWeight: 'bold' },
 
-  // 👑 إصلاح التداخل والقص عبر فصل أبعاد الحاوية الصارمة 
   historyFilterScroll: { flexGrow: 0, flexShrink: 0, height: 50, marginBottom: 15, width: '100%' },
   historyFilterBar: { paddingHorizontal: 20, alignItems: 'center', gap: 10 },
   historyFilterTab: { backgroundColor: '#080808', paddingHorizontal: 16, height: 38, borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#111', marginRight: 10 },
