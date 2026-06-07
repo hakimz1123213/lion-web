@@ -38,6 +38,7 @@ const adTranslations: Record<string, Record<string, string>> = {
 
 // 🚀 1. المكون الداخلي المنفصل
 // 🚀 1. المكون الداخلي المنفصل: المحصن لتوليد الصوت على الويب رغماً عن المتصفحات
+// 🚀 1. المكون الداخلي المنفصل: المحصن والمطهر برمجياً لإطلاق الصوت على الويب رغماً عن القيود
 function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: string, onComplete: () => void, onClose: () => void, lang: string }) {
   const [timeLeft, setTimeLeft] = useState(15);
   const [isFinished, setIsFinished] = useState(false);
@@ -45,29 +46,28 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
 
   const t = adTranslations[lang] || adTranslations['EN'];
 
-  // 👑 الطُعم: نخبر المتصفح أن الفيديو مكتوم في البداية لكي يقبله ولا يحظر الصوت لاحقاً
+  // 👑 التعديل الحاسم: نلغي كتم الصوت البرمجي هنا تماماً لكي لا يدمر المتصفح قنوات الصوت عند ولادة المشغل
   const player = useVideoPlayer(videoUrl, (p) => {
     p.loop = false;
-    p.muted = true;  // 🤫 مكتوم مؤقتاً كطعم للمتصفح
-    p.volume = 1.0;  
+    p.volume = 1.0;  // نثبت مستوى الصوت ديريكت عند أعلى درجة 100%
   });
 
-  // 🔊 دالة تفجير الصوت بداخل المتصفح عند النقر الصريح
+  // 🔊 دالة البث والتشغيل بقوة كسر الحظر الصريح عند نقرة الإصبع
   const handlePlayAdWithSound = () => {
     if (player) {
-      // كسر الكتم برمجياً في نفس ثانية ضغط المستخدم
+      // نرسل الأوامر الصارمة للجافا سكريبت لفتح الصوت والبدء الفوري
       player.muted = false;
       player.volume = 1.0;
       player.play();
       setIsPlaying(true);
 
-      // تأكيد عنيف بعد 100 ملي ثانية لضمان أن المتصفح لم يقم بإعادة الكتم تلقائياً
+      // حماية سريعة لإعادة التأكيد بعد جزء من الثانية
       setTimeout(() => {
         if (player) {
           player.muted = false;
           player.volume = 1.0;
         }
-      }, 100);
+      }, 150);
     }
   };
 
@@ -101,18 +101,33 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
         )}
       </View>
 
-      {/* 📺 مربع العرض المركزي الصامد */}
+      {/* 📺 مربع العرض المركزي الصامد والمحمي من الـ Pause */}
       {!isFinished ? (
         <View style={styles.videoBox}>
-          
-        <VideoView 
-  player={player} 
-  style={[styles.videoStyle, !isPlaying && { opacity: 0 }]} 
-  contentFit="cover"
-  nativeControls={true} // 👑 تفعيل هذا الخيار يجبر المتصفح على إظهار زر الصوت الأصلي الخاص به لكسر الحظر كلياً!
-/>
+          <View style={{ width: '100%', height: '100%', position: 'relative' }}>
+            <VideoView 
+              player={player} 
+              style={styles.videoStyle} 
+              contentFit="cover"
+              nativeControls={false} // إغلاق أدوات المتصفح لتأمين الحماية
+            />
 
-          {/* 🏆 واجهة كسر الحظر الذهبية الصريحة */}
+            {/* 👑 حارس الأمان الشفاف لمنع الـ Pause وتوجيه الصوت والتشغيل برمجياً */}
+            {isPlaying && (
+              <Pressable 
+                style={StyleSheet.absoluteFill} 
+                onPress={() => {
+                  if (player) {
+                    player.muted = false;
+                    player.volume = 1.0;
+                    player.play(); // إعادة تأكيد البث الفوري ومنع التعليق
+                  }
+                }} 
+              />
+            )}
+          </View>
+
+          {/* 🏆 واجهة كسر الحظر الذهبية المبدئية */}
           {!isPlaying && (
             <Pressable style={styles.startAdOverlay} onPress={handlePlayAdWithSound}>
               <View style={styles.playIconCircle}>
