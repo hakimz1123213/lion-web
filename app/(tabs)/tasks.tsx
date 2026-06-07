@@ -42,13 +42,14 @@ const taskTranslations: Record<string, Record<string, string>> = {
 
 // 📺 حوض إعلانات الشركات الكبرى الدوارة
 const ADS_POOL = [
-  "https://github.com/hakimz1123213/NoirWealth-ads/releases/download/v1.0/YTDown_YouTube_Donut-15-Second-Ad_Media_JDjhs9hF9f0_001_1080p.mp4",
-  "https://github.com/hakimz1123213/NoirWealth-ads/releases/download/v1.0/YTDown_YouTube_Media_FY3vWQ4Q05M_001_1080p.mp4",
-  "https://github.com/hakimz1123213/NoirWealth-ads/releases/download/v1.0/YTDown_YouTube_Media_j4B3woBHbF8_001_1080p.mp4",
-  "https://github.com/hakimz1123213/NoirWealth-ads/releases/download/v1.0/YTDown_YouTube_Media_QfyZ71Qpbh4_001_1080p.mp4",
-  "https://github.com/hakimz1123213/NoirWealth-ads/releases/download/v1.0/YTDown_YouTube_Self-Control-Who-I-McDonald-s_Media_79phlhutGLg_001_1080p.mp4",
-  "https://github.com/hakimz1123213/NoirWealth-ads/releases/download/v1.0/YTDown_YouTube_spotify-motion-graphics-ad_Media_eH8t7ZQQaNg_001_1080p.mp4",
-  "https://github.com/hakimz1123213/NoirWealth-ads/releases/download/v1.0/YTDown_YouTubvideo-ads_Media_1Wx9ftCUx0o_001_1080p.mp4"
+  "https://firebasestorage.googleapis.com/v0/b/noir-879ad.firebasestorage.app/o/YTDown_YouTube_Coca-Cola-15-Second-Spec-Commercial-Sigh_Media_0qSEWvvA6gU_001_1080p.mp4?alt=media&token=a70fc5df-edff-48b2-b598-5a6696855b6d",
+  "https://firebasestorage.googleapis.com/v0/b/noir-879ad.firebasestorage.app/o/YTDown_YouTube_Donut-15-Second-Ad_Media_JDjhs9hF9f0_001_1080p.mp4?alt=media&token=b5fb7134-69e3-4067-be4c-88266edc9019",
+  "https://firebasestorage.googleapis.com/v0/b/noir-879ad.firebasestorage.app/o/YTDown_YouTube_Media_FY3vWQ4Q05M_001_1080p.mp4?alt=media&token=db42c019-ba12-4da0-966b-7166a2aa98d9",
+  "https://firebasestorage.googleapis.com/v0/b/noir-879ad.firebasestorage.app/o/YTDown_YouTube_Media_QfyZ71Qpbh4_001_1080p.mp4?alt=media&token=7f9d5566-ca3d-429f-85dd-e359897e41d7",
+  "https://firebasestorage.googleapis.com/v0/b/noir-879ad.firebasestorage.app/o/YTDown_YouTube_Media_j4B3woBHbF8_001_1080p.mp4?alt=media&token=bc2197c3-5168-4cb6-b3ed-0804e7945765",
+  "https://firebasestorage.googleapis.com/v0/b/noir-879ad.firebasestorage.app/o/YTDown_YouTube_Self-Control-Who-I-McDonald-s_Media_79phlhutGLg_001_1080p.mp4?alt=media&token=b72171f9-4328-4ba5-a7a7-cb3c75d4de7b",
+  "https://firebasestorage.googleapis.com/v0/b/noir-879ad.firebasestorage.app/o/YTDown_YouTube_spotify-motion-graphics-ad_Media_eH8t7ZQQaNg_001_1080p.mp4?alt=media&token=a48fe1fe-2445-4bfc-98d6-0cd000e4da1a",
+  "https://firebasestorage.googleapis.com/v0/b/noir-879ad.firebasestorage.app/o/YTDown_YouTubvideo-ads_Media_1Wx9ftCUx0o_001_1080p.mp4?alt=media&token=77c1c668-f329-471c-bb7d-4ae0329cf85a"
 ];
 
 export default function TasksScreen() {
