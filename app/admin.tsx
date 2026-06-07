@@ -367,7 +367,7 @@ export default function AdminScreen() {
                        <Pressable key={i} style={styles.commandTile} onPress={item.action} disabled={processingId !== null}>
                          <Text style={{ fontSize: 18 }}>{item.icon}</Text>
                          <Text style={styles.tileVal}>{item.val}</Text>
-                         <Text style={styles.stylesTileLabel}>{item.label}</Text>
+                         <Text style={styles.tileLabel}>{item.label}</Text>
                        </Pressable>
                      ))}
                   </View>
@@ -552,7 +552,14 @@ export default function AdminScreen() {
 
               {activeTab === 'historique' && (
                 <View style={{ flex: 1, width: '100%' }}>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.historyFilterBar}>
+                  
+                  {/* 👑 حاوية الفلتر المحصنة ضد الانهيار على المتصفحات */}
+                  <ScrollView 
+                    horizontal 
+                    showsHorizontalScrollIndicator={false} 
+                    style={styles.historyFilterScroll}
+                    contentContainerStyle={styles.historyFilterBar}
+                  >
                     {['ALL', 'Deposit', 'Withdrawal', 'Reward', 'Referral Bonus', 'VIP Upgrade'].map((f) => (
                       <Pressable 
                         key={f} 
@@ -753,7 +760,7 @@ const styles = StyleSheet.create({
   commandGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 25, width: '100%', justifyContent: 'space-between' },
   commandTile: { width: '48%', backgroundColor: '#080808', padding: 20, borderRadius: 25, borderWidth: 1, borderColor: '#111', gap: 8 },
   tileVal: { color: '#fff', fontSize: 20, fontWeight: 'bold' },
-  stylesTileLabel: { color: '#333', fontSize: 9, fontWeight: 'bold' },
+  tileLabel: { color: '#333', fontSize: 9, fontWeight: 'bold' },
   sectionTitle: { color: '#333', fontSize: 10, fontWeight: 'bold', marginTop: 10, marginBottom: 15, marginLeft: 10, letterSpacing: 1.5 },
   financeBox: { backgroundColor: '#080808', borderRadius: 25, padding: 5, borderWidth: 1, borderColor: '#111', width: '100%' },
   fRow: { flexDirection: 'row', alignItems: 'center', padding: 18, borderBottomWidth: 1, borderBottomColor: '#050505' },
@@ -803,9 +810,12 @@ const styles = StyleSheet.create({
   listPadding: { paddingBottom: 150, width: '100%' },
   emptyText: { color: '#444', textAlign: 'center', marginTop: 50, fontWeight: 'bold' },
 
-  historyFilterBar: { paddingHorizontal: 20, gap: 10, height: 50, marginBottom: 15, width: '100%' },
-  historyFilterTab: { backgroundColor: '#080808', paddingHorizontal: 16, height: 38, borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#111' },
-  historyFilterLabel: { color: '#666', fontSize: 10, fontWeight: 'bold' },
+  // 👑 إصلاح التداخل والقص عبر فصل أبعاد الحاوية الصارمة 
+  historyFilterScroll: { flexGrow: 0, flexShrink: 0, height: 50, marginBottom: 15, width: '100%' },
+  historyFilterBar: { paddingHorizontal: 20, alignItems: 'center', gap: 10 },
+  historyFilterTab: { backgroundColor: '#080808', paddingHorizontal: 16, height: 38, borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#111', marginRight: 10 },
+  historyFilterLabel: { color: '#888', fontSize: 10, fontWeight: 'bold' },
+  
   historySummaryCard: { backgroundColor: '#050505', borderRadius: 15, padding: 15, borderWidth: 1, borderColor: '#111', marginBottom: 15, width: '100%' },
   hSumTitle: { color: '#666', fontSize: 10, fontWeight: 'bold', letterSpacing: 1 },
   hSumValue: { color: '#fff', fontSize: 16, fontWeight: 'bold', marginTop: 5 },
