@@ -50,15 +50,34 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
     p.volume = 1.0;   // 100% مستوى الصوت
   });
 
-  const handlePlayAdWithSound = () => {
+  // 🔊 دالة البث المتزامنة المحصنة لكسر حظر الصوت في المتصفحات
+  const handlePlayAdWithSound = async () => {
     if (player) {
-      player.muted = false;
-      player.volume = 1.0;
-      player.play();
-      setIsPlaying(true);
+      try {
+        // 1. نجبر المشغل على إلغاء الكتم أولاً وضبط أعلى مستوى صوت
+        player.muted = false;
+        player.volume = 1.0;
+        
+        // 2. نقوم بالتشغيل
+        player.play();
+        setIsPlaying(true);
+        
+        // 3. خدعة الويب الاحترافية: إعادة تأكيد الغاء الكتم بعد جزء من الثانية لضمان استجابة المتصفح
+        setTimeout(() => {
+          if (player) {
+            player.muted = false;
+            player.volume = 1.0;
+          }
+        }, 100);
+        
+      } catch (error) {
+        console.error("Browser blocked audio injection:", error);
+        // إذا اعترض المتصفح، نشغل الفيديو على الأقل لكي لا تتعطل مهام المستخدم
+        player.play();
+        setIsPlaying(true);
+      }
     }
   };
-
   useEffect(() => {
     let timer: any; 
     if (isPlaying && timeLeft > 0) {
