@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, View, Text, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { MaterialIcons, Ionicons } from '@expo/vector-icons';
-import { useAuth } from '@/hooks/useAuth'; // 👈 استيراد الأوث لالتقاط الرادار السحابي للغة
+import { useAuth } from '@/hooks/useAuth'; // استيراد الأوث لالتقاط الرادار السحابي للغة
 
 interface VideoAdModalProps {
   visible: boolean;
@@ -11,7 +10,7 @@ interface VideoAdModalProps {
   onClose: () => void;
 }
 
-// 🌍 قاموس التعريب الفوري والمدمج محلياً لـ مودال الإعلانات لضمان عدم حدوث كراشات
+// 🌍 قاموس التعريب الفوري والمدمج محلياً لـ مودال الإعلانات
 const adTranslations: Record<string, Record<string, string>> = {
   EN: {
     secureAudio: "🔒 Secure Audio Connection Ready",
@@ -37,7 +36,7 @@ const adTranslations: Record<string, Record<string, string>> = {
   }
 };
 
-// 🚀 1. المكون الداخلي المنفصل: يضمن ولادة مشغل الفيديو في نفس ثانية فتح الشاشة فقط!
+// 🚀 1. المكون الداخلي المنفصل
 function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: string, onComplete: () => void, onClose: () => void, lang: string }) {
   const [timeLeft, setTimeLeft] = useState(15);
   const [isFinished, setIsFinished] = useState(false);
@@ -45,14 +44,12 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
 
   const t = adTranslations[lang] || adTranslations['EN'];
 
-  // المشغل يبدأ هنا كلياً من الصفر، فيكون حياً ونظيفاً في ذاكرة المتصفح
   const player = useVideoPlayer(videoUrl, (p) => {
     p.loop = false;
     p.muted = false;  // 🔊 نطلب الصوت علناً وبقوة
     p.volume = 1.0;   // 100% مستوى الصوت
   });
 
-  // دالة البث المتزامنة مع نقرة إصبعك الصريحة لكسر الحماية
   const handlePlayAdWithSound = () => {
     if (player) {
       player.muted = false;
@@ -62,7 +59,6 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
     }
   };
 
-  // عداد الـ 15 ثانية المستقر
   useEffect(() => {
     let timer: any; 
     if (isPlaying && timeLeft > 0) {
@@ -107,7 +103,8 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
           {!isPlaying && (
             <Pressable style={styles.startAdOverlay} onPress={handlePlayAdWithSound}>
               <View style={styles.playIconCircle}>
-                <MaterialIcons name="volume-up" size={32} color="#000" />
+                {/* 🛠️ تعديل 1: استبدال أيقونة مكبر الصوت المكسورة بإيموجي نصي صلب ومحاذاته مركزياً */}
+                <Text style={{ fontSize: 26, color: '#000', textAlign: 'center' }}>🔊</Text>
               </View>
               <Text style={styles.startAdTitle}>{t.watchWithSound}</Text>
               <Text style={styles.startAdSub}>{t.bypassGesture}</Text>
@@ -118,7 +115,8 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
       ) : (
         /* كارت الأرباح الفاخر لـ NoirWealth مترجم */
         <View style={styles.successBox}>
-          <Ionicons name="checkmark-circle" size={75} color="#4CAF50" />
+          {/* 🛠️ تعديل 2: استبدال علامة التحقق الخضراء الكبيرة بإيموجي نصي مدمج ممتاز */}
+          <Text style={{ fontSize: 60, marginBottom: 10 }}>✅</Text>
           <Text style={styles.successTitle}>{t.rewardReady}</Text>
           <Text style={styles.successSub}>{t.clickConfirm}</Text>
         </View>
@@ -135,7 +133,8 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
             style={[styles.closeButton, lang === 'AR' && { flexDirection: 'row-reverse' }]} 
             onPress={() => { player.pause(); onClose(); }}
           >
-            <MaterialIcons name="close" size={18} color="#E53E3E" />
+            {/* 🛠️ تعديل 3: استبدال أيقونة الإغلاق الحمراء المكسورة بإيموجي نصي ثابت ومقاوم لمشاكل الويب */}
+            <Text style={[{ fontSize: 13 }, lang === 'AR' ? { marginRight: 2 } : { marginLeft: 2 }]}>❌</Text>
             <Text style={[styles.closeText, lang === 'AR' && { marginRight: 6, marginLeft: 0 }]}>{t.cancelTask}</Text>
           </TouchableOpacity>
         )}
@@ -145,24 +144,22 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
   );
 }
 
-// 🚀 2. المكون الرئيسي: يتحكم في التدمير والبناء الشرطي الكامل لمنع الحظر في الخلفية
+// 🚀 2. المكون الرئيسي
 export default function VideoAdModal({ visible, videoUrl, onComplete, onClose }: VideoAdModalProps) {
   const { user } = useAuth();
   
-  // التقاط لغة العميل الحالية سحابياً
   // @ts-ignore
   const lang = user?.language || 'EN';
 
   return (
     <Modal visible={visible} animationType="fade" transparent={true}>
       <View style={styles.modalOverlay}>
-        {/* 🔥 السحر هنا: إذا المودال مغلق، المكون الداخلي يُحذف تماماً من الـ DOM ولا يكتشفه المتصفح */}
         {visible && (
           <AdPlayerContent 
             videoUrl={videoUrl} 
             onComplete={onComplete} 
             onClose={onClose} 
-            lang={lang} // تمرير اللغة للمكون الداخلي لفرز الكلمات
+            lang={lang} 
           />
         )}
       </View>
