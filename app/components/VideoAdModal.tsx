@@ -105,12 +105,12 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
       {!isFinished ? (
         <View style={styles.videoBox}>
           
-          <VideoView 
-            player={player} 
-            style={[styles.videoStyle, !isPlaying && { opacity: 0 }]} 
-            contentFit="cover"
-            nativeControls={false} 
-          />
+        <VideoView 
+  player={player} 
+  style={[styles.videoStyle, !isPlaying && { opacity: 0 }]} 
+  contentFit="cover"
+  nativeControls={true} // 👑 تفعيل هذا الخيار يجبر المتصفح على إظهار زر الصوت الأصلي الخاص به لكسر الحظر كلياً!
+/>
 
           {/* 🏆 واجهة كسر الحظر الذهبية الصريحة */}
           {!isPlaying && (
