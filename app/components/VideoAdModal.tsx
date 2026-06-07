@@ -27,8 +27,8 @@ const adTranslations: Record<string, Record<string, string>> = {
     taskApproved: "🎉 تم قبول واعتماد المهمة بنجاح!",
     watchWithSound: "تشغيل الإعلان مع الصوت 🔊",
     bypassGesture: "إيماءة مباشرة لتجاوز حظر الصوت في النظام",
-    rewardReady: "المكافأة جاهزة درك 💰",
-    clickConfirm: "اضغط على تأكيد بالأسفل لضخ الأرباح لداخل محفظتك.",
+    rewardReady:" المكافأة جاهزة الآن💰",
+    clickConfirm: "اضغط على تأكيد بالأسفل لجمع الأرباح داخل حفظتك",
     claimBtn: "تأكيد واستلام الأرباح 💰",
     cancelTask: "إلغاء المهمة وتراجع"
   }

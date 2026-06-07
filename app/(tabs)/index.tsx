@@ -65,7 +65,7 @@ const dashboardTranslations: Record<string, Record<string, string>> = {
     upgradeToEarn: "قم بترقية الـ VIP لبدء جني الأرباح",
     remainingVideos: "فيديوهات متبقية للحصول على الجائزة",
     potentialReward: "العائد المالي المحتمل اليوم",
-    payoutNote: "يتم احتساب الرصيد تلقائياً بعد إتمام كاع الـ 10 فيديوهات",
+    payoutNote: "يتم احتساب الرصيد تلقائياً بعد إتمام كامل الـ 10 فيديوهات",
     activateVip: "قم بتفعيل خطة الـ VIP الخاصة بك",
     earnDaily: "اربح عوائد مالية يومية مضمونة من $1.20 إلى $24.00",
     recentActivity: "أحدث النشاطات المالية المؤخرة",
