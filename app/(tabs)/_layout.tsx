@@ -41,15 +41,12 @@ export default function TabLayout() {
             backgroundColor: Colors.surface,
             borderTopWidth: 1,
             borderTopColor: Colors.surfaceBorder,
-            // 🛠️ تعديل 1: إعطاء أبعاد صارمة ومريحة للويب على التيليفون باش يترفع الفوق وما يلصقش
-            height: Platform.OS === 'web' 
-              ? 80 
-              : (Platform.OS === 'ios' ? 65 + insets.bottom : 68 + (insets.bottom > 0 ? insets.bottom : 6)),
             
-            // 🛠️ تعديل 2: زيادة الـ padding السفلي للويب لمنع التداخل مع أزرار السيستم أو المتصفح
-            paddingBottom: Platform.OS === 'web' 
-              ? 22 
-              : (Platform.OS === 'ios' ? insets.bottom : (insets.bottom > 0 ? insets.bottom + 4 : 12)),
+            // 🛠️ الحل: استعملنا minHeight بدل height الثابت باش الكتيبه تتنفس وما تتقصش
+            minHeight: Platform.OS === 'web' ? 75 : 70, 
+            
+            // 🛠️ رجعنا الـ padding سفلي معقول باش يرفدها شوية الفوق برك
+            paddingBottom: Platform.OS === 'web' ? 15 : 12,
             paddingTop: 10,
           },
           tabBarActiveTintColor: Colors.gold,
