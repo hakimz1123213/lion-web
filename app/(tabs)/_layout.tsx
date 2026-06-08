@@ -35,32 +35,39 @@ export default function TabLayout() {
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       <Tabs
-      screenOptions={{
+     screenOptions={{
           headerShown: false,
-          tabBarStyle: {
-            backgroundColor: Colors.surface,
-            borderTopWidth: 1,
-            borderTopColor: Colors.surfaceBorder,
-            // ارتفاع ثابت ومتناسق
-            height: Platform.OS === 'web' ? 65 : 60 + (insets.bottom || 0),
-            // نحينا الـ padding السفلي الكبير باش ما يخنقش الكتيبه
-            paddingBottom: Platform.OS === 'ios' ? insets.bottom : 5,
-            paddingTop: 5,
-          },
+          tabBarStyle: Platform.OS === 'web' 
+            ? {
+                // 🌐 إعدادات الويب الإجبارية
+                backgroundColor: Colors.surface,
+                borderTopWidth: 1,
+                borderTopColor: Colors.surfaceBorder,
+                position: 'fixed' as any, // 👈 التعديل هنا: زدنا as any باش نسكتو الـ TypeScript
+                bottom: 0,
+                left: 0,
+                right: 0,
+                height: 75, // ارتفاع ثابت
+                paddingBottom: 25, // رفعنا الكتيبه 25 بيكسل
+                paddingTop: 8,
+              }
+            : {
+                // 📱 إعدادات التطبيق (Android/iOS) العادية
+                backgroundColor: Colors.surface,
+                borderTopWidth: 1,
+                borderTopColor: Colors.surfaceBorder,
+                height: 65 + (insets.bottom || 0),
+                paddingBottom: insets.bottom || 5,
+                paddingTop: 5,
+              },
           tabBarActiveTintColor: Colors.gold,
           tabBarInactiveTintColor: '#888888',
-          // 💡 السحر راهو هنا:
           tabBarLabelStyle: {
             fontSize: 11,
             fontWeight: '600',
             letterSpacing: 0.3,
-            // 👈 هادي اللّي ترفع الكتيبه الفوق وتبعدها على مقص المتصفح!
-            marginBottom: Platform.OS === 'web' ? 8 : 0, 
-            marginTop: 0,
+            marginTop: 4,
           },
-          tabBarIconStyle: {
-            marginTop: 0,
-          }
         }}
       >
         <Tabs.Screen
