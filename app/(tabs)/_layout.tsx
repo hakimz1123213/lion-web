@@ -41,10 +41,11 @@ export default function TabLayout() {
             backgroundColor: Colors.surface,
             borderTopWidth: 1,
             borderTopColor: Colors.surfaceBorder,
-            // 1️⃣ ارتفاع ثابت ومسافات طبيعية بدون مبالغة
-            height: Platform.OS === 'web' ? 65 : 60 + (insets.bottom || 0),
-            paddingBottom: Platform.OS === 'web' ? 8 : (insets.bottom || 5),
-            paddingTop: 6,
+            // 🚀 كبرنا الارتفاع الكلي لـ 90 بيكسل في الويب باش يرفد كلش براحة
+            height: Platform.OS === 'web' ? 90 : 75 + (insets.bottom || 0),
+            // 🚀 السر هنا: مسافة 30 بيكسل كاملة من التحت ترفع الكتيبه وتنقذها من حافة سفاري!
+            paddingBottom: Platform.OS === 'web' ? 30 : (insets.bottom || 15),
+            paddingTop: 12,
           },
           tabBarItemStyle: {
             justifyContent: 'center',
@@ -53,7 +54,7 @@ export default function TabLayout() {
           tabBarLabelStyle: {
             fontSize: 11,
             fontWeight: 'bold',
-            marginTop: 2, // مسافة صغيرة برك
+            marginTop: 5,
           },
           tabBarActiveTintColor: Colors.gold,
           tabBarInactiveTintColor: '#888888',
