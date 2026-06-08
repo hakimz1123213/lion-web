@@ -34,7 +34,7 @@ export default function AdminScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [historySearchQuery, setHistorySearchQuery] = useState(''); // 🔍 الحالة الجديدة المخصصة لبحث التاريخ
+  const [historySearchQuery, setHistorySearchQuery] = useState(''); 
   const [showVipOnly, setShowVipOnly] = useState(false);
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [newBalance, setNewBalance] = useState('');
@@ -55,7 +55,6 @@ export default function AdminScreen() {
 
   const [fadeAnim] = useState(new Animated.Value(0));
 
-  // جلب البيانات الحيّة من فايربيز
   useEffect(() => {
     if (!user?.uid || !isSuperAdmin(user.email)) return;
 
@@ -88,16 +87,13 @@ export default function AdminScreen() {
     return () => unsubscribeTxs();
   }, [user?.uid, user?.email]);
 
-  // 🛡️ محرك الفلترة الذكي والتفاعلي لقسم التاريخ (يجمع بين فلتر الأزرار وشريط البحث)
   useEffect(() => {
     let result = historyTxs;
 
-    // 1. تصفية حسب نوع المعاملة (الزر المختار)
     if (historyFilter !== 'ALL') {
       result = result.filter(t => (t.type || '').toUpperCase() === historyFilter.toUpperCase());
     }
 
-    // 2. تصفية حسب اسم المستخدم المبحوث عنه
     if (historySearchQuery.trim() !== '') {
       result = result.filter(t => 
         t.username?.toLowerCase().includes(historySearchQuery.toLowerCase())
@@ -337,7 +333,7 @@ export default function AdminScreen() {
         </View>
       </View>
 
-      <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+      <Animated.View style={{ flex: 1, opacity: fadeAnim, width: '100%' }}>
         {isLoading && !isRefreshing ? (
           <View style={styles.center}><ActivityIndicator size="large" color={Colors.gold} /></View>
         ) : (
@@ -563,10 +559,10 @@ export default function AdminScreen() {
                 </View>
               )}
 
+              {/* 🛡️ التعديل هنا: زدنا overflow: 'hidden' باش نمنعوا الشاشة تتزومى ولا تخرج على الإطار */}
               {activeTab === 'historique' && (
-                <View style={{ flex: 1, width: '100%' }}>
+                <View style={{ flex: 1, width: '100%', overflow: 'hidden' }}>
                   
-                  {/* 👑 حاوية الفلتر المحصنة ضد الانهيار على المتصفحات */}
                   <ScrollView 
                     horizontal 
                     showsHorizontalScrollIndicator={false} 
@@ -584,7 +580,6 @@ export default function AdminScreen() {
                     ))}
                   </ScrollView>
 
-                  {/* 🔍 شريط البحث الجديد الفخم المخصص لقسم الأرشيف والتاريخ */}
                   <View style={[styles.searchContainer, { marginTop: 0, marginBottom: 15 }]}>
                     <Text style={{ fontSize: 14, marginRight: 6 }}>🔍</Text>
                     <TextInput 
@@ -808,7 +803,9 @@ const styles = StyleSheet.create({
   miniBtnApp: { flex: 2, backgroundColor: Colors.gold, flexDirection: 'row', padding: 15, borderRadius: 15, justifyContent: 'center', alignItems: 'center', gap: 8 },
   miniBtnRej: { flex: 1, backgroundColor: '#111', flexDirection: 'row', padding: 15, borderRadius: 15, justifyContent: 'center', alignItems: 'center', gap: 8 },
   miniBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 12 },
-  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#080808', marginVertical: 20, paddingHorizontal: 15, borderRadius: 15, borderWidth: 1, borderColor: '#151515', width: '100%' },
+  
+  // 🛡️ التعديل الأول: أضفنا maxWidth: '100%' باش شريط البحث ما يكبرش بزاف
+  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#080808', marginVertical: 20, paddingHorizontal: 15, borderRadius: 15, borderWidth: 1, borderColor: '#151515', width: '100%', maxWidth: '100%' },
   searchInput: { flex: 1, padding: 15, color: '#fff' },
   userEliteCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#080808', marginBottom: 10, padding: 18, borderRadius: 25, borderWidth: 1, borderColor: '#111', width: '100%' },
   uAvatar: { width: 48, height: 48, borderRadius: 24, borderWidth: 2, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' },
@@ -836,12 +833,13 @@ const styles = StyleSheet.create({
   listPadding: { paddingBottom: 150, width: '100%' },
   emptyText: { color: '#444', textAlign: 'center', marginTop: 50, fontWeight: 'bold' },
 
-  historyFilterScroll: { flexGrow: 0, flexShrink: 0, height: 50, marginBottom: 15, width: '100%' },
-  historyFilterBar: { paddingHorizontal: 20, alignItems: 'center', gap: 10 },
-  historyFilterTab: { backgroundColor: '#080808', paddingHorizontal: 16, height: 38, borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#111', marginRight: 10 },
+  // 🛡️ التعديل الثاني والأساسي: مسحنا `flexShrink: 0` اللّي كانت تخلي الأزرار تخرج عن الشاشة وتزوميها
+  historyFilterScroll: { height: 55, marginBottom: 15, width: '100%', maxWidth: '100%' },
+  historyFilterBar: { paddingHorizontal: 10, alignItems: 'center', flexDirection: 'row' },
+  historyFilterTab: { backgroundColor: '#080808', paddingHorizontal: 14, height: 38, borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#111', marginRight: 8 },
   historyFilterLabel: { color: '#888', fontSize: 10, fontWeight: 'bold' },
-  
   historySummaryCard: { backgroundColor: '#050505', borderRadius: 15, padding: 15, borderWidth: 1, borderColor: '#111', marginBottom: 15, width: '100%' },
+  
   hSumTitle: { color: '#666', fontSize: 10, fontWeight: 'bold', letterSpacing: 1 },
   hSumValue: { color: '#fff', fontSize: 16, fontWeight: 'bold', marginTop: 5 },
   historyLogCard: { backgroundColor: '#080808', marginBottom: 10, borderRadius: 20, padding: 18, borderWidth: 1, borderColor: '#111', width: '100%' },
