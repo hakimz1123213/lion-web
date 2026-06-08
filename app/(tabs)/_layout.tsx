@@ -41,12 +41,20 @@ export default function TabLayout() {
             backgroundColor: Colors.surface,
             borderTopWidth: 1,
             borderTopColor: Colors.surfaceBorder,
-            height: Platform.OS === 'ios' ? 65 + insets.bottom : 68 + (insets.bottom > 0 ? insets.bottom : 6),
-            paddingBottom: Platform.OS === 'ios' ? insets.bottom : (insets.bottom > 0 ? insets.bottom + 4 : 12),
+            // 🛠️ تعديل 1: إعطاء أبعاد صارمة ومريحة للويب على التيليفون باش يترفع الفوق وما يلصقش
+            height: Platform.OS === 'web' 
+              ? 80 
+              : (Platform.OS === 'ios' ? 65 + insets.bottom : 68 + (insets.bottom > 0 ? insets.bottom : 6)),
+            
+            // 🛠️ تعديل 2: زيادة الـ padding السفلي للويب لمنع التداخل مع أزرار السيستم أو المتصفح
+            paddingBottom: Platform.OS === 'web' 
+              ? 22 
+              : (Platform.OS === 'ios' ? insets.bottom : (insets.bottom > 0 ? insets.bottom + 4 : 12)),
             paddingTop: 10,
           },
           tabBarActiveTintColor: Colors.gold,
-          tabBarInactiveTintColor: Colors.textMuted,
+          // 🛠️ تعديل 3: تغيير اللون من غامق ميت إلى رمادي فاتح وواضح جداً فوق الأسود (#888888)
+          tabBarInactiveTintColor: '#888888', 
           tabBarLabelStyle: {
             fontSize: 11,
             fontWeight: '600',
@@ -59,7 +67,6 @@ export default function TabLayout() {
           name="index"
           options={{
             title: 'Dashboard',
-            // 🛠️ تعديل 1: حقن إيموجي العداد الفاخر بدقة ومقاومة كاملة لمشاكل الويب
             tabBarIcon: ({ color }) => (
               <Text style={{ fontSize: 18, color: color }}>📊</Text>
             ),
@@ -69,7 +76,6 @@ export default function TabLayout() {
           name="tasks"
           options={{
             title: 'Tasks',
-            // 🛠️ تعديل 2: حقن إيموجي شاشة الفيديو والتشغيل
             tabBarIcon: ({ color }) => (
               <Text style={{ fontSize: 18, color: color }}>▶️</Text>
             ),
@@ -79,7 +85,6 @@ export default function TabLayout() {
           name="wallet"
           options={{
             title: 'Wallet',
-            // 🛠️ تعديل 3: حقن إيموجي كيس النقود الملوكي
             tabBarIcon: ({ color }) => (
               <Text style={{ fontSize: 18, color: color }}>💰</Text>
             ),
@@ -89,7 +94,6 @@ export default function TabLayout() {
           name="profile"
           options={{
             title: 'Profile',
-            // 🛠️ تعديل 4: حقن إيموجي الماسة الفخمة للبروفايل الشخصي
             tabBarIcon: ({ color }) => (
               <Text style={{ fontSize: 18, color: color }}>💎</Text>
             ),
