@@ -35,28 +35,31 @@ export default function TabLayout() {
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       <Tabs
-        screenOptions={{
+       screenOptions={{
           headerShown: false,
           tabBarStyle: {
             backgroundColor: Colors.surface,
             borderTopWidth: 1,
             borderTopColor: Colors.surfaceBorder,
-            
-            // 🛠️ الحل: استعملنا minHeight بدل height الثابت باش الكتيبه تتنفس وما تتقصش
-            minHeight: Platform.OS === 'web' ? 75 : 70, 
-            
-            // 🛠️ رجعنا الـ padding سفلي معقول باش يرفدها شوية الفوق برك
-            paddingBottom: Platform.OS === 'web' ? 15 : 12,
-            paddingTop: 10,
+            // 1. ارتفاع ثابت ومريح جداً للويب
+            height: Platform.OS === 'web' ? 70 : 65 + (insets.bottom || 0),
+            // 2. نقصنا الـ padding السفلي باش ما يضغطش على الكتيبه لتحت
+            paddingBottom: Platform.OS === 'web' ? 8 : (insets.bottom || 5),
+            paddingTop: 8,
+          },
+          // 3. هادي الخاصية الجديدة اللّي تجبر الأيقونة والكتيبه يتسنطرا (Center) في النص
+          tabBarItemStyle: {
+            paddingBottom: 5,
+            justifyContent: 'center',
+            alignItems: 'center',
           },
           tabBarActiveTintColor: Colors.gold,
-          // 🛠️ تعديل 3: تغيير اللون من غامق ميت إلى رمادي فاتح وواضح جداً فوق الأسود (#888888)
-          tabBarInactiveTintColor: '#888888', 
+          tabBarInactiveTintColor: '#888888',
           tabBarLabelStyle: {
             fontSize: 11,
             fontWeight: '600',
             letterSpacing: 0.3,
-            marginTop: 4,
+            marginTop: 2, // صغرنا المسافة بين الأيقونة والكتيبه
           },
         }}
       >
