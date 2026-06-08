@@ -35,32 +35,32 @@ export default function TabLayout() {
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       <Tabs
-       screenOptions={{
+      screenOptions={{
           headerShown: false,
           tabBarStyle: {
             backgroundColor: Colors.surface,
             borderTopWidth: 1,
             borderTopColor: Colors.surfaceBorder,
-            // 1. ارتفاع ثابت ومريح جداً للويب
-            height: Platform.OS === 'web' ? 70 : 65 + (insets.bottom || 0),
-            // 2. نقصنا الـ padding السفلي باش ما يضغطش على الكتيبه لتحت
-            paddingBottom: Platform.OS === 'web' ? 8 : (insets.bottom || 5),
-            paddingTop: 8,
-          },
-          // 3. هادي الخاصية الجديدة اللّي تجبر الأيقونة والكتيبه يتسنطرا (Center) في النص
-          tabBarItemStyle: {
-            paddingBottom: 5,
-            justifyContent: 'center',
-            alignItems: 'center',
+            // ارتفاع ثابت ومتناسق
+            height: Platform.OS === 'web' ? 65 : 60 + (insets.bottom || 0),
+            // نحينا الـ padding السفلي الكبير باش ما يخنقش الكتيبه
+            paddingBottom: Platform.OS === 'ios' ? insets.bottom : 5,
+            paddingTop: 5,
           },
           tabBarActiveTintColor: Colors.gold,
           tabBarInactiveTintColor: '#888888',
+          // 💡 السحر راهو هنا:
           tabBarLabelStyle: {
             fontSize: 11,
             fontWeight: '600',
             letterSpacing: 0.3,
-            marginTop: 2, // صغرنا المسافة بين الأيقونة والكتيبه
+            // 👈 هادي اللّي ترفع الكتيبه الفوق وتبعدها على مقص المتصفح!
+            marginBottom: Platform.OS === 'web' ? 8 : 0, 
+            marginTop: 0,
           },
+          tabBarIconStyle: {
+            marginTop: 0,
+          }
         }}
       >
         <Tabs.Screen
