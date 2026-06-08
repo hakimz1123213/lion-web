@@ -35,17 +35,20 @@ export default function TabLayout() {
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       <Tabs
-        screenOptions={{
+       screenOptions={{
           headerShown: false,
           tabBarStyle: {
             backgroundColor: Colors.surface,
             borderTopWidth: 1,
             borderTopColor: Colors.surfaceBorder,
-            // 🚀 كبرنا الارتفاع الكلي لـ 90 بيكسل في الويب باش يرفد كلش براحة
-            height: Platform.OS === 'web' ? 90 : 75 + (insets.bottom || 0),
-            // 🚀 السر هنا: مسافة 30 بيكسل كاملة من التحت ترفع الكتيبه وتنقذها من حافة سفاري!
-            paddingBottom: Platform.OS === 'web' ? 30 : (insets.bottom || 15),
-            paddingTop: 12,
+            // 🔒 استعملنا طريقة ذكية لتجنب كراش التيبيسكربت بدون استعمال fixed الخربانة في النيتيف
+            position: Platform.OS === 'web' ? ('fixed' as any) : 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: Platform.OS === 'web' ? 75 : 65 + (insets.bottom || 0),
+            paddingBottom: Platform.OS === 'web' ? 18 : (insets.bottom || 5),
+            paddingTop: 8,
           },
           tabBarItemStyle: {
             justifyContent: 'center',
@@ -54,7 +57,7 @@ export default function TabLayout() {
           tabBarLabelStyle: {
             fontSize: 11,
             fontWeight: 'bold',
-            marginTop: 5,
+            marginTop: 4,
           },
           tabBarActiveTintColor: Colors.gold,
           tabBarInactiveTintColor: '#888888',
