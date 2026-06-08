@@ -35,29 +35,34 @@ export default function TabLayout() {
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       <Tabs
-       screenOptions={{
+ screenOptions={{
           headerShown: false,
           tabBarStyle: {
             backgroundColor: Colors.surface,
             borderTopWidth: 1,
             borderTopColor: Colors.surfaceBorder,
-            // 🔒 استعملنا طريقة ذكية لتجنب كراش التيبيسكربت بدون استعمال fixed الخربانة في النيتيف
+            // 🔒 تثبيت الشريط للويب بطريقة صارمة ومحمية
             position: Platform.OS === 'web' ? ('fixed' as any) : 'absolute',
             bottom: 0,
             left: 0,
             right: 0,
-            height: Platform.OS === 'web' ? 75 : 65 + (insets.bottom || 0),
-            paddingBottom: Platform.OS === 'web' ? 18 : (insets.bottom || 5),
+            // 🚀 الارتفاع المثالي للويب (65 بيكسل) بدون زيادة
+            height: Platform.OS === 'web' ? 65 : 65 + (insets.bottom || 0),
+            // 🔥 الحل: مسحنا الـ Padding تماماً في الويب (0) باش يختفي هاداك السطر الصغير الخربان
+            paddingBottom: Platform.OS === 'web' ? 0 : (insets.bottom || 5),
             paddingTop: 8,
           },
+          // 🎯 إجبار العناصر على السنطرة العمودية والأفقية في النص بالضبط
           tabBarItemStyle: {
             justifyContent: 'center',
             alignItems: 'center',
+            height: '100%', 
           },
           tabBarLabelStyle: {
             fontSize: 11,
             fontWeight: 'bold',
-            marginTop: 4,
+            marginTop: 2, 
+            marginBottom: Platform.OS === 'web' ? 5 : 0, // رفع طفيف للكتابة لتتنفس
           },
           tabBarActiveTintColor: Colors.gold,
           tabBarInactiveTintColor: '#888888',
