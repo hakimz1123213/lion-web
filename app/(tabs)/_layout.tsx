@@ -21,7 +21,7 @@ export default function TabLayout() {
     return unsubscribe;
   }, []);
 
-  // 🚀 التوجيه التلقائي الذكي والآمن لصفحة الدخول
+  // 🚀 التوجيه التلقائي
   useEffect(() => {
     if (loading) return;
     const id = setTimeout(() => {
@@ -35,47 +35,37 @@ export default function TabLayout() {
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       <Tabs
-     screenOptions={{
+        screenOptions={{
           headerShown: false,
-          tabBarStyle: Platform.OS === 'web' 
-            ? {
-                // 🌐 إعدادات الويب الإجبارية
-                backgroundColor: Colors.surface,
-                borderTopWidth: 1,
-                borderTopColor: Colors.surfaceBorder,
-                position: 'fixed' as any, // 👈 التعديل هنا: زدنا as any باش نسكتو الـ TypeScript
-                bottom: 0,
-                left: 0,
-                right: 0,
-                height: 75, // ارتفاع ثابت
-                paddingBottom: 25, // رفعنا الكتيبه 25 بيكسل
-                paddingTop: 8,
-              }
-            : {
-                // 📱 إعدادات التطبيق (Android/iOS) العادية
-                backgroundColor: Colors.surface,
-                borderTopWidth: 1,
-                borderTopColor: Colors.surfaceBorder,
-                height: 65 + (insets.bottom || 0),
-                paddingBottom: insets.bottom || 5,
-                paddingTop: 5,
-              },
-          tabBarActiveTintColor: Colors.gold,
-          tabBarInactiveTintColor: '#888888',
+          tabBarStyle: {
+            backgroundColor: Colors.surface,
+            borderTopWidth: 1,
+            borderTopColor: Colors.surfaceBorder,
+            // 1️⃣ ارتفاع ثابت ومسافات طبيعية بدون مبالغة
+            height: Platform.OS === 'web' ? 65 : 60 + (insets.bottom || 0),
+            paddingBottom: Platform.OS === 'web' ? 8 : (insets.bottom || 5),
+            paddingTop: 6,
+          },
+          tabBarItemStyle: {
+            justifyContent: 'center',
+            alignItems: 'center',
+          },
           tabBarLabelStyle: {
             fontSize: 11,
-            fontWeight: '600',
-            letterSpacing: 0.3,
-            marginTop: 4,
+            fontWeight: 'bold',
+            marginTop: 2, // مسافة صغيرة برك
           },
+          tabBarActiveTintColor: Colors.gold,
+          tabBarInactiveTintColor: '#888888',
         }}
       >
         <Tabs.Screen
           name="index"
           options={{
             title: 'Dashboard',
+            // 2️⃣ السر العظيم هنا: حددنا lineHeight: 22 باش الإيموجي ما يبلعش المساحة!
             tabBarIcon: ({ color }) => (
-              <Text style={{ fontSize: 18, color: color }}>📊</Text>
+              <Text style={{ fontSize: 20, color: color, lineHeight: 22, textAlign: 'center' }}>📊</Text>
             ),
           }}
         />
@@ -84,7 +74,7 @@ export default function TabLayout() {
           options={{
             title: 'Tasks',
             tabBarIcon: ({ color }) => (
-              <Text style={{ fontSize: 18, color: color }}>▶️</Text>
+              <Text style={{ fontSize: 20, color: color, lineHeight: 22, textAlign: 'center' }}>▶️</Text>
             ),
           }}
         />
@@ -93,7 +83,7 @@ export default function TabLayout() {
           options={{
             title: 'Wallet',
             tabBarIcon: ({ color }) => (
-              <Text style={{ fontSize: 18, color: color }}>💰</Text>
+              <Text style={{ fontSize: 20, color: color, lineHeight: 22, textAlign: 'center' }}>💰</Text>
             ),
           }}
         />
@@ -102,13 +92,12 @@ export default function TabLayout() {
           options={{
             title: 'Profile',
             tabBarIcon: ({ color }) => (
-              <Text style={{ fontSize: 18, color: color }}>💎</Text>
+              <Text style={{ fontSize: 20, color: color, lineHeight: 22, textAlign: 'center' }}>💎</Text>
             ),
           }}
         />
       </Tabs>
 
-      {/* شاشة التحميل كـ غطاء (Overlay) فوق الـ Tabs لمنع كراش الـ Pre-render */}
       {loading && (
         <View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#000000', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }]}>
           <ActivityIndicator size="large" color={Colors.gold || '#D4AF37'} />
