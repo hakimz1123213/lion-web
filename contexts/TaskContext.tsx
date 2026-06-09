@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useEffect, useRef, ReactNode } from 'react';
 import { db } from '../services/firebaseConfig'; 
-import { ref, get, update, set, push } from "firebase/database";
+// 🛡️ التعديل الأول: استيراد serverTimestamp لتوثيق الوقت من خوادم جوجل حصراً
+import { ref, get, update, set, push, onValue, serverTimestamp } from "firebase/database";
 import { AuthContext } from './AuthContext';
 import { WalletContext } from './WalletContext';
 import { getVIPTier, randomPayout, TASK_TOTAL } from '@/constants/config';
@@ -11,8 +12,8 @@ interface TaskContextType {
   tasksDoneToday: boolean;
   watchingIndex: number | null;
   isLoading: boolean;
-  timeRemaining: string; 
-  canReset: boolean;     
+  timeRemaining: string;     
+  canReset: boolean;         
   startWatchingVideo: (index: number) => void;
   completeVideo: () => void;
   cancelVideo: () => void;
@@ -36,7 +37,38 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   
   const lastUserId = useRef<string | null>(null);
 
-  // ─── جلب الحالة وتحديث العداد التنازلي ──────────────────────────────────────
+  // 🛡️ الحماية المطلقة: مراجع للوقت الآمن اللّي مستحيل يتأثر بتغيير ساعة الهاتف
+  const secureTimeRef = useRef<number>(Date.now());
+  const lastLocalTimeRef = useRef<number>(Date.now());
+  const offsetRef = useRef<number>(0);
+
+  // 1️⃣ جلب فارق الوقت من سيرفرات فايربيز كخطة بديلة
+  useEffect(() => {
+    const offsetRefDb = ref(db, '.info/serverTimeOffset');
+    const unsub = onValue(offsetRefDb, snap => {
+      offsetRef.current = snap.val() || 0;
+      syncTrueTime(); // مزامنة فورية عند الدخول
+    });
+    return () => unsub();
+  }, []);
+
+  // 2️⃣ رادار الوقت الفولاذي: يجيب الوقت الحقيقي من الإنترنت
+  const syncTrueTime = async (isJumpDetected = false) => {
+    try {
+      const res = await fetch('https://worldtimeapi.org/api/timezone/Etc/UTC');
+      if (res.ok) {
+        const data = await res.json();
+        secureTimeRef.current = new Date(data.utc_datetime).getTime();
+      } else {
+        if (!isJumpDetected) secureTimeRef.current = Date.now() + offsetRef.current;
+      }
+    } catch (e) {
+      if (!isJumpDetected) secureTimeRef.current = Date.now() + offsetRef.current;
+    }
+    lastLocalTimeRef.current = Date.now();
+  };
+
+  // 3️⃣ المحرك الداخلي والعداد اللّي يقاوم غش المستخدمين
   useEffect(() => {
     if (!auth?.user) {
       setDailyCounter(0);
@@ -52,7 +84,18 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     }
 
     const timer = setInterval(() => {
-      updateCooldownStatus();
+      const now = Date.now();
+      const delta = now - lastLocalTimeRef.current;
+      lastLocalTimeRef.current = now;
+
+      // 🚨 نظام كشف الغش: إذا قدّم المستخدم ساعة الهاتف سيتم كشفه هنا!
+      if (Math.abs(delta) > 15000) {
+         console.warn("🛡️ Security Alert: Clock manipulation detected! Resyncing...");
+         syncTrueTime(true).then(() => updateCooldownStatus());
+      } else {
+         secureTimeRef.current += delta; // تقديم طبيعي للوقت
+         updateCooldownStatus();
+      }
     }, 1000);
 
     return () => clearInterval(timer);
@@ -80,7 +123,8 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const now = Date.now();
+    // 🛡️ استخدام الوقت المحمي بدل Date.now()
+    const now = secureTimeRef.current;
     const elapsed = now - lastCompletionTime;
     const remaining = COOLDOWN_MS - elapsed;
 
@@ -103,7 +147,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     if (auth?.user) {
       await set(ref(db, `users/${auth.user.uid}/taskState`), {
         dailyCounter: 0,
-        lastCompletionTime: null,
+        lastCompletionTime: null, // سيتم تحديثه بوقت السيرفر لاحقاً
       });
     }
   };
@@ -119,23 +163,22 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     if (watchingIndex === null || !auth?.user) return;
     
     const newCounter = dailyCounter + 1;
-    const now = Date.now();
+    const now = secureTimeRef.current; // الوقت المحمي
 
     setDailyCounter(newCounter);
     setWatchingIndex(null);
 
-    // تحديث العداد في السحاب فوراً
     const updates: any = { dailyCounter: newCounter };
     if (newCounter >= TASK_TOTAL) {
-      updates.lastCompletionTime = now;
-      setLastCompletionTime(now);
+      // 🛡️ توثيق الوقت الحقيقي مباشرة من سيرفرات جوجل لقفل الثغرة 100%
+      updates.lastCompletionTime = serverTimestamp();
+      setLastCompletionTime(now); // لتحديث الواجهة محلياً فقط
     }
 
     await update(ref(db, `users/${auth.user.uid}/taskState`), updates);
 
-    // ─── احتساب أرباح التأسك اليومية للمستخدم صاحب الحساب ───────────────────
+    // ─── احتساب أرباح التأسك اليومية ───────────────────
     if (newCounter >= TASK_TOTAL) {
-      // VIP 0 مستحيل يدي الفلوس، فقط VIP > 0
       if ((auth.user.vip_level || 0) > 0) {
         try {
           const tier = getVIPTier(auth.user.vip_level || 0);
@@ -153,15 +196,12 @@ export function TaskProvider({ children }: { children: ReactNode }) {
               amount: payout,
               status: 'Completed',
               note: `Daily reward — ${tier.label} (10/10)`,
-              createdAt: now,
+              createdAt: serverTimestamp(), // 🛡️ توثيق تاريخ المعاملة بسيرفر جوجل
             });
 
             const currentBal = auth.user.balance || 0;
             await update(ref(db, `users/${auth.user.uid}`), { balance: currentBal + payout });
           }
-
-          // 🔒 [تـم تـطـهـيـر وحـذف كـتـل عـمـولات الـتـأسـك لـلـمـسـتـدعـي كـلـيـاً مـن هـنـا] 🔒
-          // مستحيل السيستم درك يزيد يوزع سنت واحد للداعي نهار العميل يكمل فيديوهاته اليومية لضمان أرباحك الحصينة.
 
         } catch (payoutError) {
           console.error("Critical VIP Payout Error:", payoutError);
