@@ -16,6 +16,7 @@ import { Colors } from '../constants/theme';
 import { isSuperAdmin, getVIPTier } from '../constants/config';
 import { recordFinancialTransaction } from '../services/financialService';
 import { db } from '../services/firebaseConfig';
+// 🔔 الإضافة المفقودة اللّي كانت ديرلك مشكل!
 
 export default function AdminScreen() {
   // @ts-ignore
@@ -207,6 +208,7 @@ export default function AdminScreen() {
 
   if (!user || !isSuperAdmin(user.email)) return null;
 
+  // 🛡️ الترتيب الذكي والمحمي: الجديد الفوق والقديم لتحت 🛡️
   const filteredUsers = allUsers.filter(u => {
     const matchesSearch = u.username?.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           u.email?.toLowerCase().includes(searchQuery.toLowerCase());
@@ -215,6 +217,16 @@ export default function AdminScreen() {
       return matchesSearch && vipLevel > 0;
     }
     return matchesSearch;
+  }).sort((a, b) => {
+    const getSafeTime = (dateValue: any) => {
+      if (!dateValue) return 0;
+      if (typeof dateValue === 'number') return dateValue;
+      const parsedTime = new Date(dateValue).getTime();
+      return isNaN(parsedTime) ? 0 : parsedTime;
+    };
+    const timeA = getSafeTime(a.createdAt);
+    const timeB = getSafeTime(b.createdAt);
+    return timeB - timeA;
   });
 
   const handleApprove = (tx: any) => {
@@ -255,6 +267,9 @@ export default function AdminScreen() {
             }
           }
 
+          // 🔔 إرجاع إشعار القبول للمستخدم
+          
+
           await loadData();
           showAlert('SUCCESS', `Successfully injected funds and cleared order.`);
         } catch (error: any) {
@@ -266,15 +281,15 @@ export default function AdminScreen() {
     ]);
   };
 
-  const handleReject = (txId: string) => {
+  const handleReject = (tx: any) => {
     if (processingId !== null) return;
     Alert.alert("REJECT", "Decline this operation?", [
       { text: "No" },
       { text: "Yes", onPress: async () => {
           if (processingId !== null) return;
           try {
-            setProcessingId(txId);
-            const txRef = ref(db, `transactions/${txId}`);
+            setProcessingId(tx.id);
+            const txRef = ref(db, `transactions/${tx.id}`);
             const checkSnap = await get(txRef);
             if (checkSnap.exists() && checkSnap.val().status === 'Completed') {
               showAlert('BLOCKED', 'Too late! This transaction is already completed.');
@@ -282,6 +297,10 @@ export default function AdminScreen() {
             }
 
             await update(txRef, { status: 'Rejected' });
+
+            // 🔔 إرجاع إشعار الرفض للمستخدم
+           
+
             await loadData();
             showAlert('REJECTED', 'Order discarded successfully.');
           } catch (e: any) { 
@@ -325,9 +344,15 @@ export default function AdminScreen() {
                 setActiveTab(t as any); 
                 if (t !== 'users') setShowVipOnly(false);
               }} 
-              style={[styles.tab, activeTab === t && styles.tabActive]}
+              style={[styles.tab, activeTab === t && styles.tabActive, { position: 'relative' }]}
             >
               <Text style={[styles.tabLabel, activeTab === t && { color: '#000' }]}>{t.toUpperCase()}</Text>
+
+              {t === 'requests' && pendingTxs.length > 0 && (
+                <View style={styles.adminNotifBadge}>
+                  <Text style={styles.adminNotifText}>{pendingTxs.length}</Text>
+                </View>
+              )}
             </Pressable>
           ))}
         </View>
@@ -456,7 +481,7 @@ export default function AdminScreen() {
                         <View style={styles.reqActions}>
                           <Pressable 
                             style={[styles.miniBtnRej, processingId !== null && { opacity: 0.4 }]} 
-                            onPress={() => handleReject(item.id)}
+                            onPress={() => handleReject(item)} 
                             disabled={processingId !== null}
                           >
                             <Text style={{ fontSize: 12, marginRight: 2 }}>❌</Text>
@@ -559,7 +584,6 @@ export default function AdminScreen() {
                 </View>
               )}
 
-              {/* 🛡️ التعديل هنا: زدنا overflow: 'hidden' باش نمنعوا الشاشة تتزومى ولا تخرج على الإطار */}
               {activeTab === 'historique' && (
                 <View style={{ flex: 1, width: '100%', overflow: 'hidden' }}>
                   
@@ -767,6 +791,26 @@ const styles = StyleSheet.create({
   tabActive: { backgroundColor: Colors.gold },
   tabLabel: { color: '#444', fontSize: 11, fontWeight: 'bold', letterSpacing: 0.5 },
   
+  adminNotifBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#E53E3E',
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#111',
+    paddingHorizontal: 4,
+  },
+  adminNotifText: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: 'bold',
+  },
+
   scrollContent: { padding: 20, paddingBottom: 50 },
   mainProfitCard: { height: 200, borderRadius: 30, overflow: 'hidden', marginBottom: 25, borderWidth: 1, borderColor: '#151515', width: '100%' },
   glassEffect: { ...StyleSheet.absoluteFillObject, backgroundColor: '#080808', opacity: 0.8 },
@@ -804,7 +848,6 @@ const styles = StyleSheet.create({
   miniBtnRej: { flex: 1, backgroundColor: '#111', flexDirection: 'row', padding: 15, borderRadius: 15, justifyContent: 'center', alignItems: 'center', gap: 8 },
   miniBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 12 },
   
-  // 🛡️ التعديل الأول: أضفنا maxWidth: '100%' باش شريط البحث ما يكبرش بزاف
   searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#080808', marginVertical: 20, paddingHorizontal: 15, borderRadius: 15, borderWidth: 1, borderColor: '#151515', width: '100%', maxWidth: '100%' },
   searchInput: { flex: 1, padding: 15, color: '#fff' },
   userEliteCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#080808', marginBottom: 10, padding: 18, borderRadius: 25, borderWidth: 1, borderColor: '#111', width: '100%' },
@@ -833,7 +876,6 @@ const styles = StyleSheet.create({
   listPadding: { paddingBottom: 150, width: '100%' },
   emptyText: { color: '#444', textAlign: 'center', marginTop: 50, fontWeight: 'bold' },
 
-  // 🛡️ التعديل الثاني والأساسي: مسحنا `flexShrink: 0` اللّي كانت تخلي الأزرار تخرج عن الشاشة وتزوميها
   historyFilterScroll: { height: 55, marginBottom: 15, width: '100%', maxWidth: '100%' },
   historyFilterBar: { paddingHorizontal: 10, alignItems: 'center', flexDirection: 'row' },
   historyFilterTab: { backgroundColor: '#080808', paddingHorizontal: 14, height: 38, borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#111', marginRight: 8 },

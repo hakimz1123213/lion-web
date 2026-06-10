@@ -13,10 +13,12 @@ import {
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as Clipboard from 'expo-clipboard'; 
 import { useAuth } from '@/hooks/useAuth';
 import { useWallet } from '@/hooks/useWallet';
+import { sendTelegramAdminAlert } from '@/services/telegramService'; // 📡 مستدعى وجاهز للعمل
 import { useAlert } from '@/template';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/constants/theme';
 import { GlobalStyles } from '@/constants/styles';
@@ -27,7 +29,7 @@ import { sendDepositAlert } from '@/services/discord';
 import { db } from '@/services/firebaseConfig';
 import { ref, update, get, set, push } from 'firebase/database';
 
-// 🌍 قاموس التعريب الفوري والمدمج محلياً لـ شاشة الإيداع
+// 🌍 قاموس التعريب الفوري والمدمج محلياً
 const depositTranslations: Record<string, Record<string, string>> = {
   EN: {
     depositFunds: "Deposit Funds",
@@ -87,7 +89,7 @@ const depositTranslations: Record<string, Record<string, string>> = {
     submitBtn: "تأكيد وإرسال طلب الشحن للإدارة",
     footerNote: "سيتم فحص طلبك ومراجعته يدوياً من الإدارة والموافقة عليه في غضون 24 ساعة. نظام مكافحة السبام يسمح بـ 3 طلبات كحد أقصى يومياً لكل حساب.",
     invalidAmountTitle: "قيمة غير صالحة",
-    invalidAmountDesc: "يرجى إدخال مبلغ USDT دقيق وصحيح.",
+    invalidAmountDesc: "يرجى إدخل مبلغ USDT دقيق وصحيح.",
     proofRequiredTitle: "الإثبات مطلوب",
     proofRequiredDesc: "يرجى رفع صورة وصل التحويل من تطبيق بايننس قبل الضغط على تأكيد.",
     antiSpamTitle: "حارس مكافحة السبام",
@@ -115,6 +117,7 @@ export default function DepositScreen() {
 
   if (!user) return null;
 
+  // 📡 التقاط رادار لغة العميل الحالية من مستند الـ user سحابياً
   // @ts-ignore
   const lang = user?.language || 'EN';
   const t = depositTranslations[lang] || depositTranslations['EN'];
@@ -166,6 +169,7 @@ export default function DepositScreen() {
       setIsSubmitting(true);
       const currentTime = Date.now();
 
+      // 🛡️ [حارس الـ 3 طلبات الذكي لمكافحة الـ سبام لـ حكيم] 🛡️
       const depositHistoryRef = ref(db, `users/${user.uid}/depositRequestsHistory`);
       const historySnap = await get(depositHistoryRef);
       
@@ -179,6 +183,7 @@ export default function DepositScreen() {
         (ts) => (currentTime - ts) / (1000 * 60 * 60) < 24
       );
 
+      // 🛑 حظر فوري وصارم إذا حاول تسجيل الطلب الرابع في نفس اليوم
       if (activeRequestsInLast24h.length >= 3) {
         const oldestRequestTime = Math.min(...activeRequestsInLast24h);
         const hoursPassedSinceOldest = (currentTime - oldestRequestTime) / (1000 * 60 * 60);
@@ -192,6 +197,7 @@ export default function DepositScreen() {
         return;
       }
 
+      // 📡 [الحقن العسكري المباشر لداخل الـ Realtime Database]
       const txsRef = push(ref(db, 'transactions')); 
       const txIdKey = txsRef.key || currentTime.toString();
 
@@ -208,6 +214,7 @@ export default function DepositScreen() {
         createdAt: currentTime,
       });
 
+      // 1️⃣ إرسال البيانات الحية لديسكورد
       await sendDepositAlert({
         username: user.username,
         userId: user.uid,
@@ -217,6 +224,15 @@ export default function DepositScreen() {
         timestamp: currentTime,
       });
 
+      // 2️⃣ 🚀 [حقن التنبيه الفوري لـ تليغرام الأدمن - حكيم يصحي المنبه] 🚀
+      await sendTelegramAdminAlert(
+  user.username, 
+  'Deposit', 
+  parsed, 
+  `Verification: Screenshot Provided 📸`,
+  proofUri // 👈 أضفنا معامل الصورة `proofUri` هنا ديريكت!
+);
+      // تحديث مصفوفة الـ History لـتثبيت الطلب الجديد الحالي وضمان دقة الحظر الـسبامي
       activeRequestsInLast24h.push(currentTime);
       await set(ref(db, `users/${user.uid}/depositRequestsHistory`), activeRequestsInLast24h);
 
@@ -239,13 +255,10 @@ export default function DepositScreen() {
     >
       <View style={[styles.screen, { paddingTop: insets.top }]}>
         
-        {/* Header */}
+        {/* Header فخم يدعم الاتجاهين */}
         <View style={[styles.header, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
           <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
-            {/* 🛠️ استبدال سهم الرجوع المكسور بإيموجي نصي سهمي ثابت ومتناسق */}
-            <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>
-              {lang === 'AR' ? '◀' : '▶'}
-            </Text>
+            <MaterialIcons name={lang === 'AR' ? "arrow-forward" : "arrow-back"} size={22} color={Colors.textSecondary} />
           </Pressable>
           <Text style={styles.headerTitle}>{t.depositFunds}</Text>
           <View style={{ width: 40 }} />
@@ -256,10 +269,9 @@ export default function DepositScreen() {
           contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.xxl, paddingHorizontal: Spacing.lg }}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Instructions */}
+          {/* Instructions المنسقة اتجاهياً وعسكرياً */}
           <View style={styles.instructionCard}>
             <View style={[styles.instructionStep, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-              {/* 🛠️ استبدال أرقام الخطوات بدوائر نصية نظيفة */}
               <View style={[styles.stepNum, { backgroundColor: Colors.info + '22', borderColor: Colors.info }]}>
                 <Text style={[styles.stepNumText, { color: Colors.info }]}>1</Text>
               </View>
@@ -300,7 +312,7 @@ export default function DepositScreen() {
               <Text style={styles.qrHint}>{t.qrHint}</Text>
             </View>
 
-            <View style={[styles.addressBox, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
+           <View style={[styles.addressBox, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
               <Text style={styles.addressText} selectable numberOfLines={1}>
                 {ADMIN_USDT_ADDRESS}
               </Text>
@@ -318,8 +330,11 @@ export default function DepositScreen() {
                   }
                 }}
               >
-                {/* 🛠️ استبدال مربع أيقونة النسخ بإيموجي ورقتي النسخ و علامة صح نصية */}
-                <Text style={{ fontSize: 13, marginRight: 2 }}>{addressCopied ? '✅' : '📋'}</Text>
+                <MaterialIcons
+                  name={addressCopied ? 'check' : 'content-copy'}
+                  size={18}
+                  color={addressCopied ? Colors.success : Colors.gold}
+                />
                 <Text style={[styles.copyText, { color: addressCopied ? Colors.success : Colors.gold }]}>
                   {addressCopied ? t.copiedBtn : t.copyBtn}
                 </Text>
@@ -327,8 +342,7 @@ export default function DepositScreen() {
             </View>
 
             <View style={[styles.warningRow, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-              {/* 🛠️ استبدال أيقونة التحذير المكسورة بإيموجي تنبيه نصي صلب */}
-              <Text style={{ fontSize: 12 }}>⚠️</Text>
+              <MaterialIcons name="warning-amber" size={14} color={Colors.warning} />
               <Text style={[styles.warningText, lang === 'AR' && { textAlign: 'right' }]}>{t.warningText}</Text>
             </View>
           </View>
@@ -377,19 +391,18 @@ export default function DepositScreen() {
                   style={({ pressed }) => [styles.removeProofBtn, { opacity: pressed ? 0.7 : 1 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}
                   onPress={() => setProofUri(null)}
                 >
-                  <Text style={{ fontSize: 12, color: '#fff' }}>❌</Text>
+                  <MaterialIcons name="close" size={16} color={Colors.textPrimary} />
                   <Text style={styles.removeProofText}>{t.removeBtn}</Text>
                 </Pressable>
               </View>
               <View style={[styles.proofSuccessBadge, lang === 'AR' && { right: Spacing.sm, left: undefined, flexDirection: 'row-reverse' }]}>
-                <Text style={{ fontSize: 12 }}>✅</Text>
+                <MaterialIcons name="check-circle" size={16} color={Colors.success} />
                 <Text style={styles.proofSuccessText}>{t.proofReady}</Text>
               </View>
             </View>
           ) : (
             <View style={styles.uploadBox}>
-              {/* 🛠️ استبدال حزم أيقونات الوصل، المعرض، والكاميرا المكسورة بإيموجيات نصية مستقرة */}
-              <Text style={{ fontSize: 32, marginBottom: 4 }}>📸</Text>
+              <MaterialIcons name="upload-file" size={32} color={Colors.textMuted} />
               <Text style={styles.uploadTitle}>{t.uploadTitle}</Text>
               <Text style={styles.uploadSubtitle}>{t.uploadSubtitle}</Text>
               <View style={[styles.uploadActions, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
@@ -397,14 +410,14 @@ export default function DepositScreen() {
                   style={({ pressed }) => [styles.uploadBtn, { opacity: pressed ? 0.8 : 1 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}
                   onPress={handlePickImage}
                 >
-                  <Text style={{ fontSize: 14, marginRight: 2 }}>🖼️</Text>
+                  <MaterialIcons name="photo-library" size={18} color={Colors.gold} />
                   <Text style={styles.uploadBtnText}>{t.gallery}</Text>
                 </Pressable>
                 <Pressable
                   style={({ pressed }) => [styles.uploadBtn, { opacity: pressed ? 0.8 : 1 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}
                   onPress={handleCameraCapture}
                 >
-                  <Text style={{ fontSize: 14, marginRight: 2 }}>📷</Text>
+                  <MaterialIcons name="camera-alt" size={18} color={Colors.gold} />
                   <Text style={styles.uploadBtnText}>{t.camera}</Text>
                 </Pressable>
               </View>
@@ -425,8 +438,7 @@ export default function DepositScreen() {
               <ActivityIndicator color={Colors.textOnGold} />
             ) : (
               <>
-                {/* 🛠️ استبدال مربع أيقونة الإرسال الطائرة بإيموجي صاعقة شحن ملوكية */}
-                <Text style={[{ fontSize: 14 }, lang === 'AR' ? { marginLeft: 8 } : { marginRight: 8 }]}>⚡</Text>
+                <MaterialIcons name="send" size={18} color={Colors.textOnGold} style={lang === 'AR' ? { marginLeft: 8 } : { marginRight: 8 }} />
                 <Text style={GlobalStyles.primaryButtonText}>{t.submitBtn}</Text>
               </>
             )}
