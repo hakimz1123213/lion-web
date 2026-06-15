@@ -16,7 +16,7 @@ import { Colors } from '../constants/theme';
 import { isSuperAdmin, getVIPTier } from '../constants/config';
 import { recordFinancialTransaction } from '../services/financialService';
 import { db } from '../services/firebaseConfig';
-// 🔔 الإضافة المفقودة اللّي كانت ديرلك مشكل!
+
 
 export default function AdminScreen() {
   // @ts-ignore
@@ -208,7 +208,6 @@ export default function AdminScreen() {
 
   if (!user || !isSuperAdmin(user.email)) return null;
 
-  // 🛡️ الترتيب الذكي والمحمي: الجديد الفوق والقديم لتحت 🛡️
   const filteredUsers = allUsers.filter(u => {
     const matchesSearch = u.username?.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           u.email?.toLowerCase().includes(searchQuery.toLowerCase());
@@ -267,8 +266,7 @@ export default function AdminScreen() {
             }
           }
 
-          // 🔔 إرجاع إشعار القبول للمستخدم
-          
+       
 
           await loadData();
           showAlert('SUCCESS', `Successfully injected funds and cleared order.`);
@@ -298,8 +296,7 @@ export default function AdminScreen() {
 
             await update(txRef, { status: 'Rejected' });
 
-            // 🔔 إرجاع إشعار الرفض للمستخدم
-           
+            
 
             await loadData();
             showAlert('REJECTED', 'Order discarded successfully.');
@@ -318,6 +315,46 @@ export default function AdminScreen() {
     if (s === 'rejected' || s === 'failed') return Colors.danger || '#e74c3c';
     return '#FFD700'; 
   };
+
+  // 🛡️ [الحل المدمر] - جلب بيانات الـ SPONSOR (الشخص اللّي جاب هاد العميل) 🛡️
+  const sponsorCode = editingUser?.referredBy ? String(editingUser.referredBy).trim().toUpperCase() : "";
+  let sponsorUser: any = null;
+  
+  if (sponsorCode !== "" && !sponsorCode.includes("NONE")) {
+    sponsorUser = allUsers.find(u => {
+      const uRefCode = u.referralCode ? String(u.referralCode).trim().toUpperCase() : "";
+      const uUsername = u.username ? String(u.username).trim().toUpperCase() : "";
+      const uUid = u.uid ? String(u.uid).trim().toUpperCase() : "";
+      if (sponsorCode.startsWith("NOIR-")) return uRefCode !== "" && sponsorCode === uRefCode;
+      return sponsorCode === uUsername || sponsorCode === uUid;
+    });
+  }
+
+  // حساب الأرباح اللّي داها السپونسر من هاد العميل بالتحديد
+  const sponsorEarnedFromThisUser = sponsorUser && editingUser ? historyTxs
+    .filter(t => 
+      t.userId === sponsorUser.uid && 
+      t.type === 'Referral Bonus' && 
+      t.note && 
+      t.note.toLowerCase().includes(editingUser.username.toLowerCase())
+    )
+    .reduce((sum, t) => sum + (parseFloat(t.amount || 0) || 0), 0) : 0;
+
+
+  // 🛡️ تجميع بيانات شبكة الإحالة الخاصة بالمستخدم المفتوح (DOWNLINE) 🛡️
+  const referredUsersList = editingUser ? allUsers.filter(u => {
+    if (!u.referredBy) return false;
+    const checkVal = String(u.referredBy).trim().toUpperCase();
+    const targetRefCode = editingUser.referralCode ? String(editingUser.referralCode).trim().toUpperCase() : "";
+    const targetUsername = editingUser.username ? String(editingUser.username).trim().toUpperCase() : "";
+    const targetUid = editingUser.uid ? String(editingUser.uid).trim().toUpperCase() : "";
+    if (checkVal.startsWith("NOIR-")) return targetRefCode !== "" && checkVal === targetRefCode;
+    return checkVal === targetUsername || checkVal === targetUid;
+  }) : [];
+
+  const totalNetworkEarned = editingUser ? historyTxs
+    .filter(t => t.userId === editingUser.uid && t.type === 'Referral Bonus')
+    .reduce((sum, t) => sum + (parseFloat(t.amount || 0) || 0), 0) : 0;
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
@@ -539,7 +576,17 @@ export default function AdminScreen() {
                     contentContainerStyle={styles.listPadding}
                     renderItem={({ item }) => {
                       const tier = getVIPTier(item.vip_level || 0);
-                      const totalReferredCount = allUsers.filter(u => u.referredBy === item.uid).length;
+                      
+                      const totalReferredCount = allUsers.filter(u => {
+                        if (!u.referredBy) return false;
+                        const checkVal = String(u.referredBy).trim().toUpperCase();
+                        const targetRefCode = item.referralCode ? String(item.referralCode).trim().toUpperCase() : "";
+                        const targetUsername = item.username ? String(item.username).trim().toUpperCase() : "";
+                        const targetUid = item.uid ? String(item.uid).trim().toUpperCase() : "";
+                        if (checkVal.startsWith("NOIR-")) return targetRefCode !== "" && checkVal === targetRefCode;
+                        return checkVal === targetUsername || checkVal === targetUid;
+                      }).length;
+
                       const networkEarnings = historyTxs
                         .filter(t => t.userId === item.uid && t.type === 'Referral Bonus')
                         .reduce((sum, t) => sum + (parseFloat(t.amount || 0) || 0), 0);
@@ -554,7 +601,10 @@ export default function AdminScreen() {
                             )}
                           </View>
                           <View style={{ flex: 1, marginLeft: 15 }}>
-                            <Text style={styles.uName}>{item.username}</Text>
+                            {/* 🟢 اسم المستخدم يظهر بالأخضر إذا كان موثقاً كيما طلبت 🟢 */}
+                            <Text style={[styles.uName, item.isFullyVerified && { color: Colors.success }]}>
+                              {item.username} {item.isFullyVerified && '✔'}
+                            </Text>
                             <Text style={styles.uEmail}>{item.email}</Text>
                             
                             <View style={styles.uBadgeRow}>
@@ -672,7 +722,11 @@ export default function AdminScreen() {
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.mContentScrollView}>
               <View style={styles.mHandle} />
               <Text style={styles.mTitle}>Account Intelligence</Text>
-              <Text style={styles.mSub}>{editingUser?.username}</Text>
+              
+              {/* 🟢 اسم المستخدم يظهر بالأخضر في الواجهة إذا كان موثقاً 🟢 */}
+              <Text style={[styles.mSub, editingUser?.isFullyVerified && { color: Colors.success }]}>
+                {editingUser?.username} {editingUser?.isFullyVerified && '✔'}
+              </Text>
 
               <View style={{ alignItems: 'center', marginBottom: 20 }}>
                 <View style={{ width: 64, height: 64, borderRadius: 32, borderWidth: 2, borderColor: Colors.gold, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000', overflow: 'hidden' }}>
@@ -683,6 +737,58 @@ export default function AdminScreen() {
                   )}
                 </View>
               </View>
+
+              {/* 🌟 الصندوق الأول: معلومات الشخص اللّي دعاه (UPLINE SPONSOR) 🌟 */}
+              <View style={styles.networkBox}>
+                <View style={styles.networkBoxHeader}>
+                  <Text style={styles.networkBoxTitle}>🤝 REFERRED BY (SPONSOR INFO)</Text>
+                </View>
+                
+                {sponsorUser ? (
+                  <View style={[styles.refUserRow, { borderColor: Colors.gold }]}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.refUserName, sponsorUser.isFullyVerified && { color: Colors.success }]}>
+                        {sponsorUser.username} {sponsorUser.isFullyVerified && '✔'}
+                      </Text>
+                      <Text style={styles.refUserEmail}>{sponsorUser.email}</Text>
+                      <Text style={[styles.refUserVip, { marginTop: 4 }]}>VIP {sponsorUser.vip_level || 0} • Bal: ${(parseFloat(sponsorUser.balance?.toString()) || 0).toFixed(2)}</Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end', justifyContent: 'center' }}>
+                      <Text style={{ color: '#888', fontSize: 9, fontWeight: 'bold', marginBottom: 4 }}>REWARD TAKEN</Text>
+                      <Text style={{ color: Colors.gold, fontSize: 16, fontWeight: 'bold' }}>
+                        +${sponsorEarnedFromThisUser.toFixed(2)}
+                      </Text>
+                    </View>
+                  </View>
+                ) : (
+                  <Text style={styles.emptyNetworkText}>Direct Registration (No Sponsor)</Text>
+                )}
+              </View>
+
+              {/* 👥 الصندوق الثاني: الناس اللّي دخلهم هاد المستخدم (DOWNLINE) 👥 */}
+              {referredUsersList.length > 0 && (
+                <View style={styles.networkBox}>
+                  <View style={styles.networkBoxHeader}>
+                    <Text style={styles.networkBoxTitle}>👥 DOWNLINE NETWORK ({referredUsersList.length})</Text>
+                    <Text style={styles.networkBoxTotal}>Rewards Earned: ${totalNetworkEarned.toFixed(2)}</Text>
+                  </View>
+                  
+                  {referredUsersList.map((refUser, idx) => (
+                    <View key={idx} style={styles.refUserRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.refUserName, refUser.isFullyVerified && { color: Colors.success }]}>
+                          {refUser.username} {refUser.isFullyVerified && '✔'}
+                        </Text>
+                        <Text style={styles.refUserEmail}>{refUser.email}</Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <Text style={styles.refUserVip}>VIP {refUser.vip_level || 0}</Text>
+                        <Text style={styles.refUserBalance}>${(parseFloat(refUser.balance?.toString()) || 0).toFixed(2)}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
 
               <View style={styles.intelBox}>
                 <Text style={styles.intelTitle}>🔒 USER CREDENTIALS & METRICS</Text>
@@ -714,8 +820,8 @@ export default function AdminScreen() {
 
                 <View style={styles.intelRow}>
                   <Text style={styles.intelLabel}>Verification:</Text>
-                  <Text style={[styles.intelVal, {color: editingUser?.isFullyVerified ? Colors.success : '#e74c3c'}]}>
-                    {editingUser?.isFullyVerified ? 'Verified KYC 🛡️' : 'Unverified Account'}
+                  <Text style={[styles.intelVal, {color: editingUser?.isFullyVerified ? Colors.success : '#2bff00'}]}>
+                    {editingUser?.isFullyVerified ? 'Verified KYC 🛡️' : 'verified Account'}
                   </Text>
                 </View>
 
@@ -908,5 +1014,17 @@ const styles = StyleSheet.create({
   uNetworkIntelRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, backgroundColor: '#030303', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: '#121212', alignSelf: 'flex-start', gap: 8 },
   uNetworkStatItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   uNetworkStatText: { color: '#666', fontSize: 11, fontWeight: '500' },
-  uNetworkStatDivider: { width: 1, height: 10, backgroundColor: '#222' }
+  uNetworkStatDivider: { width: 1, height: 10, backgroundColor: '#222' },
+
+  // 🛡️ ستايلات الصناديق الجديدة (Sponsor & Downline) 🛡️
+  networkBox: { backgroundColor: '#050505', borderRadius: 20, padding: 15, borderWidth: 1, borderColor: '#151515', marginBottom: 20, width: '100%' },
+  networkBoxHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15, borderBottomWidth: 1, borderBottomColor: '#111', paddingBottom: 10 },
+  networkBoxTitle: { color: Colors.gold, fontSize: 10, fontWeight: 'bold', letterSpacing: 1 },
+  networkBoxTotal: { color: Colors.success, fontSize: 11, fontWeight: 'bold' },
+  emptyNetworkText: { color: '#555', fontSize: 11, textAlign: 'center', paddingVertical: 10, fontStyle: 'italic' },
+  refUserRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#000', padding: 12, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: '#111' },
+  refUserName: { color: '#fff', fontSize: 13, fontWeight: 'bold' },
+  refUserEmail: { color: '#555', fontSize: 10, marginTop: 2 },
+  refUserVip: { color: '#00EAFF', fontSize: 10, fontWeight: 'bold', marginBottom: 2 },
+  refUserBalance: { color: Colors.gold, fontSize: 12, fontWeight: 'bold' }
 });

@@ -18,18 +18,16 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Clipboard from 'expo-clipboard'; 
 import { useAuth } from '@/hooks/useAuth';
 import { useWallet } from '@/hooks/useWallet';
-import { sendTelegramAdminAlert } from '@/services/telegramService'; // 📡 مستدعى وجاهز للعمل
+import { sendTelegramAdminAlert } from '@/services/telegramService'; 
 import { useAlert } from '@/template';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/constants/theme';
 import { GlobalStyles } from '@/constants/styles';
 import { VIP_TIERS, ADMIN_USDT_ADDRESS } from '@/constants/config';
 import { sendDepositAlert } from '@/services/discord';
 
-// أدوات التوثيق والحظر الزمني من الفايربيز
 import { db } from '@/services/firebaseConfig';
 import { ref, update, get, set, push } from 'firebase/database';
 
-// 🌍 قاموس التعريب الفوري والمدمج محلياً
 const depositTranslations: Record<string, Record<string, string>> = {
   EN: {
     depositFunds: "Deposit Funds",
@@ -117,11 +115,11 @@ export default function DepositScreen() {
 
   if (!user) return null;
 
-  // 📡 التقاط رادار لغة العميل الحالية من مستند الـ user سحابياً
   // @ts-ignore
   const lang = user?.language || 'EN';
   const t = depositTranslations[lang] || depositTranslations['EN'];
 
+  // 🚀 التعديل السحري 1: تحويل الصورة الملتقطة من المعرض إلى Base64
   const handlePickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -130,14 +128,18 @@ export default function DepositScreen() {
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.85,
+      quality: 0.4, // خفضنا الجودة شوية باش ما تتقلش قاعدة البيانات
+      base64: true, // تفعيل التشفير
       allowsEditing: false,
     });
     if (!result.canceled && result.assets[0]) {
-      setProofUri(result.assets[0].uri);
+      // دمج الكود باش يقرأه المتصفح كـ صورة حقيقية
+      const base64Image = `data:image/jpeg;base64,${result.assets[0].base64}`;
+      setProofUri(base64Image); 
     }
   };
 
+  // 🚀 التعديل السحري 2: تحويل الصورة الملتقطة بالكاميرا إلى Base64
   const handleCameraCapture = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
@@ -145,11 +147,13 @@ export default function DepositScreen() {
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
-      quality: 0.85,
+      quality: 0.4,
+      base64: true, // تفعيل التشفير
       allowsEditing: false,
     });
     if (!result.canceled && result.assets[0]) {
-      setProofUri(result.assets[0].uri);
+      const base64Image = `data:image/jpeg;base64,${result.assets[0].base64}`;
+      setProofUri(base64Image);
     }
   };
 
@@ -169,7 +173,6 @@ export default function DepositScreen() {
       setIsSubmitting(true);
       const currentTime = Date.now();
 
-      // 🛡️ [حارس الـ 3 طلبات الذكي لمكافحة الـ سبام لـ حكيم] 🛡️
       const depositHistoryRef = ref(db, `users/${user.uid}/depositRequestsHistory`);
       const historySnap = await get(depositHistoryRef);
       
@@ -183,7 +186,6 @@ export default function DepositScreen() {
         (ts) => (currentTime - ts) / (1000 * 60 * 60) < 24
       );
 
-      // 🛑 حظر فوري وصارم إذا حاول تسجيل الطلب الرابع في نفس اليوم
       if (activeRequestsInLast24h.length >= 3) {
         const oldestRequestTime = Math.min(...activeRequestsInLast24h);
         const hoursPassedSinceOldest = (currentTime - oldestRequestTime) / (1000 * 60 * 60);
@@ -197,7 +199,6 @@ export default function DepositScreen() {
         return;
       }
 
-      // 📡 [الحقن العسكري المباشر لداخل الـ Realtime Database]
       const txsRef = push(ref(db, 'transactions')); 
       const txIdKey = txsRef.key || currentTime.toString();
 
@@ -208,13 +209,12 @@ export default function DepositScreen() {
         type: 'Deposit',
         amount: parsed,
         txid: 'Verification via Screenshot URI', 
-        proofImageUri: proofUri,
+        proofImageUri: proofUri, // الحين راح يتخزن الكود المشفر Base64، يفتح في كل الأجهزة
         status: 'Pending',
         note: `User initiated a deposit query of $${parsed} USDT`,
         createdAt: currentTime,
       });
 
-      // 1️⃣ إرسال البيانات الحية لديسكورد
       await sendDepositAlert({
         username: user.username,
         userId: user.uid,
@@ -224,15 +224,14 @@ export default function DepositScreen() {
         timestamp: currentTime,
       });
 
-      // 2️⃣ 🚀 [حقن التنبيه الفوري لـ تليغرام الأدمن - حكيم يصحي المنبه] 🚀
       await sendTelegramAdminAlert(
-  user.username, 
-  'Deposit', 
-  parsed, 
-  `Verification: Screenshot Provided 📸`,
-  proofUri // 👈 أضفنا معامل الصورة `proofUri` هنا ديريكت!
-);
-      // تحديث مصفوفة الـ History لـتثبيت الطلب الجديد الحالي وضمان دقة الحظر الـسبامي
+        user.username, 
+        'Deposit', 
+        parsed, 
+        `Verification: Screenshot Provided 📸`,
+        proofUri
+      );
+      
       activeRequestsInLast24h.push(currentTime);
       await set(ref(db, `users/${user.uid}/depositRequestsHistory`), activeRequestsInLast24h);
 
@@ -255,7 +254,6 @@ export default function DepositScreen() {
     >
       <View style={[styles.screen, { paddingTop: insets.top }]}>
         
-        {/* Header فخم يدعم الاتجاهين */}
         <View style={[styles.header, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
           <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
             <MaterialIcons name={lang === 'AR' ? "arrow-forward" : "arrow-back"} size={22} color={Colors.textSecondary} />
@@ -269,7 +267,6 @@ export default function DepositScreen() {
           contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.xxl, paddingHorizontal: Spacing.lg }}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Instructions المنسقة اتجاهياً وعسكرياً */}
           <View style={styles.instructionCard}>
             <View style={[styles.instructionStep, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
               <View style={[styles.stepNum, { backgroundColor: Colors.info + '22', borderColor: Colors.info }]}>
@@ -293,7 +290,6 @@ export default function DepositScreen() {
             </View>
           </View>
 
-          {/* Wallet Address */}
           <Text style={[styles.sectionLabel, lang === 'AR' && { textAlign: 'right' }]}>{t.walletLabel}</Text>
           <View style={styles.addressCard}>
             <View style={[styles.networkBadge, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
@@ -312,7 +308,7 @@ export default function DepositScreen() {
               <Text style={styles.qrHint}>{t.qrHint}</Text>
             </View>
 
-           <View style={[styles.addressBox, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
+            <View style={[styles.addressBox, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
               <Text style={styles.addressText} selectable numberOfLines={1}>
                 {ADMIN_USDT_ADDRESS}
               </Text>
@@ -347,7 +343,6 @@ export default function DepositScreen() {
             </View>
           </View>
 
-          {/* Amount Input */}
           <Text style={[styles.sectionLabel, lang === 'AR' && { textAlign: 'right' }]}>{t.amountLabel}</Text>
           <TextInput
             style={[styles.input, lang === 'AR' && { textAlign: 'right' }]}
@@ -358,7 +353,6 @@ export default function DepositScreen() {
             placeholder="0.00"
           />
 
-          {/* VIP Quick Fill */}
           <Text style={[styles.sectionLabel, { marginTop: Spacing.lg }, lang === 'AR' && { textAlign: 'right' }]}>{t.quickSelectLabel}</Text>
           <View style={[styles.quickGrid, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
             {VIP_TIERS.map((tier) => (
@@ -376,7 +370,6 @@ export default function DepositScreen() {
             ))}
           </View>
 
-          {/* Proof Upload */}
           <Text style={[styles.sectionLabel, { marginTop: Spacing.lg }, lang === 'AR' && { textAlign: 'right' }]}>{t.proofLabel}</Text>
           {proofUri ? (
             <View style={styles.proofContainer}>
@@ -424,7 +417,6 @@ export default function DepositScreen() {
             </View>
           )}
 
-          {/* Submit Button */}
           <Pressable
             style={({ pressed }) => [
               GlobalStyles.primaryButton,
