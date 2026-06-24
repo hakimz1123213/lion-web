@@ -1,7 +1,7 @@
 // 📡 NoirWealth — Telegram Admin Alert System
 
-const TELEGRAM_BOT_TOKEN = "8834944638:AAGo6PmusQMbhsTfdjsrPESuL0KFS3rFD48"; 
-const TELEGRAM_ADMIN_CHAT_ID = "8753035799"; 
+const TELEGRAM_BOT_TOKEN = "8975330909:AAEIOPN1eSlnBlO7QJW17mI3iT6oTSCPd-c"; 
+const TELEGRAM_ADMIN_CHAT_ID = "-1004463288669"; 
 
 export const sendTelegramAdminAlert = async (
   username: string,
@@ -21,47 +21,68 @@ export const sendTelegramAdminAlert = async (
 ${emoji} *نوع العملية:* ${actionText} (${type})
 👤 *المستخدم:* \`${username}\`
 💰 *المبلغ:* \`$${amount.toFixed(2)}\`
-${extraDetails ? `📝 *تفاصيل إضافية:* \`${extraDetails}\`` : ''}
-⚡ *الحالة:* معلق في قائمة الانتظار (Pending)
+${extraDetails ? `📝 *تفاصيل إضافية:* \n\`${extraDetails}\`\n` : ''}⚡ *الحالة:* معلق في قائمة الانتظار (Pending)
 
-🎮 _يا حكيم، كاين شغل راه يستنى فيك، ادخل للوحة التحكم واكزييكوتي!_`;
+🎮 _latchaaaaaaa boyyyyyyyyyyyy khoofffffff!_`;
 
-    const hasPhoto = imageUri && imageUri.trim() !== '';
-    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/${hasPhoto ? 'sendPhoto' : 'sendMessage'}`;
-    
-    const formData = new FormData();
-    formData.append('chat_id', TELEGRAM_ADMIN_CHAT_ID);
-    formData.append('parse_mode', 'Markdown');
-    
+    const hasPhoto = imageUri && imageUri.trim() !== '' && !imageUri.includes('No image');
+    let response;
+
     if (hasPhoto) {
-      // 🚀 الحل الذكي لـ React Native: نبعثوا مسار الملف مباشرة كـ Object
-      formData.append('photo', {
-        uri: imageUri,
-        name: 'proof.jpg',
-        type: 'image/jpeg',
-      } as any);
-      formData.append('caption', message);
+      const isHttp = imageUri!.startsWith('http');
+      
+      if (isHttp) {
+        // 🌐 1. إذا كانت الصورة رابط (مثل صورة البروفايل أو فايربيز) -> نرسلها كـ JSON (أسرع ومضمونة 100%)
+        response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: TELEGRAM_ADMIN_CHAT_ID,
+            photo: imageUri,
+            caption: message,
+            parse_mode: 'Markdown'
+          })
+        });
+      } else {
+        // 📱 2. إذا كانت الصورة من استوديو الهاتف (file://) -> نرفعها عبر FormData
+        const formData = new FormData();
+        formData.append('chat_id', TELEGRAM_ADMIN_CHAT_ID);
+        formData.append('parse_mode', 'Markdown');
+        formData.append('caption', message);
+        formData.append('photo', {
+          uri: imageUri,
+          name: 'proof.jpg',
+          type: 'image/jpeg',
+        } as any);
+
+        response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+          method: 'POST',
+          body: formData, 
+        });
+      }
     } else {
-      formData.append('text', message);
+      // ✉️ 3. إذا لم توجد صورة نهائياً -> نرسل رسالة نصية فقط عبر JSON
+      response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: TELEGRAM_ADMIN_CHAT_ID,
+          text: message,
+          parse_mode: 'Markdown'
+        })
+      });
     }
 
-    const response = await fetch(url, {
-      method: 'POST',
-      body: formData, // بدون Content-Type، لأن FormData تديرها تلقائياً
-    });
-
-    // 🛡️ خطة الطوارئ: إذا فشل رفع الصورة (مثلاً الحجم كبير أو مسار محمي)، نرسل النص كاحتياط!
+    // 🛡️ خطة الطوارئ: إذا فشل كل شيء لسبب ما، نرسل إشعار نصي فوري للإنقاذ!
     if (!response.ok && hasPhoto) {
-      const fallbackUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-      const fallbackParams = new URLSearchParams();
-      fallbackParams.append('chat_id', TELEGRAM_ADMIN_CHAT_ID);
-      fallbackParams.append('text', message + "\n\n⚠️ _(ملاحظة: فشل رفع الصورة في الشات ولكن الطلب مسجل بنجاح)._");
-      fallbackParams.append('parse_mode', 'Markdown');
-      
-      await fetch(fallbackUrl, {
+      await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: fallbackParams.toString(),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: TELEGRAM_ADMIN_CHAT_ID,
+          text: message + "\n\n⚠️ _(ملاحظة: فشل عرض الصورة في الشات، ولكن الطلب مسجل في التطبيق بنجاح)._",
+          parse_mode: 'Markdown'
+        })
       });
     }
     

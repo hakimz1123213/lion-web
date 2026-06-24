@@ -30,63 +30,37 @@ import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/constants/theme
 import { GlobalStyles } from '@/constants/styles';
 import { VIP_TIERS, getVIPTier, TASK_TOTAL } from '@/constants/config';
 
-const translations: Record<string, Record<string, string>> = {
-  EN: {
-    account: "Account",
-    balance: "Balance",
-    earned: "Earned",
-    tasks: "Tasks",
-    referralSystem: "REFERRAL SYSTEM",
-    members: "Members",
-    promoText: "Earn 10% Instant Cash every time your friends upgrade their VIP tier!",
-    referredMembers: "REFERRED MEMBERS",
-    noReferrals: "No referrals yet. Start growing your network!",
-    invitedBy: "Invited by",
-    resources: "RESOURCES",
-    adminPanel: "Admin Control Panel",
-    vipUpgrade: "VIP Upgrade",
-    txHistory: "Transaction History",
-    securityPass: "Security & Password",
-    supportCenter: "Support Center",
-    aboutUs: "About Us",
-    languageBtn: "LANGUAGE / لغة",
-    selectLanguage: "Select Language / اختر اللغة",
-    identityTitle: "Personal Identity Info",
-    identitySubtitle: "Update your account username and upload a fresh profile image avatar",
-    accountUsername: "ACCOUNT USERNAME",
-    cancel: "Cancel",
-    secureChanges: "Secure Changes"
-  },
-  AR: {
-    account: "الحساب الشخصي",
-    balance: "الرصيد الحالي",
-    earned: "إجمالي الأرباح",
-    tasks: "المهام اليومية",
-    referralSystem: "نظام الإحالة والشبكة",
-    members: "أعضاء",
-    promoText: "احصل على عمولة فورية بنسبة 10% في كل مرة يقوم فيها أصدقاؤك بترقية حساباتهم!",
-    referredMembers: "الأعضاء المسجلين بواسطتك",
-    noReferrals: "لا يوجد إحالات بعد. ابدأ في بناء شبكتك الآن!",
-    invitedBy: "تمت دعوتك بواسطة",
-    resources: "غرفة التحكم والموارد",
-    adminPanel: "لوحة تحكم الإدارة العليا",
-    vipUpgrade: "ترقية رتبة VIP",
-    txHistory: "سجل المعاملات المالي",
-    securityPass: "الأمان وكلمات السر",
-    supportCenter: "مركز الدعم الفني 24/7",
-    aboutUs: "حول المنصة",
-    languageBtn: "اللغة / LANGUAGE",
-    selectLanguage: "اختر لغتك المفضلة",
-    identityTitle: "بيانات الهوية الشخصية",
-    identitySubtitle: "قم بتحديث اسم المستخدم الخاص بك وتغيير صورة البروفايل الحية",
-    accountUsername: "اسم المستخدم الخاص بالحساب",
-    cancel: "إلغاء",
-    secureChanges: "حفظ وتأمين التعديلات"
-  }
-};
-
+// 🔥 استيراد مكتبات التخزين السحابي للصور (لحل مشكلة الصورة السوداء في الأدمن) 🔥
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db } from '@/services/firebaseConfig';
 import { ref, get, update } from 'firebase/database';
+
+const translations: Record<string, Record<string, string>> = {
+  EN: {
+    account: "Account", balance: "Balance", earned: "Earned", tasks: "Tasks",
+    referralSystem: "REFERRAL SYSTEM", members: "Members",
+    promoText: "Earn 10% Instant Cash every time your friends upgrade their VIP tier!",
+    referredMembers: "REFERRED MEMBERS", noReferrals: "No referrals yet. Start growing your network!",
+    invitedBy: "Invited by", resources: "RESOURCES", adminPanel: "Admin Control Panel",
+    vipUpgrade: "VIP Upgrade", txHistory: "Transaction History", securityPass: "Security & Password",
+    supportCenter: "Support Center", aboutUs: "About Us", languageBtn: "LANGUAGE / لغة",
+    selectLanguage: "Select Language / اختر اللغة", identityTitle: "Personal Identity Info",
+    identitySubtitle: "Update your account username and upload a fresh profile image avatar",
+    accountUsername: "ACCOUNT USERNAME", cancel: "Cancel", secureChanges: "Secure Changes"
+  },
+  AR: {
+    account: "الحساب الشخصي", balance: "الرصيد الحالي", earned: "إجمالي الأرباح", tasks: "المهام اليومية",
+    referralSystem: "نظام الإحالة والشبكة", members: "أعضاء",
+    promoText: "احصل على عمولة فورية بنسبة 10% في كل مرة يقوم فيها أصدقاؤك بترقية حساباتهم!",
+    referredMembers: "الأعضاء المسجلين بواسطتك", noReferrals: "لا يوجد إحالات بعد. ابدأ في بناء شبكتك الآن!",
+    invitedBy: "تمت دعوتك بواسطة", resources: "غرفة التحكم والموارد", adminPanel: "لوحة تحكم الإدارة العليا",
+    vipUpgrade: "ترقية رتبة VIP", txHistory: "سجل المعاملات المالي", securityPass: "الأمان وكلمات السر",
+    supportCenter: "مركز الدعم الفني 24/7", aboutUs: "حول المنصة", languageBtn: "اللغة / LANGUAGE",
+    selectLanguage: "اختر لغتك المفضلة", identityTitle: "بيانات الهوية الشخصية",
+    identitySubtitle: "قم بتحديث اسم المستخدم الخاص بك وتغيير صورة البروفايل الحية",
+    accountUsername: "اسم المستخدم الخاص بالحساب", cancel: "إلغاء", secureChanges: "حفظ وتأمين التعديلات"
+  }
+};
 
 export default function ProfileScreen() {
   // @ts-ignore
@@ -180,21 +154,45 @@ export default function ProfileScreen() {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1], 
-      quality: 0.7, 
+      quality: 0.5, // 👈 تقليل الجودة لرفع صاروخي
     });
-    if (!result.canceled) {
-      setSelectedImageUri(result.assets[0].uri);
+    if (!result.canceled && result.assets[0]) {
+      setSelectedImageUri(result.assets[0].uri); // 👈 احتفاظ بمسار الهاتف فقط
     }
   };
 
+  // 🚀 الدالة السحرية المعدلة لرفع الصورة السحابي 🚀
   const handleSaveProfileData = async () => {
     if (!editUsername.trim()) {
       showAlert('Error', 'Username field cannot be empty.');
       return;
     }
+    
     try {
       setIsSavingProfile(true);
-      const result = await updateUserProfileData(editUsername, selectedImageUri);
+      let finalAvatarUrl = selectedImageUri;
+
+      // 🔥 إذا كانت الصورة جديدة من الهاتف ومو رابط انترنت، نرفعها لـ Storage 🔥
+      if (selectedImageUri && !selectedImageUri.startsWith('http')) {
+        try {
+          const response = await fetch(selectedImageUri);
+          const blob = await response.blob();
+          const storage = getStorage();
+          const imageRef = storageRef(storage, `avatars/${user.uid}_${Date.now()}.jpg`);
+          
+          await uploadBytes(imageRef, blob);
+          finalAvatarUrl = await getDownloadURL(imageRef); // 👈 الرابط القصير العالمي
+        } catch (uploadError) {
+          console.error("Avatar Upload Error:", uploadError);
+          showAlert("Upload Failed", "حدث خطأ أثناء رفع صورتك الشخصية. يرجى المحاولة لاحقاً.");
+          setIsSavingProfile(false);
+          return;
+        }
+      }
+
+      // تمرير الرابط القصير لدالة التحديث في AuthContext
+      const result = await updateUserProfileData(editUsername, finalAvatarUrl);
+      
       if (result.error === null) {
         showAlert(lang === 'AR' ? 'تم تحديث الهوية' : 'Identity Updated', lang === 'AR' ? 'تم حفظ وتأمين بيانات ملفك الشخصي بنجاح.' : 'Your profile details have been secured successfully.');
         setIsEditModalVisible(false);
@@ -238,7 +236,6 @@ export default function ProfileScreen() {
         <View style={[styles.header, { paddingTop: insets.top + Spacing.md }, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
           <Text style={styles.title}>{t.account}</Text>
           <Pressable onPress={handleLogout} style={styles.logoutBtn}>
-            {/* 🛠️ استبدال المربع الأبيض الأول بإيموجي زر الطاقة الأحمر */}
             <Text style={{ fontSize: 16 }}>🛑</Text>
           </Pressable>
         </View>
@@ -264,7 +261,6 @@ export default function ProfileScreen() {
                 setSelectedImageUri((user as any).profileImage || null); 
                 setIsEditModalVisible(true); 
               }}>
-                {/* 🛠️ استبدال المربع الأبيض الثاني بإيموجي قلم التعديل */}
                 <Text style={{ fontSize: 14 }}>✏️</Text>
               </Pressable>
             </View>
@@ -304,7 +300,6 @@ export default function ProfileScreen() {
 
           <Pressable style={styles.codeContainer} onPress={copyReferralCode}>
             <Text style={styles.codeDisplay}>{user.referralCode || 'GENERATING...'}</Text>
-            {/* 🛠️ استبدال مربع أيقونة النسخ بإيموجي ورقتي النسخ */}
             <Text style={{ fontSize: 14 }}>📋</Text>
           </Pressable>
 
@@ -319,7 +314,6 @@ export default function ProfileScreen() {
           )}
 
           <View style={[styles.earningsBanner, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-            {/* 🛠️ استبدال مربع بونص الإحالة بإيموجي نجمة ملوكية ذهبية نصية صلبة */}
             <Text style={{ fontSize: 14 }}>⭐</Text>
             <Text style={styles.earningsInfo}>
               {lang === 'AR' ? 'إجمالي أرباح الإحالة:' : 'Total Referral Profits:'} <Text style={{ color: Colors.gold, fontWeight: 'bold' }}>${totalReferralRewards.toFixed(2)}</Text>
@@ -369,7 +363,6 @@ export default function ProfileScreen() {
               onPress={() => router.push('/admin')}
             >
               <View style={[styles.actionLeft, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-                {/* 🛠️ استبدال مربع لوحة الإدارة */}
                 <Text style={{ fontSize: 14 }}>🔑</Text>
                 <Text style={[styles.actionLabel, { color: Colors.gold, fontWeight: 'bold' }]}>{t.adminPanel}</Text>
               </View>
@@ -382,7 +375,6 @@ export default function ProfileScreen() {
             onPress={() => setIsLangModalVisible(true)}
           >
             <View style={[styles.actionLeft, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-              {/* 🛠️ استبدال مربع أيقونة تغيير اللغة */}
               <Text style={{ fontSize: 14 }}>🌐</Text>
               <Text style={[styles.actionLabel, { color: Colors.gold, fontWeight: 'bold' }]}>{t.languageBtn}</Text>
             </View>
@@ -413,7 +405,6 @@ export default function ProfileScreen() {
               }}
             >
               <View style={[styles.actionLeft, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-                {/* 🛠️ تفجير كرت الموارد: إظهار الإيموجيات الملوكية النصية البديلة الثابتة على الويب */}
                 <Text style={{ fontSize: 14 }}>{item.icon}</Text>
                 <Text style={[styles.actionLabel, item.label === t.vipUpgrade && { color: Colors.gold, fontWeight: 'bold' }]}>
                   {item.label}
@@ -571,7 +562,6 @@ export default function ProfileScreen() {
   );
 }
 
-// ─── الستايلات الـ فخمة الملوكية المقاومة للتمدد ─────────────────────────────────
 const ViewStyles = StyleSheet.create({
   listDivider: { height: 1, backgroundColor: '#0a0a0a' }
 });
@@ -624,7 +614,6 @@ const styles = StyleSheet.create({
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'flex-end' },
   modalContent: { backgroundColor: '#080808', padding: 30, borderTopLeftRadius: 30, borderTopRightRadius: 30, borderWidth: 1, borderColor: '#151515' },
-  modalOverlayData: { backgroundColor: '#080808', padding: 30, borderTopLeftRadius: 30, borderTopRightRadius: 30, borderWidth: 1, borderColor: '#151515' },
   modalHandle: { width: 40, height: 4, backgroundColor: '#222', borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
   modalTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold', textAlign: 'center' },
   modalSubtitle: { color: '#555', fontSize: 12, textAlign: 'center', marginBottom: 25, lineHeight: 18 },

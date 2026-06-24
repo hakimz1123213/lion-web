@@ -1,14 +1,7 @@
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Pressable,
-  TextInput,
-  ActivityIndicator,
-  Platform,
-  KeyboardAvoidingView,
+  View, Text, StyleSheet, ScrollView, Pressable, TextInput,
+  ActivityIndicator, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -27,76 +20,40 @@ import { sendDepositAlert } from '@/services/discord';
 
 import { db } from '@/services/firebaseConfig';
 import { ref, update, get, set, push } from 'firebase/database';
+// 🔥 استيراد مكتبات الـ Storage اللّي راح تنقذنا من اللاق 🔥
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 const depositTranslations: Record<string, Record<string, string>> = {
   EN: {
-    depositFunds: "Deposit Funds",
-    step1: "Send USDT (BEP20) to the address below from your Binance app",
-    step2: "Enter the exact USD amount you transferred below",
-    step3: "Upload your payment screenshot as proof and submit",
-    walletLabel: "USDT BEP20 WALLET ADDRESS",
-    networkText: "BSC (BEP20) Network",
-    qrHint: "Scan with Binance App",
-    copyBtn: "Copy",
-    copiedBtn: "Copied!",
-    warningText: "Send BEP20 only. Other networks will result in loss of funds.",
-    amountLabel: "AMOUNT SENT (USDT)",
-    quickSelectLabel: "QUICK SELECT — VIP ENTRY FEE",
-    proofLabel: "PROOF OF PAYMENT (REQUIRED SCREENSHOT)",
-    removeBtn: "Remove",
-    proofReady: "Screenshot ready",
-    uploadTitle: "Upload Transfer Screenshot",
-    uploadSubtitle: "Must show transaction amount and correct platform wallet deployment address",
-    gallery: "Gallery",
-    camera: "Camera",
-    submitBtn: "SUBMIT DEPOSIT QUERY",
-    footerNote: "Your request will be checked and cleared manually within 24 hours. Rate limited to a maximum of 3 transaction submissions per day node.",
-    invalidAmountTitle: "Invalid Amount",
-    invalidAmountDesc: "Please enter the exact USDT amount you sent.",
-    proofRequiredTitle: "Proof Required",
-    proofRequiredDesc: "Please upload a screenshot of your Binance transfer before submitting.",
-    antiSpamTitle: "Anti-Spam Shield",
-    antiSpamDesc1: "Security lock active. You have reached your maximum limit of 3 deposit requests per day. Please clear your pending queue or retry in",
-    antiSpamDesc2: "hours.",
-    successTitle: "Deposit Submitted",
-    successDesc: "Your deposit query has been secured. Admin operators will inspect your transfer screenshot to approve liquid funds shortly.",
-    permissionRequired: "Permission Required",
-    galleryPermissionDesc: "Please allow access to your photo library to upload proof of payment.",
+    depositFunds: "Deposit Funds", step1: "Send USDT (BEP20) to the address below from your Binance app",
+    step2: "Enter the exact USD amount you transferred below", step3: "Upload your payment screenshot as proof and submit",
+    walletLabel: "USDT BEP20 WALLET ADDRESS", networkText: "BSC (BEP20) Network", qrHint: "Scan with Binance App",
+    copyBtn: "Copy", copiedBtn: "Copied!", warningText: "Send BEP20 only. Other networks will result in loss of funds.",
+    amountLabel: "AMOUNT SENT (USDT)", quickSelectLabel: "QUICK SELECT — VIP ENTRY FEE", proofLabel: "PROOF OF PAYMENT (REQUIRED SCREENSHOT)",
+    removeBtn: "Remove", proofReady: "Screenshot ready", uploadTitle: "Upload Transfer Screenshot",
+    uploadSubtitle: "Must show transaction amount and correct platform wallet deployment address", gallery: "Gallery",
+    camera: "Camera", submitBtn: "SUBMIT DEPOSIT QUERY", footerNote: "Your request will be checked and cleared manually within 24 hours. Rate limited to a maximum of 3 transaction submissions per day node.",
+    invalidAmountTitle: "Invalid Amount", invalidAmountDesc: "Please enter the exact USDT amount you sent.",
+    proofRequiredTitle: "Proof Required", proofRequiredDesc: "Please upload a screenshot of your Binance transfer before submitting.",
+    antiSpamTitle: "Anti-Spam Shield", antiSpamDesc1: "Security lock active. You have reached your maximum limit of 3 deposit requests per day. Please clear your pending queue or retry in",
+    antiSpamDesc2: "hours.", successTitle: "Deposit Submitted", successDesc: "Your deposit query has been secured. Admin operators will inspect your transfer screenshot to approve liquid funds shortly.",
+    permissionRequired: "Permission Required", galleryPermissionDesc: "Please allow access to your photo library to upload proof of payment.",
     cameraPermissionDesc: "Please allow camera access to capture proof of payment."
   },
   AR: {
-    depositFunds: "شحن رصيد الحساب",
-    step1: "قم بإرسال عملة USDT (شبكة BEP20) إلى العنوان أدناه من تطبيق بايننس الخاص بك",
-    step2: "أدخل قيمة مبلغ الـ USDT الدقيق اللّي قمت بتحويله لأسفل الشاشة",
-    step3: "قم برفع لقطة شاشة (Screenshot) لعملية التحويل كإثبات واضغط إرسال",
-    walletLabel: "عنوان محفظة شحن المنصة (USDT BEP20)",
-    networkText: "شبكة BSC (BEP20) الذكية",
-    qrHint: "امسح الكود عبر تطبيق بايننس ديريكت",
-    copyBtn: "نسخ الكود",
-    copiedBtn: "تم النسخ!",
-    warningText: "تنبيه: أرسل عملاتك عبر شبكة BEP20 فقط. استخدام شبكات أخرى سيؤدي لضياع أموالك للأبد.",
-    amountLabel: "مبلغ الـ USDT المحوّل",
-    quickSelectLabel: "ملء تلقائي سريع — رسوم رتب الـ VIP",
-    proofLabel: "إثبات الدفع والتحويل (لقطة شاشة إجبارية)",
-    removeBtn: "حذف الصورة",
-    proofReady: "الصورة جاهزة للإرسال",
-    uploadTitle: "ارفع لقطة شاشة وصل التحويل",
-    uploadSubtitle: "يجب أن يظهر في الوصل قيمة المبلغ المرسل وعنوان محفظة المستلم بوضوح",
-    gallery: "المعرض",
-    camera: "الكاميرا",
-    submitBtn: "تأكيد وإرسال طلب الشحن للإدارة",
-    footerNote: "سيتم فحص طلبك ومراجعته يدوياً من الإدارة والموافقة عليه في غضون 24 ساعة. نظام مكافحة السبام يسمح بـ 3 طلبات كحد أقصى يومياً لكل حساب.",
-    invalidAmountTitle: "قيمة غير صالحة",
-    invalidAmountDesc: "يرجى إدخل مبلغ USDT دقيق وصحيح.",
-    proofRequiredTitle: "الإثبات مطلوب",
-    proofRequiredDesc: "يرجى رفع صورة وصل التحويل من تطبيق بايننس قبل الضغط على تأكيد.",
-    antiSpamTitle: "حارس مكافحة السبام",
-    antiSpamDesc1: "قفل أمني نشط: لقد وصلت للحد الأقصى المسموح به وهو 3 طلبات إيداع في اليوم. يرجى انتظار معالجة طلباتك السابقة أو المحاولة مجدداً بعد",
-    antiSpamDesc2: "ساعة.",
-    successTitle: "تم إرسال الطلب بنجاح",
-    successDesc: "تم تسجيل وتأمين طلب الشحن الخاص بك بنجاح. سيقوم مديرو المنصة بمراجعة الوصل وضخ الرصيد في محفظتك لايف.",
-    permissionRequired: "الإذن مطلوب",
-    galleryPermissionDesc: "يرجى السماح بالوصول إلى مكتبة الصور لرفع إثبات الدفع.",
+    depositFunds: "شحن رصيد الحساب", step1: "قم بإرسال عملة USDT (شبكة BEP20) إلى العنوان أدناه من تطبيق بايننس الخاص بك",
+    step2: "أدخل قيمة مبلغ الـ USDT الدقيق اللّي قمت بتحويله لأسفل الشاشة", step3: "قم برفع لقطة شاشة (Screenshot) لعملية التحويل كإثبات واضغط إرسال",
+    walletLabel: "عنوان محفظة شحن المنصة (USDT BEP20)", networkText: "شبكة BSC (BEP20) الذكية", qrHint: "امسح الكود عبر تطبيق بايننس ديريكت",
+    copyBtn: "نسخ الكود", copiedBtn: "تم النسخ!", warningText: "تنبيه: أرسل عملاتك عبر شبكة BEP20 فقط. استخدام شبكات أخرى سيؤدي لضياع أموالك للأبد.",
+    amountLabel: "مبلغ الـ USDT المحوّل", quickSelectLabel: "ملء تلقائي سريع — رسوم رتب الـ VIP", proofLabel: "إثبات الدفع والتحويل (لقطة شاشة إجبارية)",
+    removeBtn: "حذف الصورة", proofReady: "الصورة جاهزة للإرسال", uploadTitle: "ارفع لقطة شاشة وصل التحويل",
+    uploadSubtitle: "يجب أن يظهر في الوصل قيمة المبلغ المرسل وعنوان محفظة المستلم بوضوح", gallery: "المعرض",
+    camera: "الكاميرا", submitBtn: "تأكيد وإرسال طلب الشحن للإدارة", footerNote: "سيتم فحص طلبك ومراجعته يدوياً من الإدارة والموافقة عليه في غضون 24 ساعة. نظام مكافحة السبام يسمح بـ 3 طلبات كحد أقصى يومياً لكل حساب.",
+    invalidAmountTitle: "قيمة غير صالحة", invalidAmountDesc: "يرجى إدخل مبلغ USDT دقيق وصحيح.",
+    proofRequiredTitle: "الإثبات مطلوب", proofRequiredDesc: "يرجى رفع صورة وصل التحويل من تطبيق بايننس قبل الضغط على تأكيد.",
+    antiSpamTitle: "حارس مكافحة السبام", antiSpamDesc1: "قفل أمني نشط: لقد وصلت للحد الأقصى المسموح به وهو 3 طلبات إيداع في اليوم. يرجى انتظار معالجة طلباتك السابقة أو المحاولة مجدداً بعد",
+    antiSpamDesc2: "ساعة.", successTitle: "تم إرسال الطلب بنجاح", successDesc: "تم تسجيل وتأمين طلب الشحن الخاص بك بنجاح. سيقوم مديرو المنصة بمراجعة الوصل وضخ الرصيد في محفظتك لايف.",
+    permissionRequired: "الإذن مطلوب", galleryPermissionDesc: "يرجى السماح بالوصول إلى مكتبة الصور لرفع إثبات الدفع.",
     cameraPermissionDesc: "يرجى السماح بالوصول إلى الكاميرا لالتقاط صورة إثبات الدفع."
   }
 };
@@ -109,6 +66,7 @@ export default function DepositScreen() {
   const insets = useSafeAreaInsets();
 
   const [amount, setAmount] = useState('');
+  // هنا نحتفظ بمسار الهاتف فقط (بدون Base64)
   const [proofUri, setProofUri] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [addressCopied, setAddressCopied] = useState(false);
@@ -119,7 +77,6 @@ export default function DepositScreen() {
   const lang = user?.language || 'EN';
   const t = depositTranslations[lang] || depositTranslations['EN'];
 
-  // 🚀 التعديل السحري 1: تحويل الصورة الملتقطة من المعرض إلى Base64
   const handlePickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -128,18 +85,14 @@ export default function DepositScreen() {
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.4, // خفضنا الجودة شوية باش ما تتقلش قاعدة البيانات
-      base64: true, // تفعيل التشفير
+      quality: 0.3, // جودة ممتازة وسريعة الرفع
       allowsEditing: false,
     });
     if (!result.canceled && result.assets[0]) {
-      // دمج الكود باش يقرأه المتصفح كـ صورة حقيقية
-      const base64Image = `data:image/jpeg;base64,${result.assets[0].base64}`;
-      setProofUri(base64Image); 
+      setProofUri(result.assets[0].uri); // نحفظ مسار الصورة في الهاتف
     }
   };
 
-  // 🚀 التعديل السحري 2: تحويل الصورة الملتقطة بالكاميرا إلى Base64
   const handleCameraCapture = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
@@ -147,13 +100,11 @@ export default function DepositScreen() {
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
-      quality: 0.4,
-      base64: true, // تفعيل التشفير
+      quality: 0.3,
       allowsEditing: false,
     });
     if (!result.canceled && result.assets[0]) {
-      const base64Image = `data:image/jpeg;base64,${result.assets[0].base64}`;
-      setProofUri(base64Image);
+      setProofUri(result.assets[0].uri);
     }
   };
 
@@ -173,6 +124,7 @@ export default function DepositScreen() {
       setIsSubmitting(true);
       const currentTime = Date.now();
 
+      // فحص نظام السبام (3 طلبات)
       const depositHistoryRef = ref(db, `users/${user.uid}/depositRequestsHistory`);
       const historySnap = await get(depositHistoryRef);
       
@@ -191,14 +143,32 @@ export default function DepositScreen() {
         const hoursPassedSinceOldest = (currentTime - oldestRequestTime) / (1000 * 60 * 60);
         const remainingHours = Math.ceil(24 - hoursPassedSinceOldest);
 
-        showAlert(
-          t.antiSpamTitle, 
-          `${t.antiSpamDesc1} ${remainingHours} ${t.antiSpamDesc2}`
-        );
+        showAlert(t.antiSpamTitle, `${t.antiSpamDesc1} ${remainingHours} ${t.antiSpamDesc2}`);
         setIsSubmitting(false);
         return;
       }
 
+      // 🔥 الحل الجذري للـ لاق: رفع الصورة لـ Cloud Storage 🔥
+      let finalImageUrl = "No image";
+      
+      try {
+        const response = await fetch(proofUri);
+        const blob = await response.blob();
+        const storage = getStorage();
+        // إنشاء اسم فريد للصورة
+        const imageRef = storageRef(storage, `deposits/${user.uid}_${currentTime}.jpg`);
+        
+        await uploadBytes(imageRef, blob);
+        // الحصول على الرابط القصير (URL) اللّي راح يتخزن في Database
+        finalImageUrl = await getDownloadURL(imageRef); 
+      } catch (uploadError) {
+        console.error("Storage Upload Error:", uploadError);
+        showAlert("Upload Failed", "حدث خطأ أثناء رفع الصورة، يرجى المحاولة لاحقاً.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      // تسجيل المعاملة في Database بالرابط القصير (كيلوبايتات بدلاً من ميجابايتات)
       const txsRef = push(ref(db, 'transactions')); 
       const txIdKey = txsRef.key || currentTime.toString();
 
@@ -209,7 +179,7 @@ export default function DepositScreen() {
         type: 'Deposit',
         amount: parsed,
         txid: 'Verification via Screenshot URI', 
-        proofImageUri: proofUri, // الحين راح يتخزن الكود المشفر Base64، يفتح في كل الأجهزة
+        proofImageUri: finalImageUrl, // 👈 هنا يتخزن الرابط القصير (https://...)
         status: 'Pending',
         note: `User initiated a deposit query of $${parsed} USDT`,
         createdAt: currentTime,
@@ -220,16 +190,17 @@ export default function DepositScreen() {
         userId: user.uid,
         amount: parsed,
         txid: 'Screenshot Provided 📸',
-        proofImageUri: proofUri,
+        proofImageUri: finalImageUrl,
         timestamp: currentTime,
       });
 
+      // 🚀 إرسال التنبيه لتليغرام بالرابط القصير مباشرة 🚀
       await sendTelegramAdminAlert(
         user.username, 
         'Deposit', 
         parsed, 
         `Verification: Screenshot Provided 📸`,
-        proofUri
+        finalImageUrl
       );
       
       activeRequestsInLast24h.push(currentTime);
