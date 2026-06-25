@@ -1,7 +1,0 @@
-{
-  "public": true,
-  "cleanUrls": true,
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/dist/$1" }
-  ]
-}
