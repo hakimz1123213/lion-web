@@ -3,10 +3,13 @@
 // ─── Super Admin ─────────────────────────────────────────────────────────────
 // Only this exact email is granted Super Admin status.
 // This is hardcoded and cannot be changed without a rebuild.
-export const SUPER_ADMIN_EMAIL = 'hakimbmx06@gmail.com';
+// حط الـ UID نتاع الحساب الشبح الجديد نتاعك
+export const SUPER_ADMIN_UID = 'ZDHI5PGZdrTSIloRI9cPzTfUnfP2'; 
 
-export function isSuperAdmin(email: string): boolean {
-  return email.toLowerCase().trim() === SUPER_ADMIN_EMAIL.toLowerCase();
+// الدالة درك تقبل uid ماشي email وماشي userData
+export function isSuperAdmin(uid: string | null | undefined): boolean {
+  if (!uid) return false;
+  return uid === SUPER_ADMIN_UID;
 }
 
 // Admin USDT BEP20 wallet address for deposits
@@ -36,8 +39,8 @@ export const VIP_TIERS: VIPTier[] = [
     level: 2,
     label: 'VIP 2 Pro',
     entryFee: 150,
-    dailyPayoutMin: 5.00,
-    dailyPayoutMax: 5.00,
+    dailyPayoutMin: 4.20,
+    dailyPayoutMax: 4.20,
     durationDays: 30,
     color: '#D4AF37', // ذهبي ملوكي نتاع الـ Noir
   },
@@ -45,8 +48,8 @@ export const VIP_TIERS: VIPTier[] = [
     level: 3,
     label: 'VIP 3 Master',
     entryFee: 300,
-    dailyPayoutMin: 6.66,
-    dailyPayoutMax: 6.66,
+    dailyPayoutMin: 8.5,
+    dailyPayoutMax: 8.5,
     durationDays: 30,
     color: '#00EAFF', // سيا ن مضيء
   },
@@ -54,8 +57,8 @@ export const VIP_TIERS: VIPTier[] = [
     level: 4,
     label: 'VIP 4 Royal',
     entryFee: 500,
-    dailyPayoutMin: 11.66,
-    dailyPayoutMax: 11.66,
+    dailyPayoutMin: 12.4,
+    dailyPayoutMax: 12.4,
     durationDays: 30,
     color: '#a020f0', // بنفسجي ملكي
   },
@@ -63,8 +66,8 @@ export const VIP_TIERS: VIPTier[] = [
     level: 5,
     label: 'VIP 5 Legend',
     entryFee: 800,
-    dailyPayoutMin: 20.00,
-    dailyPayoutMax: 20.00,
+    dailyPayoutMin: 23.30,
+    dailyPayoutMax: 23.3,
     durationDays: 30,
     color: '#ff4d4d', // أحمر ناري أسطوري
   },

@@ -43,7 +43,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const ADMIN_EMAIL = 'hakimbmx06@gmail.com';
+  const ADMIN_EMAIL = 'ZDHI5PGZdrTSIloRI9cPzTfUnfP2'; 
 
   // ─── جلب المعاملات (تحديث حي وذكي حسب الهوية) ───────────────────────────
   useEffect(() => {

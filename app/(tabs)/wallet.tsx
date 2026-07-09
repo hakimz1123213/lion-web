@@ -9,15 +9,14 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-
-// 🚀 تم تنظيف الملف من الاستدعاءات الخارجية التي تسبب المربعات البيضاء على الويب
+import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/useAuth';
 import { useWallet } from '@/hooks/useWallet';
 import { Transaction } from '@/contexts/WalletContext'; 
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/constants/theme';
 import { GlobalStyles } from '@/constants/styles';
 
-// 🌍 قاموس التعريب الفوري والمدمج محلياً لـ شاشة المحفظة
+// 🌍 قاموس التعريب الفوري والمدمج محلياً لـ شاشة المحفظة لتفادي أخطاء المسارات
 const walletTranslations: Record<string, Record<string, string>> = {
   EN: {
     myWallet: "My Wallet",
@@ -35,7 +34,7 @@ const walletTranslations: Record<string, Record<string, string>> = {
     rejectedStatus: "Rejected"
   },
   AR: {
-    myWallet: "محفظتي", 
+    myWallet: "محفظتي ", 
     withdraw: "سحب الأموال",
     availableBalance: "الرصيد المتاح للعب",
     topUp: "شحن رصيد المحفظة",
@@ -51,25 +50,26 @@ const walletTranslations: Record<string, Record<string, string>> = {
   }
 };
 
-// ─── مكون عنصر المعاملة (Transaction Item) المحصن ──────────────────────────────
+// ─── مكون عنصر المعاملة (Transaction Item) ────────────────────────────────────
+// ─── مكون عنصر المعاملة (Transaction Item) المحصن من قيود الـ TypeScript ────────────────
 function TransactionItem({ tx, lang }: { tx: Transaction; lang: string }) {
-  let iconEmoji = '🔄';
+  let iconName: any = 'swap-vert';
   let iconColor = Colors.textSecondary;
   let amountPrefix = '';
   let amountColor = '#fff';
   
   const t = walletTranslations[lang] || walletTranslations['EN'];
   
+  // 🛡️ الفرزة العسكرية: تحويل الأنواع الصارمة إلى نصوص عادية لتفادي تضارب التايب سكريبت
   const txTypeString = tx.type as string;
   const txStatusString = tx.status as string;
   
   let displayType = txTypeString;
 
-  // 🛠️ استبدال الأيقونات المكسورة بإيموجيات نصية مدمجة وثابتة بنسبة 100%
   switch (txTypeString) {
     case 'Deposit':
     case 'deposit':
-      iconEmoji = '➕';
+      iconName = 'add-circle-outline';
       iconColor = Colors.info;
       amountPrefix = '+';
       amountColor = Colors.info;
@@ -77,7 +77,7 @@ function TransactionItem({ tx, lang }: { tx: Transaction; lang: string }) {
       break;
     case 'Withdrawal':
     case 'withdrawal':
-      iconEmoji = '➖';
+      iconName = 'remove-circle-outline';
       iconColor = Colors.danger;
       amountPrefix = '-';
       amountColor = Colors.danger;
@@ -85,7 +85,7 @@ function TransactionItem({ tx, lang }: { tx: Transaction; lang: string }) {
       break;
     case 'Reward':
     case 'reward':
-      iconEmoji = '⭐';
+      iconName = 'stars';
       iconColor = Colors.success;
       amountPrefix = '+';
       amountColor = Colors.success;
@@ -93,19 +93,11 @@ function TransactionItem({ tx, lang }: { tx: Transaction; lang: string }) {
       break;
     case 'Referral Bonus': 
     case 'referral bonus':
-      iconEmoji = '🎁'; 
+      iconName = 'card-giftcard'; 
       iconColor = Colors.gold;     
       amountPrefix = '+';
       amountColor = Colors.gold;
       displayType = t.referralType;
-      break;
-    case 'VIP Upgrade':
-    case 'vip upgrade':
-      iconEmoji = '💎';
-      iconColor = Colors.gold;
-      amountPrefix = '';
-      amountColor = Colors.gold;
-      displayType = lang === 'AR' ? "ترقية الحساب" : "VIP Upgrade";
       break;
   }
 
@@ -120,12 +112,13 @@ function TransactionItem({ tx, lang }: { tx: Transaction; lang: string }) {
   } else if (lowerStatus === 'rejected' || lowerStatus === 'failed') {
     displayStatus = t.rejectedStatus;
   }
-
+  <Text style={[styles.txStatus, { color: lowerStatus === 'pending' || lowerStatus === 'waiting' ? Colors.warning : Colors.textMuted }]}>
+  {displayStatus}
+</Text>
   return (
     <View style={[styles.txItem, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
       <View style={[styles.txIconBox, { backgroundColor: iconColor + '15' }]}>
-        {/* حقن الإيموجي المناسب للعملية داخل الصندوق الثابت */}
-        <Text style={{ fontSize: 14 }}>{iconEmoji}</Text>
+        <MaterialIcons name={iconName} size={22} color={iconColor} />
       </View>
       <View style={[{ flex: 1 }, lang === 'AR' && { alignItems: 'flex-end', marginRight: 12 }]}>
         <Text style={styles.txType}>{displayType}</Text>
@@ -141,7 +134,7 @@ function TransactionItem({ tx, lang }: { tx: Transaction; lang: string }) {
         <Text style={[styles.txAmount, { color: amountColor }]}>
           {amountPrefix}${tx.amount.toFixed(2)}
         </Text>
-        <Text style={[styles.txStatus, { color: lowerStatus === 'pending' || lowerStatus === 'waiting' ? Colors.warning : lowerStatus === 'rejected' || lowerStatus === 'failed' ? Colors.danger : Colors.textMuted }]}>
+        <Text style={[styles.txStatus, { color: tx.status === 'Pending' ? Colors.warning : Colors.textMuted }]}>
           {displayStatus}
         </Text>
       </View>
@@ -157,6 +150,7 @@ export default function WalletScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
+  // 📡 التقاط رادار لغة العميل الحالية من مستند الـ user سحابياً
   // @ts-ignore
   const lang = user?.language || 'EN';
   const t = walletTranslations[lang] || walletTranslations['EN'];
@@ -179,8 +173,7 @@ export default function WalletScreen() {
           onPress={() => router.push('/withdraw')} 
           style={[styles.actionBtn, lang === 'AR' && { flexDirection: 'row-reverse' }]}
         >
-          {/* 🛠️ استبدال أيقونة السحب في الهيدر بإيموجي حقيبة الأموال الفخمة */}
-          <Text style={{ fontSize: 13, marginRight: 2 }}>💰</Text>
+          <MaterialIcons name="payments" size={20} color={Colors.gold} />
           <Text style={styles.actionBtnText}>{t.withdraw}</Text>
         </Pressable>
       </View>
@@ -198,8 +191,7 @@ export default function WalletScreen() {
               onPress={() => router.push('/deposit')} 
               style={[styles.depositBtn, lang === 'AR' && { flexDirection: 'row-reverse' }]}
             >
-              {/* 🛠️ استبدال أيقونة الزائد داخل زر الشحن بإيموجي الشحن السريع */}
-              <Text style={{ fontSize: 14, marginRight: 4 }}>⚡</Text>
+              <MaterialIcons name="add" size={18} color={Colors.textOnGold} />
               <Text style={styles.depositBtnText}>{t.topUp}</Text>
             </Pressable>
           </View>
@@ -208,14 +200,13 @@ export default function WalletScreen() {
         {/* Transactions Section */}
         <View style={[styles.historyHeader, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
           <Text style={styles.historyTitle}>{t.txHistory}</Text>
-          {/* 🛠️ استبدال أيقونة التاريخ بجانب العنوان بإيموجي الساعة الرملية */}
-          <Text style={{ fontSize: 13 }}>⏳</Text>
+          <MaterialIcons name="history" size={18} color={Colors.textMuted} />
         </View>
 
         <View style={styles.txList}>
           {transactions.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Text style={{ fontSize: 40, marginBottom: 10 }}>📄</Text>
+              <MaterialIcons name="receipt-long" size={48} color={Colors.surfaceBorder} />
               <Text style={styles.emptyText}>{t.noTransactions}</Text>
             </View>
           ) : (
@@ -245,7 +236,7 @@ const styles = StyleSheet.create({
   depositBtnText: { color: Colors.textOnGold, fontWeight: 'bold', fontSize: FontSize.base },
 
   historyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: Spacing.lg, marginBottom: 15 },
-  historyTitle: { color: Colors.textSecondary, fontSize: FontSize.md, fontWeight: FontWeight.bold },
+  historyTitle: { color: Colors.textSecondary, fontSize: FontSize.md, fontWeight: 'bold' },
   
   txList: { paddingHorizontal: Spacing.lg, paddingBottom: 40 },
   txItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, padding: Spacing.md, borderRadius: Radius.lg, marginBottom: 10, borderWidth: 1, borderColor: Colors.surfaceBorder },
@@ -253,7 +244,7 @@ const styles = StyleSheet.create({
   txType: { color: '#fff', fontSize: FontSize.base, fontWeight: 'bold' },
   txDate: { color: Colors.textMuted, fontSize: 10, marginTop: 2 },
   txNote: { color: Colors.goldDim, fontSize: 10, marginTop: 2, fontStyle: 'italic' },
-  txAmount: { fontSize: FontSize.md, fontWeight: FontWeight.bold },
+  txAmount: { fontSize: FontSize.md, fontWeight: 'bold' },
   txStatus: { fontSize: 9, marginTop: 4, fontWeight: 'bold' },
   
   emptyContainer: { alignItems: 'center', marginTop: 50 },

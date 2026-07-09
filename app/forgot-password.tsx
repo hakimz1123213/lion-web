@@ -89,6 +89,7 @@ export default function ForgotPasswordScreen() {
   const t = forgotTranslations[lang] || forgotTranslations['EN'];
 
   // ─── المرحلة 1: توليد الكود وإرساله فوراً بنقاء الـ REST API المباشر ──────────────────────
+// ─── المرحلة 1: توليد الكود وإرساله عبر السيرفر المحصن (لا مفاتيح هنا!) ──────────────────
   const handleSendOTP = async () => {
     if (!email.trim()) {
       showAlert(t.missingFields, "");
@@ -96,41 +97,30 @@ export default function ForgotPasswordScreen() {
     }
     setIsLoading(true);
     
-    // 1. توليد وحفظ الكود في الفايربيز داتابيز بنجاح
+    // 1. توليد وحفظ الكود في الداتابيز
     const result = await generateAndSaveOTP(email.trim());
     
     if (result.error === null && result.otpCode) {
       try {
-        // 🚀 [الضخ السهمي النقي]: استعمال الـ REST API ديريكت لتفادي جدار حظر الـ Browser SDK في الـ APK
-        const response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify({
-            service_id: 'service_c7pcv6l',
-            template_id: 'template_fr26ah9', // قالب الـ Password Reset الظاهر في الصورة image_3f6646.png
-           user_id: 'CwFCgpSX66cm7YC9o',
-            template_params: {
-              to_email: email.trim(),
-              otp_code: result.otpCode,
-              location: "Secure Mobile Network Node"
-            }
-          })
+        // 🚀 [الربط الآمن]: استدعاء الدالة السحابية المحصنة
+        const { getFunctions, httpsCallable } = await import('firebase/functions');
+        const functions = getFunctions();
+        const sendSecureEmail = httpsCallable(functions, 'sendSecureEmail');
+
+        // السيرفر هو اللي يملك المفاتيح، التطبيق يبعث البيانات فقط
+        await sendSecureEmail({
+          to_name: "User", 
+          to_email: email.trim(),
+          otp_code: result.otpCode,
+          template_id: 'template_fr26ah9' // القالب الآمن
         });
 
-        if (response.ok) {
-          showAlert(t.codeSentTitle, t.codeSentDesc);
-          setCurrentStep(2); // الانتقال الفوري لخطوة إدخال الـ OTP
-        } else {
-          const errText = await response.text();
-          console.error("[EmailJS REST Refused]:", errText);
-          showAlert('Email Node Refused', "Security node handshake rejected. Please retry.");
-        }
+        showAlert(t.codeSentTitle, t.codeSentDesc);
+        setCurrentStep(2); // الانتقال للخطوة التالية
 
-      } catch (emailErr: any) {
-        showAlert('Email Node Refused', "Network transmission handshake rejected.");
+      } catch (err: any) {
+        console.error("[Secure Node Refused]:", err);
+        showAlert('Security Error', "Secure node handshake rejected. Please retry.");
       }
     } else {
       showAlert('Error', result.error || 'Failed to generate security token.');

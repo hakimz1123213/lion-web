@@ -63,7 +63,7 @@ export default function AdminScreen() {
   const [fadeAnim] = useState(new Animated.Value(0));
 
   useEffect(() => {
-    if (!user?.uid || !isSuperAdmin(user.email)) return;
+    if (!user?.uid || !isSuperAdmin(user?.uid)) return;
 
     const txsRef = ref(db, 'transactions');
     
@@ -101,12 +101,12 @@ export default function AdminScreen() {
     }
     if (historySearchQuery.trim() !== '') {
       result = result.filter(t => 
-        t.username?.toLowerCase().includes(historySearchQuery.toLowerCase())
+        // 🚨 حماية البحث في السجل
+        (t.username || '').toLowerCase().includes(historySearchQuery.toLowerCase())
       );
     }
     setFilteredHistory(result);
   }, [historyTxs, historyFilter, historySearchQuery]);
-
   const loadData = useCallback(async () => {
     if (!user?.uid) return;
     try {
@@ -202,14 +202,24 @@ export default function AdminScreen() {
     }
   };
 
-  if (!user || !isSuperAdmin(user.email)) return null;
+  if (!user || !isSuperAdmin(user?.uid)) return null;
 
-  const filteredUsers = allUsers.filter(u => {
-    const matchesSearch = u.username?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          u.email?.toLowerCase().includes(searchQuery.toLowerCase());
+ const filteredUsers = allUsers.filter(u => {
+    // 1️⃣ إذا كان مربع البحث فارغ، خليهم كامل يفوتو بلا مشاكل
+    if (!searchQuery || searchQuery.trim() === '') {
+      if (showVipOnly) return (parseInt(u.vip_level?.toString()) || 0) > 0;
+      return true;
+    }
+
+    // 2️⃣ إذا كاين بحث، نحميو المتغيرات باش ما يخرجناش إيرور Undefined
+    const safeUsername = String(u.username || '').toLowerCase();
+    const safeEmail = String(u.email || '').toLowerCase();
+    const safeQuery = searchQuery.toLowerCase().trim();
+
+    const matchesSearch = safeUsername.includes(safeQuery) || safeEmail.includes(safeQuery);
+    
     if (showVipOnly) {
-      const vipLevel = parseInt(u.vip_level?.toString()) || 0;
-      return matchesSearch && vipLevel > 0;
+      return matchesSearch && (parseInt(u.vip_level?.toString()) || 0) > 0;
     }
     return matchesSearch;
   }).sort((a, b) => {
@@ -367,7 +377,13 @@ export default function AdminScreen() {
   }
 
   const sponsorEarnedFromThisUser = sponsorUser && editingUser ? historyTxs
-    .filter(t => t.userId === sponsorUser.uid && t.type === 'Referral Bonus' && t.note && t.note.toLowerCase().includes(editingUser.username.toLowerCase()))
+    .filter(t => 
+       t.userId === sponsorUser.uid && 
+       t.type === 'Referral Bonus' && 
+       t.note && 
+       // 🚨 حماية اسم المستخدم أثناء الحساب
+       t.note.toLowerCase().includes((editingUser.username || '').toLowerCase())
+    )
     .reduce((sum, t) => sum + (parseFloat(t.amount || 0) || 0), 0) : 0;
 
   const referredUsersList = editingUser ? allUsers.filter(u => {
@@ -575,10 +591,26 @@ export default function AdminScreen() {
                     </View>
                   )}
                   <FlatList
-                    data={filteredUsers}
-                    keyExtractor={(item) => item.uid}
-                    contentContainerStyle={styles.listPadding}
-                    renderItem={({ item }) => {
+    data={filteredUsers}
+    keyExtractor={(item) => item.uid || Math.random().toString()}
+    contentContainerStyle={styles.listPadding}
+    
+    // 👇 ضيف هاد الرادار هنا 👇
+    ListEmptyComponent={
+      <View style={{ alignItems: 'center', marginTop: 80 }}>
+        <Text style={{ fontSize: 50 }}>📭</Text>
+        <Text style={{ color: '#fff', fontSize: 18, marginTop: 15, fontWeight: 'bold' }}>
+          {allUsers.length === 0 ? "قاعدة البيانات مارجعت حتى مستخدم!" : "مكاش مستخدم بهاد الاسم!"}
+        </Text>
+        <Text style={{ color: Colors.gold, fontSize: 14, marginTop: 8 }}>
+          (إجمالي المستخدمين في الذاكرة: {allUsers.length})
+        </Text>
+      </View>
+    }
+    // 👆 👆
+    
+    renderItem={({ item }) => {
+      // ... (خلي كود الرندر نتاعك كيما راه)
                       const tier = getVIPTier(item.vip_level || 0);
                       const totalReferredCount = allUsers.filter(u => {
                         if (!u.referredBy) return false;

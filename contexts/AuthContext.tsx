@@ -196,7 +196,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: "Handshake secure timeout. Please check your connection." };
     }
   };
-
  // 🔒 دالة التحقق الملوكية والمطهرة من الكراش الوهمي
   const confirmRegisterOTP = async (email: string, code: string) => {
     try {
@@ -341,7 +340,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
               await update(referrerRef, { balance: finalNewBalance }); 
 
-              if (parentUid === user.uid || user.email === "hakimbmx06@gmail.com") {
+              if (parentUid === user.uid || user.email === "ZDHI5PGZdrTSIloRI9cPzTfUnfP2") {
                 setUser(prev => prev ? { ...prev, balance: finalNewBalance } : null);
               }
 
@@ -588,9 +587,15 @@ const getReferredUsers = async (referrerId: string) => {
   };
 
   const getAllUsers = async () => { 
-    if (user?.email !== 'hakimbmx06@gmail.com') return []; 
+    // 1️⃣ التصحيح الأول: نقارنو الـ UID مع الـ UID ماشي مع الإيميل
+    if (user?.uid !== 'ZDHI5PGZdrTSIloRI9cPzTfUnfP2') return []; 
+    
     const snap = await get(ref(db, 'users'));  
-    return snap.exists() ? Object.values(snap.val()).filter((u: any) => !isSuperAdmin(u.email)) as UserProfile[] : []; 
+    
+    // 2️⃣ التصحيح الثاني: نبعثو u.uid لدالة isSuperAdmin باش تتأكد مليح
+    return snap.exists() 
+      ? Object.values(snap.val()).filter((u: any) => !isSuperAdmin(u.uid)) as UserProfile[] 
+      : []; 
   };
 
   const adminUpdateUserBalance = async (uid: string, nb: number) => update(ref(db, `users/${uid}`), { balance: Math.max(0, nb) }); 

@@ -87,7 +87,7 @@ export default function ProfileScreen() {
   const lang = user?.language || 'EN';
   const t = translations[lang] || translations['EN'];
 
-  const ADMIN_EMAIL = "hakimbmx06@gmail.com"; 
+  const ADMIN_EMAIL = "ZDHI5PGZdrTSIloRI9cPzTfUnfP2"; 
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -357,7 +357,7 @@ export default function ProfileScreen() {
         <View style={[GlobalStyles.card, styles.section]}>
           <Text style={[styles.sectionHeading, lang === 'AR' && { textAlign: 'right' }]}>{t.resources}</Text>
           
-          {user.email === ADMIN_EMAIL && (
+          {user.uid === 'ZDHI5PGZdrTSIloRI9cPzTfUnfP2' && (
             <Pressable 
               style={[styles.actionRow, { borderBottomWidth: 1, borderBottomColor: '#111', marginBottom: 5 }, lang === 'AR' && { flexDirection: 'row-reverse' }]} 
               onPress={() => router.push('/admin')}
