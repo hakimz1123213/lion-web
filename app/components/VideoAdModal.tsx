@@ -1,5 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Modal, View, Text, StyleSheet, TouchableOpacity, Pressable, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { Modal, View, Text, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import { MaterialIcons, Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/useAuth';
 
 interface VideoAdModalProps {
@@ -9,75 +11,62 @@ interface VideoAdModalProps {
   onClose: () => void;
 }
 
+// 🌍 قاموس النصوص بهوية مستقبليّة جيدة
 const adTranslations: Record<string, Record<string, string>> = {
   EN: {
-    secureAudio: "🔒 Secure Audio Connection Ready",
-    waitForReward: "Wait for reward: {time}s",
-    taskApproved: "🎉 Task Approved!",
-    watchWithSound: "WATCH AD WITH SOUND",
-    bypassGesture: "Direct user gesture to bypass browser block",
-    rewardReady: "REWARD READY",
-    clickConfirm: "Click confirm below to claim your rewards.",
-    claimBtn: "CONFIRM & CLAIM 💰",
-    cancelTask: "Cancel Task"
+    statusBadge: "CYBER STREAM LIVE",
+    waitForReward: "REWARD UNLOCK: {time}S",
+    taskApproved: "SYSTEM: TASK VERIFIED",
+    watchWithSound: "ENABLE HIGH-QUALITY AUDIO",
+    bypassGesture: "Tap to initiate sound matrix",
+    rewardReady: "CLAIM READY",
+    clickConfirm: "Your reward is ready to be credited.",
+    claimBtn: "CLAIM REWARD NOW ⚡",
   },
   AR: {
-    secureAudio: "🔒 رادار الصوت الآمن جاهز للاتصال",
-    waitForReward: "انتظر لاحتساب المكافأة: {time} ثانية",
-    taskApproved: "🎉 تم قبول واعتماد المهمة بنجاح!",
-    watchWithSound: "تشغيل الإعلان مع الصوت 🔊",
-    bypassGesture: "إيماءة مباشرة لتجاوز حظر الصوت في النظام",
-    rewardReady:" المكافأة جاهزة الآن💰",
-    clickConfirm: "اضغط على تأكيد بالأسفل لجمع الأرباح داخل حفظتك",
-    claimBtn: "تأكيد واستلام الأرباح 💰",
-    cancelTask: "إلغاء المهمة وتراجع"
+    statusBadge: "بث النواة المباشر",
+    waitForReward: "متبقي للمكافأة: {time} ثانية",
+    taskApproved: "تم اعتماد القيمة بنجاح 🎉",
+    watchWithSound: "تفعيل الصوت المباشر 🔊",
+    bypassGesture: "اضغط للتجاوز وتشغيل نظام الصوت",
+    rewardReady: "المكافأة جاهزة للجمع 💰",
+    clickConfirm: "تأكيد إيداع الأرباح المباشرة في محفظتك.",
+    claimBtn: "تأكيد واستلام الأرباح ⚡",
   }
 };
 
+// 🚀 المكون الداخلي: محرك التشغيل المستقل
 function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: string, onComplete: () => void, onClose: () => void, lang: string }) {
   const [timeLeft, setTimeLeft] = useState(15);
   const [isFinished, setIsFinished] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  
-  // استخدام مرجع Ref للتحكم في عنصر الفيديو مباشرة على الويب
-  const videoRef = useRef<any>(null);
+
   const t = adTranslations[lang] || adTranslations['EN'];
 
-  // دالة تشغيل الفيديو وكسر حظر الصوت العنيف في المتصفحات
+  const player = useVideoPlayer(videoUrl, (p) => {
+    p.loop = false;
+    p.muted = false;
+    p.volume = 1.0;
+  });
+
   const handlePlayAdWithSound = () => {
-    setIsPlaying(true);
-    
-    if (Platform.OS === 'web') {
-      // 👑 الخدعة الذهبية الصارمة على الويب للوصول لجذر الـ HTML5 وعنصر الفيديو ديريكت
-      const videoElement = videoRef.current;
-      if (videoElement) {
-        videoElement.muted = false; // إلغاء كتم الصوت
-        videoElement.volume = 1.0;  // رفع الصوت لأعلى درجة
-        
-        // تشغيل برمجياً مدعوماً بنقرة صريحة
-        const playPromise = videoElement.play();
-        if (playPromise !== undefined) {
-          playPromise.catch((error: any) => {
-            console.log("Autoplay blocked, forcing play again:", error);
-            videoElement.play();
-          });
-        }
-      }
+    if (player) {
+      player.muted = false;
+      player.volume = 1.0;
+      player.play();
+      setIsPlaying(true);
     }
   };
 
-  // حارس الـ 15 ثانية اليومي المستقر
   useEffect(() => {
-    let timer: any; 
+    let timer: any;
     if (isPlaying && timeLeft > 0) {
       timer = setInterval(() => {
         setTimeLeft((prev) => prev - 1);
       }, 1000);
     } else if (timeLeft === 0) {
       setIsFinished(true);
-      if (Platform.OS === 'web' && videoRef.current) {
-        videoRef.current.pause();
-      }
+      if (player) player.pause();
     }
     return () => {
       if (timer) clearInterval(timer);
@@ -85,91 +74,83 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
   }, [isPlaying, timeLeft]);
 
   return (
-    <View style={styles.cardContainer}>
+    <View style={styles.cyberCard}>
       
-      {/* ⏳ شريط الحالة العلوي */}
-      <View style={styles.timerContainer}>
-        {!isPlaying ? (
-          <Text style={styles.loadingText}>{t.secureAudio}</Text>
-        ) : !isFinished ? (
-          <Text style={styles.timerText}>{t.waitForReward.replace('{time}', timeLeft.toString())}</Text>
-        ) : (
-          <Text style={styles.successText}>{t.taskApproved}</Text>
-        )}
+      {/* 🛑 1. زر الإغلاق العائم في الأعلى (تغيير الموضع بالكامل) */}
+      <TouchableOpacity 
+        style={styles.floatingCloseBtn} 
+        onPress={() => { if (player) player.pause(); onClose(); }}
+        activeOpacity={0.7}
+      >
+        <Ionicons name="close" size={22} color="#FFFFFF" />
+      </TouchableOpacity>
+
+      {/* 📡 2. شريط النظام العلوي (HUD Header) */}
+      <View style={styles.hudHeader}>
+        <View style={styles.liveIndicator}>
+          <View style={styles.liveDot} />
+          <Text style={styles.hudStatusText}>{t.statusBadge}</Text>
+        </View>
+
+        <View style={styles.timerBadge}>
+          {!isPlaying ? (
+            <Text style={styles.timerText}>00:15</Text>
+          ) : !isFinished ? (
+            <Text style={styles.timerText}>{t.waitForReward.replace('{time}', timeLeft.toString())}</Text>
+          ) : (
+            <Text style={styles.successBadgeText}>{t.taskApproved}</Text>
+          )}
+        </View>
       </View>
 
-      {/* 📺 مربع العرض المركزي المقاوم تماماً لمشاكل الـ Pause */}
+      {/* 📺 3. شاشة العرض الرقمية الإطار المضيء المستقبلي */}
       {!isFinished ? (
-        <View style={styles.videoBox}>
-          <View style={{ width: '100%', height: '100%', position: 'relative', backgroundColor: '#000' }}>
-            
-            {Platform.OS === 'web' ? (
-              /* 👑 هندسة التطهير: حقن عنصر فيديو HTML5 أصلي ومباشر على الويب لحل مشكلة قنوات الصوت نهائياً */
-              <video
-                ref={videoRef}
-                src={videoUrl}
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                playsInline
-                controls={false} // إلغاء الأزرار لمنع الـ Pause
-                disablePictureInPicture
-                controlsList="nodownload nofullscreen noremoteplayback"
-              />
-            ) : (
-              <View style={{ flex: 1, backgroundColor: '#000' }} />
-            )}
+        <View style={styles.cyberVideoFrame}>
+          {/* زوايا ديكورية لمظهر النيون المستقبلي */}
+          <View style={[styles.cornerAccents, styles.topLeft]} />
+          <View style={[styles.cornerAccents, styles.topRight]} />
+          <View style={[styles.cornerAccents, styles.bottomLeft]} />
+          <View style={[styles.cornerAccents, styles.bottomRight]} />
 
-            {/* 🛡️ حارس الأمان الشفاف لمنع الـ Pause وتوجيه الصوت والتشغيل برمجياً */}
-            {isPlaying && (
-              <Pressable 
-                style={StyleSheet.absoluteFill} 
-                onPress={() => {
-                  if (Platform.OS === 'web' && videoRef.current) {
-                    videoRef.current.muted = false;
-                    videoRef.current.volume = 1.0;
-                    videoRef.current.play(); // إعادة تأكيد البث ومنع التعليق
-                  }
-                }} 
-              />
-            )}
-          </View>
+          <VideoView 
+            player={player} 
+            style={[styles.videoPlayer, !isPlaying && { opacity: 0 }]} 
+            contentFit="cover"
+            nativeControls={false} 
+          />
 
-          {/* 🏆 واجهة كسر الحظر الذهبية المبدئية */}
+          {/* overlay كسر الحظر وتفعيل الصوت */}
           {!isPlaying && (
-            <Pressable style={styles.startAdOverlay} onPress={handlePlayAdWithSound}>
-              <View style={styles.playIconCircle}>
-                <Text style={{ fontSize: 26, color: '#000', textAlign: 'center' }}>🔊</Text>
+            <Pressable style={styles.unmuteOverlay} onPress={handlePlayAdWithSound}>
+              <View style={styles.glowPulseCircle}>
+                <Ionicons name="volume-high" size={38} color="#FFFFFF" />
               </View>
-              <Text style={styles.startAdTitle}>{t.watchWithSound}</Text>
-              <Text style={styles.startAdSub}>{t.bypassGesture}</Text>
+              <Text style={styles.overlayTitle}>{t.watchWithSound}</Text>
+              <Text style={styles.overlaySub}>{t.bypassGesture}</Text>
             </Pressable>
           )}
-
         </View>
       ) : (
-        /* كارت الأرباح الفاخر */
-        <View style={styles.successBox}>
-          <Text style={{ fontSize: 60, marginBottom: 10 }}>✅</Text>
-          <Text style={styles.successTitle}>{t.rewardReady}</Text>
-          <Text style={styles.successSub}>{t.clickConfirm}</Text>
+        /* 🏆 4. كارت النجاح الهولوجرام الفاخر */
+        <View style={styles.successCyberBox}>
+          <View style={styles.successIconOuter}>
+            <Ionicons name="checkmark-sharp" size={50} color="#FFFFFF" />
+          </View>
+          <Text style={styles.successCyberTitle}>{t.rewardReady}</Text>
+          <Text style={styles.successCyberSub}>{t.clickConfirm}</Text>
         </View>
       )}
 
-      {/* 🔘 أزرار التحكم السفلية */}
-      <View style={styles.footer}>
-        {isFinished ? (
-          <TouchableOpacity style={styles.claimButton} onPress={onComplete}>
-            <Text style={styles.claimButtonText}>{t.claimBtn}</Text>
-          </TouchableOpacity>
-        ) : (
+      {/* 🔘 5. زر التأكيد الرئيسي باللون الأرجواني والأبيض (Pill Shape Button) */}
+      <View style={styles.bottomActionArea}>
+        {isFinished && (
           <TouchableOpacity 
-            style={[styles.closeButton, lang === 'AR' && { flexDirection: 'row-reverse' }]} 
-            onPress={() => { 
-              if (Platform.OS === 'web' && videoRef.current) videoRef.current.pause();
-              onClose(); 
-            }}
+            style={styles.primaryPillBtn} 
+            onPress={onComplete}
+            activeOpacity={0.8}
           >
-            <Text style={[{ fontSize: 13 }, lang === 'AR' ? { marginRight: 2 } : { marginLeft: 2 }]}>❌</Text>
-            <Text style={[styles.closeText, lang === 'AR' && { marginRight: 6, marginLeft: 0 }]}>{t.cancelTask}</Text>
+            <Text style={styles.primaryPillBtnText}>{t.claimBtn}</Text>
+            <FontAwesome5 name="arrow-right" size={14} color="#FFFFFF" style={{ marginLeft: 8 }} />
           </TouchableOpacity>
         )}
       </View>
@@ -178,14 +159,15 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
   );
 }
 
+// 🚀 المكون الأساسي
 export default function VideoAdModal({ visible, videoUrl, onComplete, onClose }: VideoAdModalProps) {
   const { user } = useAuth();
   // @ts-ignore
   const lang = user?.language || 'EN';
 
   return (
-    <Modal visible={visible} animationType="fade" transparent={true}>
-      <View style={styles.modalOverlay}>
+    <Modal visible={visible} animationType="slide" transparent={true}>
+      <View style={styles.modalBackdrop}>
         {visible && (
           <AdPlayerContent 
             videoUrl={videoUrl} 
@@ -199,40 +181,220 @@ export default function VideoAdModal({ visible, videoUrl, onComplete, onClose }:
   );
 }
 
+// 🎨 الستايل الأرجواني والأبيض المضيء المستقبلي (Ultra Cyber Style)
 const styles = StyleSheet.create({
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.97)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  cardContainer: { width: '100%', maxWidth: 850, alignItems: 'center', justifyContent: 'center' },
-  timerContainer: { marginBottom: 20, paddingVertical: 8, paddingHorizontal: 20, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.02)' },
-  timerText: { color: '#D4AF37', fontWeight: 'bold', fontSize: 16, letterSpacing: 0.5 },
-  loadingText: { color: '#666', fontWeight: 'bold', fontSize: 14, letterSpacing: 0.5 },
-  successText: { color: '#4CAF50', fontWeight: 'bold', fontSize: 16 },
-  videoBox: { 
-    width: '100%', 
-    aspectRatio: 16 / 9, 
-    backgroundColor: '#050505', 
-    borderRadius: 16, 
-    overflow: 'hidden', 
-    borderWidth: 1.5, 
-    borderColor: '#1A1A1A',
+  modalBackdrop: { 
+    flex: 1, 
+    backgroundColor: 'rgba(8, 4, 15, 0.96)', // خلفية ليلية بنفسجية فائقة العمق
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  cyberCard: { 
+    width: '92%', 
+    backgroundColor: '#120A21', 
+    borderRadius: 24, 
+    padding: 20,
+    borderWidth: 1.5,
+    borderColor: 'rgba(139, 92, 246, 0.3)',
+    alignItems: 'center',
     position: 'relative',
-    shadowColor: '#D4AF37',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.35,
+    shadowRadius: 25,
+    elevation: 15
+  },
+  floatingCloseBtn: {
+    position: 'absolute',
+    top: -16,
+    right: -10,
+    backgroundColor: '#8B5CF6',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#120A21',
+    zIndex: 99,
+    elevation: 8
+  },
+  hudHeader: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 18,
+    paddingHorizontal: 4
+  },
+  liveIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(139, 92, 246, 0.15)',
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.3)'
+  },
+  liveDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#A78BFA',
+    marginRight: 6
+  },
+  hudStatusText: {
+    color: '#A78BFA',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8
+  },
+  timerBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    borderRadius: 12
+  },
+  timerText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    fontSize: 13,
+    letterSpacing: 1
+  },
+  successBadgeText: {
+    color: '#10B981',
+    fontWeight: 'bold',
+    fontSize: 12
+  },
+  
+  /* الإطار المستقبلي للفيديو */
+  cyberVideoFrame: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    backgroundColor: '#07030D',
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#8B5CF6',
+    position: 'relative',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 15,
+  },
+  videoPlayer: { width: '100%', height: '100%' },
+  
+  /* زوايا ديكورية مستوحاة من العرض المضيء */
+  cornerAccents: {
+    position: 'absolute',
+    width: 12,
+    height: 12,
+    borderColor: '#FFFFFF',
+    zIndex: 10
+  },
+  topLeft: { top: 6, left: 6, borderTopWidth: 2, borderLeftWidth: 2 },
+  topRight: { top: 6, right: 6, borderTopWidth: 2, borderRightWidth: 2 },
+  bottomLeft: { bottom: 6, left: 6, borderBottomWidth: 2, borderLeftWidth: 2 },
+  bottomRight: { bottom: 6, right: 6, borderBottomWidth: 2, borderRightWidth: 2 },
+
+  unmuteOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(18, 10, 33, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 15,
+    zIndex: 30
+  },
+  glowPulseCircle: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: '#8B5CF6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+    shadowColor: '#8B5CF6',
+    shadowOpacity: 0.9,
+    shadowRadius: 18,
+    elevation: 10
+  },
+  overlayTitle: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    textAlign: 'center'
+  },
+  overlaySub: {
+    color: '#A78BFA',
+    fontSize: 11,
+    marginTop: 4,
+    textAlign: 'center'
+  },
+
+  /* شاشة المكافأة */
+  successCyberBox: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    backgroundColor: 'rgba(139, 92, 246, 0.08)',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#A78BFA',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20
+  },
+  successIconOuter: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#10B981',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#10B981',
+    shadowOpacity: 0.6,
+    shadowRadius: 15,
+    elevation: 8
+  },
+  successCyberTitle: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginTop: 12
+  },
+  successCyberSub: {
+    color: '#9CA3AF',
+    fontSize: 12,
+    marginTop: 4,
+    textAlign: 'center'
+  },
+
+  bottomActionArea: {
+    marginTop: 18,
+    width: '100%',
+    alignItems: 'center',
+    minHeight: 45,
+    justifyContent: 'center'
+  },
+  primaryPillBtn: {
+    backgroundColor: '#8B5CF6',
+    paddingVertical: 14,
+    paddingHorizontal: 35,
+    borderRadius: 30, // شكل البيضوي (Pill Shape)
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#8B5CF6',
+    shadowOpacity: 0.5,
     shadowRadius: 12,
     elevation: 6,
-    marginBottom: 20 
+    width: '100%'
   },
-  videoStyle: { width: '100%', height: '100%' },
-  startAdOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: '#050505', justifyContent: 'center', alignItems: 'center', padding: 20, zIndex: 40 },
-  playIconCircle: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#D4AF37', justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
-  startAdTitle: { color: '#D4AF37', fontSize: 16, fontWeight: '900', letterSpacing: 1, textAlign: 'center' },
-  startAdSub: { color: '#444', fontSize: 12, marginTop: 5, fontWeight: 'bold', textAlign: 'center' },
-  successBox: { width: '100%', aspectRatio: 16 / 9, backgroundColor: '#080808', borderRadius: 16, borderWidth: 1.5, borderColor: '#D4AF37', justifyContent: 'center', alignItems: 'center', padding: 20, marginBottom: 20 },
-  successTitle: { color: '#D4AF37', fontSize: 24, fontWeight: 'bold', marginTop: 10, letterSpacing: 1 },
-  successSub: { color: '#666', fontSize: 14, marginTop: 5, textAlign: 'center' },
-  footer: { marginTop: 15, width: '100%', alignItems: 'center', justifyContent: 'center' },
-  claimButton: { backgroundColor: '#D4AF37', paddingVertical: 15, paddingHorizontal: 40, borderRadius: 12, width: '100%', alignItems: 'center' },
-  claimButtonText: { color: '#000', fontWeight: '900', fontSize: 16 },
-  closeButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, paddingHorizontal: 24, backgroundColor: 'rgba(229, 62, 62, 0.04)', borderRadius: 10, borderWidth: 1, borderColor: 'rgba(229, 62, 62, 0.15)', width: '100%' },
-  closeText: { color: '#E53E3E', marginLeft: 6, fontWeight: 'bold', fontSize: 14 }
+  primaryPillBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '900',
+    fontSize: 15,
+    letterSpacing: 0.5
+  }
 });

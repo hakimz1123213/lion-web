@@ -2,6 +2,7 @@ import React, { createContext, useState, useContext, useEffect, ReactNode } from
 import { db } from '../services/firebaseConfig'; 
 // ✅ أضفنا query, orderByChild, equalTo لعمل تصفية ذكية من جهة السيرفر
 import { ref, push, set, onValue, update, get, query, orderByChild, equalTo } from "firebase/database";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import { AuthContext } from './AuthContext';
 
 // ─── الأنواع (Types) ────────────────────────────────────────────────────────
@@ -43,7 +44,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const ADMIN_EMAIL = 'ZDHI5PGZdrTSIloRI9cPzTfUnfP2'; 
+  const ADMIN_EMAIL = 'jec4njRnjSO5ZQfqz1h4X2jAqla2'; 
 
   // ─── جلب المعاملات (تحديث حي وذكي حسب الهوية) ───────────────────────────
   useEffect(() => {
@@ -139,42 +140,50 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   // 3. طلب إيداع
   const requestDeposit = async (amount: number, proofImageUri?: string) => {
     if (!auth?.user) return;
-    const newTxRef = push(ref(db, 'transactions'));
-    const newTx: Transaction = {
-      id: newTxRef.key!,
-      userId: auth.user.uid,
-      username: auth.user.username,
-      type: 'Deposit',
-      amount,
-      status: 'Pending',
-      note: proofImageUri ? 'Deposit request with proof' : 'Deposit request pending',
-      createdAt: Date.now(),
-      proofImageUri,
-    };
-    await set(newTxRef, newTx);
+
+    try {
+      const functions = getFunctions();
+      // استدعاء دالة الإيداع من السيرفر
+      const submitDepositFn = httpsCallable(functions, 'submitDeposit');
+      
+      await submitDepositFn({
+        userId: auth.user.uid, // 👈 إرسال الـ ID بوضوح
+        username: auth.user.username,
+        amount: amount,
+        proofImageUri: proofImageUri || ''
+      });
+      
+    } catch (err: any) {
+      console.error("Deposit Function Error:", err);
+      throw err;
+    }
   };
 
   // 4. طلب سحب
+  // 4. طلب سحب
   const requestWithdrawal = async (amount: number, walletAddress: string) => {
     if (!auth?.user) return { error: 'Not authenticated.' };
-    if (amount > auth.user.balance) return { error: 'Insufficient balance.' };
-
-    const newTxRef = push(ref(db, 'transactions'));
-    const newTx: Transaction = {
-      id: newTxRef.key!,
-      userId: auth.user.uid,
-      username: auth.user.username,
-      type: 'Withdrawal',
-      amount,
-      status: 'Pending',
-      note: `Withdrawal to ${walletAddress.slice(0, 8)}...`,
-      createdAt: Date.now(),
-      walletAddress,
-    };
     
-    await auth.updateBalance(auth.user.balance - amount);
-    await set(newTxRef, newTx);
-    return { error: null };
+    try {
+      // سطر للتأكد من أن الـ ID موجود قبل الإرسال (سيظهر في شاشة الـ Terminal لديك)
+      console.log("🚀 Payload Sender ID:", auth.user.uid); 
+
+      const functions = getFunctions();
+      const submitWithdrawFn = httpsCallable(functions, 'submitWithdraw');
+      
+      await submitWithdrawFn({
+        userId: auth.user.uid,
+        uid: auth.user.uid, // 👈 زيادة تأكيد أرسلناه بالاسمين
+        username: auth.user.username,
+        amount: amount,
+        walletAddress: walletAddress
+      });
+
+      return { error: null };
+    } catch (err: any) {
+      console.error("Withdraw Function Error:", err);
+      return { error: err.message || 'فشل الاتصال بالسيرفر.' };
+    }
   };
 
   // 5. تسجيل ترقية VIP كمعاملة

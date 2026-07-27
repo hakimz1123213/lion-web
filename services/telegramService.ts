@@ -1,22 +1,28 @@
 // 📡 NoirWealth — Telegram Admin Alert System
 
-const TELEGRAM_BOT_TOKEN = "8975330909:AAEIOPN1eSlnBlO7QJW17mI3iT6oTSCPd-c"; 
-const TELEGRAM_ADMIN_CHAT_ID = "-1004463288669"; 
+const TELEGRAM_BOT_TOKEN = process.env.EXPO_PUBLIC_TELEGRAM_BOT_TOKEN;
+// 👈 هنا نحينا كلمة ADMIN باش يقرأ من ملف .env صح
+const TELEGRAM_ADMIN_CHAT_ID = process.env.EXPO_PUBLIC_TELEGRAM_CHAT_ID; 
 
 export const sendTelegramAdminAlert = async (
   username: string,
   type: 'Deposit' | 'Withdrawal',
   amount: number,
-  extraDetails?: string,
-  imageUri?: string
+  extraDetails?: string
 ) => {
+  // تأمين الحماية: إذا كانت المتغيرات الأساسية غير موجودة لا تكمل
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_ADMIN_CHAT_ID) {
+    console.error("Telegram Admin Alert Error: Missing Token or Chat ID in environment variables.");
+    return;
+  }
+
   try {
     const emoji = type === 'Deposit' ? '📥' : '📤';
     const actionText = type === 'Deposit' ? 'إيداع شحن جديد' : 'طلب سحب أرباح';
     
     // 👑 ديزاين النص المنسق
     const message = 
-`🚨 *MASTER COMMAND — NoirWealth* 🚨
+`🚨 *MASTER COMMAND — LION* 🚨
 
 ${emoji} *نوع العملية:* ${actionText} (${type})
 👤 *المستخدم:* \`${username}\`
@@ -25,65 +31,20 @@ ${extraDetails ? `📝 *تفاصيل إضافية:* \n\`${extraDetails}\`\n` : '
 
 🎮 _latchaaaaaaa boyyyyyyyyyyyy khoofffffff!_`;
 
-    const hasPhoto = imageUri && imageUri.trim() !== '' && !imageUri.includes('No image');
-    let response;
+    // ✉️ إرسال رسالة نصية فقط عبر JSON (بدون صور نهائياً)
+    const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: TELEGRAM_ADMIN_CHAT_ID,
+        text: message,
+        parse_mode: 'Markdown'
+      })
+    });
 
-    if (hasPhoto) {
-      const isHttp = imageUri!.startsWith('http');
-      
-      if (isHttp) {
-        // 🌐 1. إذا كانت الصورة رابط (مثل صورة البروفايل أو فايربيز) -> نرسلها كـ JSON (أسرع ومضمونة 100%)
-        response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: TELEGRAM_ADMIN_CHAT_ID,
-            photo: imageUri,
-            caption: message,
-            parse_mode: 'Markdown'
-          })
-        });
-      } else {
-        // 📱 2. إذا كانت الصورة من استوديو الهاتف (file://) -> نرفعها عبر FormData
-        const formData = new FormData();
-        formData.append('chat_id', TELEGRAM_ADMIN_CHAT_ID);
-        formData.append('parse_mode', 'Markdown');
-        formData.append('caption', message);
-        formData.append('photo', {
-          uri: imageUri,
-          name: 'proof.jpg',
-          type: 'image/jpeg',
-        } as any);
-
-        response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
-          method: 'POST',
-          body: formData, 
-        });
-      }
-    } else {
-      // ✉️ 3. إذا لم توجد صورة نهائياً -> نرسل رسالة نصية فقط عبر JSON
-      response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: TELEGRAM_ADMIN_CHAT_ID,
-          text: message,
-          parse_mode: 'Markdown'
-        })
-      });
-    }
-
-    // 🛡️ خطة الطوارئ: إذا فشل كل شيء لسبب ما، نرسل إشعار نصي فوري للإنقاذ!
-    if (!response.ok && hasPhoto) {
-      await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: TELEGRAM_ADMIN_CHAT_ID,
-          text: message + "\n\n⚠️ _(ملاحظة: فشل عرض الصورة في الشات، ولكن الطلب مسجل في التطبيق بنجاح)._",
-          parse_mode: 'Markdown'
-        })
-      });
+    if (!response.ok) {
+       const errorData = await response.json().catch(() => ({}));
+       console.warn("Telegram Send Failed:", errorData);
     }
     
   } catch (error) {

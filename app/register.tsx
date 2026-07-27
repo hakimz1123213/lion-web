@@ -5,321 +5,348 @@ import {
   StyleSheet,
   TextInput,
   Pressable,
-  ScrollView,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MaterialIcons, Ionicons } from '@expo/vector-icons';
+import { MaterialIcons, Ionicons, Feather } from '@expo/vector-icons';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useAuth } from '@/hooks/useAuth';
 import { useAlert } from '@/template';
-import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/constants/theme';
-import { GlobalStyles } from '@/constants/styles';
 
-const registerTranslations: Record<string, Record<string, string>> = {
+// 🎨 ألوان الهوية (تم دمجها مع ستايل البطاقة المطلوب)
+const NOIR_PURPLE = '#2A103C';
+const NOIR_GOLD = '#D4AF37';
+const LIGHT_BG = '#F0EDF5'; // خلفية فاتحة تبرز البطاقة
+const CARD_BG = '#FFFFFF';
+const INPUT_BG = '#F4F4F8';
+const TEXT_DARK = '#1C1524';
+const TEXT_MUTED = '#8E8899';
+
+const loginTranslations: Record<string, Record<string, string>> = {
   EN: {
-    createAccount: "Create Account",
-    joinNoir: "Join Noir Wealth",
-    usernameLabel: "USERNAME",
-    usernamePlaceholder: "Your display name",
-    emailLabel: "EMAIL",
-    passwordLabel: "PASSWORD",
-    confirmPassLabel: "CONFIRM PASSWORD",
-    referralLabel: "REFERRAL CODE",
-    optional: "(OPTIONAL)",
-    referralPlaceholder: "NOIR-XXX-00000",
-    helperText: "Have a friend's referral code? Enter it to link your accounts.",
-    createBtn: "CREATE ACCOUNT",
-    alreadyHave: "Already have an account? ",
-    signInLink: "Sign in",
-    missingTitle: "Missing Fields",
-    missingDesc: "Please fill in all required fields.",
-    mismatchTitle: "Password Mismatch",
-    mismatchDesc: "Passwords do not match.",
-    weakTitle: "Weak Password",
-    weakDesc: "Password must be at least 6 characters.",
-    successTitle: "Verification Sent",
-    successDesc: "Please check your email inbox for the elite access token.",
-    continueBtn: "Continue",
-    failedTitle: "Registration Failed",
-    otpLabel: "ENTER SECURITY TOKEN (OTP)",
-    otpPlaceholder: "Enter 6-digit code",
-    verifyBtn: "VERIFY & ACTIVATE ACCOUNT",
-    backToInfo: "Back to registration info",
-    verifySuccessTitle: "Account Activated",
-    verifySuccessDesc: "Welcome to Noir Wealth! Your elite account has been verified."
+    welcome: "Welcome Back",
+    subtitle: "Continue your investment journey",
+    emailPlace: "Email address",
+    passPlace: "Password",
+    remember: "Remember me",
+    forgot: "Forgot Password?",
+    loginBtn: "Log In",
+    noAccount: "Don't have an account?",
+    signUp: "Sign up",
+    missingFields: "Please enter email and password.",
   },
   AR: {
-    createAccount: "إنشاء حساب جديد",
-    joinNoir: "انضم إلى شبكة Noir Wealth الاستثمارية",
-    usernameLabel: "اسم المستخدم الحركي",
-    usernamePlaceholder: "الاسم المستعار للعرض...",
-    emailLabel: "البريد الإلكتروني",
-    passwordLabel: "كلمة السر (الباسورد)",
-    confirmPassLabel: "تأكيد كلمة السر",
-    referralLabel: "كود المستدعي والـإحالة",
-    optional: "(اختياري)",
-    referralPlaceholder: "أدخل كود الداعي هنا...",
-    helperText: "هل لديك كود دعوة من صديق؟ أدخله هنا لربط شبكتك المالية لايف والاستفادة من العمولات.",
-    createBtn: "تأكيد وبناء الحساب فوراً",
-    alreadyHave: "لديك حساب بالفعل؟ ",
-    signInLink: "سجّل دخولك الآن",
-    missingTitle: "خانات مفقودة",
-    missingDesc: "يرجى ملء كاع حقول البيانات الإجبارية أولاً.",
-    mismatchTitle: "تضارب كلمة السر",
-    mismatchDesc: "كلمتا السر غير متطابقتين، يرجى التدقيق.",
-    weakTitle: "كلمة سر ضعيفة",
-    weakDesc: "يجب أن يتكون الباسورد من 6 رموز أو أحرف كحد أدنى.",
-    successTitle: "تم إرسال كود التحقق",
-    successDesc: "يرجى فحص علبة الوارد لإيميلك لجلب رمز الأمان الملوكي الحين.",
-    continueBtn: "استمرار",
-    failedTitle: "فشل إنشاء الحساب",
-    otpLabel: "أدخل رمز الأمان الملوكي (OTP)",
-    otpPlaceholder: "أدخل الكود المكون من 6 أرقام...",
-    verifyBtn: "تأكيد وتفعيل الحساب لايف",
-    backToInfo: "العودة لتعديل البيانات العضوية",
-    verifySuccessTitle: "تم تفعيل الحساب بنجاح",
-    verifySuccessDesc: "مرحباً بك في عالم Noir Wealth الفخم! تم التحقق وتأمين حسابك بالكامل الحين."
+    welcome: "مرحباً بعودتك",
+    subtitle: "أكمل رحلتك الاستثمارية الآن",
+    emailPlace: "البريد الإلكتروني",
+    passPlace: "كلمة المرور",
+    remember: "تذكرني",
+    forgot: "نسيت كلمة السر؟",
+    loginBtn: "تسجيل الدخول",
+    noAccount: "ليس لديك حساب؟",
+    signUp: "سجل الآن",
+    missingFields: "يرجى إدخال البريد الإلكتروني وكلمة المرور.",
   }
 };
 
-export default function RegisterScreen() {
-  const { register, confirmRegisterOTP } = useAuth();
+export default function LoginScreen() {
+  const { login } = useAuth();
   const { showAlert } = useAlert();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [referralCode, setReferralCode] = useState('');
-  const [otpInput, setOtpInput] = useState('');
-  const [currentStep, setCurrentStep] = useState<1 | 2>(1); // ✅ فتح الخانات دايماً بنقاوة
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [lang, setLang] = useState<'EN' | 'AR'>('EN');
-  const t = registerTranslations[lang];
 
-  const handleRegister = async () => {
-    if (!username.trim() || !email.trim() || !password || !confirm) {
-      showAlert(t.missingTitle, t.missingDesc);
-      return;
-    }
-    if (password !== confirm) {
-      showAlert(t.mismatchTitle, t.mismatchDesc);
-      return;
-    }
-    if (password.length < 6) {
-      showAlert(t.weakTitle, t.weakDesc);
+  const t = loginTranslations[lang];
+  const isAR = lang === 'AR';
+
+  const handleLogin = async () => {
+    if (!email.trim() || !password.trim()) {
+      showAlert("Notice", t.missingFields);
       return;
     }
 
     setLoading(true);
-    const result = await register(username.trim(), email.trim(), password, "", referralCode.trim());
+    const result = await login(email.trim(), password);
     setLoading(false);
 
     if (result.error === null) {
-      showAlert(
-        t.successTitle,
-        t.successDesc,
-        [{ text: t.continueBtn, onPress: () => setCurrentStep(2) }]
-      );
+      router.replace('/(tabs)');
     } else {
-      const cleanMsg = typeof result.error === 'string' ? result.error : "Transmission secure fallback.";
-      showAlert(t.failedTitle, cleanMsg);
+      const cleanMsg = typeof result.error === 'string' ? result.error : "Login failed.";
+      showAlert("Error", cleanMsg);
     }
   };
-
-  const handleVerifyRegisterOTP = async () => {
-    if (!otpInput.trim()) return;
-
-    setLoading(true);
-    const result = await confirmRegisterOTP(email.trim(), otpInput.trim());
-    setLoading(false);
-
-    if (result.error === null) {
-      showAlert(
-        t.verifySuccessTitle,
-        t.verifySuccessDesc,
-        [{ text: t.continueBtn, onPress: () => router.replace('/(tabs)') }]
-      );
-    } else {
-      const cleanMsg = typeof result.error === 'string' ? result.error : "Token validation aborted.";
-      showAlert("Verification Failed", cleanMsg);
-    }
-  };
-
-  const toggleLanguage = () => {
-    setLang((prev) => (prev === 'EN' ? 'AR' : 'EN'));
-  };
-
-  const fieldsConfig = [
-    { label: t.usernameLabel, value: username, setter: setUsername, placeholder: t.usernamePlaceholder, secure: false, type: 'default' as const },
-    { label: t.emailLabel, value: email, setter: setEmail, placeholder: 'your@email.com', secure: false, type: 'email-address' as const },
-    { label: t.passwordLabel, value: password, setter: setPassword, placeholder: '••••••••', secure: true, type: 'default' as const },
-    { label: t.confirmPassLabel, value: confirm, setter: setConfirm, placeholder: '••••••••', secure: true, type: 'default' as const },
-  ];
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: Colors.background }}
+      style={{ flex: 1, backgroundColor: LIGHT_BG }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView
-        contentContainerStyle={{ flexGrow: 1, paddingBottom: insets.bottom + Spacing.xl }}
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 20 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-          <Pressable onPress={() => currentStep === 2 ? setCurrentStep(1) : router.back()} style={styles.backBtn} hitSlop={12}>
-            <MaterialIcons name={lang === 'AR' ? "arrow-forward" : "arrow-back"} size={24} color={Colors.gold} />
-          </Pressable>
-          <View style={[{ flex: 1 }, lang === 'AR' && { alignItems: 'flex-end' }]}>
-            <Text style={styles.title}>{t.createAccount}</Text>
-            <Text style={styles.subtitle}>{t.joinNoir}</Text>
-          </View>
-          
+        {/* 🔝 زر تغيير اللغة */}
+        <View style={[styles.header, { top: insets.top + 10 }, isAR && { right: 20, left: 'auto' }]}>
           <Pressable 
-            style={[styles.langFloatingBtn, lang === 'AR' && { flexDirection: 'row-reverse' }]} 
-            onPress={toggleLanguage}
+            style={[styles.langBtn, isAR && { flexDirection: 'row-reverse' }]} 
+            onPress={() => setLang(l => l === 'EN' ? 'AR' : 'EN')}
           >
-            <Ionicons name="language" size={14} color={Colors.gold} />
-            <Text style={styles.langFloatingText}>{lang === 'EN' ? "العربية 🇩🇿" : "English 🇬🇧"}</Text>
+            <Ionicons name="globe-outline" size={14} color={NOIR_GOLD} />
+            <Text style={styles.langText}>{isAR ? "English" : "العربية"}</Text>
           </Pressable>
         </View>
 
-        <View style={styles.form}>
-          {currentStep === 1 ? (
-            <View>
-              {fieldsConfig.map((field) => (
-                <View key={field.label} style={styles.inputGroup}>
-                  <Text style={[styles.inputLabel, lang === 'AR' && { textAlign: 'right' }]}>{field.label}</Text>
-                  <TextInput
-                    style={[styles.input, lang === 'AR' && { textAlign: 'right' }]}
-                    value={field.value}
-                    onChangeText={field.setter}
-                    secureTextEntry={field.secure}
-                    keyboardType={field.type}
-                    autoCapitalize={field.type === 'email-address' ? 'none' : 'words'}
-                    autoCorrect={false}
-                    placeholderTextColor={Colors.textMuted}
-                    placeholder={field.placeholder}
-                  />
-                </View>
-              ))}
-
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, lang === 'AR' && { textAlign: 'right' }]}>
-                  {t.referralLabel} <Text style={styles.optional}>{t.optional}</Text>
-                </Text>
-                <View style={[styles.referralInputWrapper, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-                  <MaterialIcons name="card-giftcard" size={20} color={Colors.textMuted} style={lang === 'AR' ? { marginLeft: 10 } : { marginRight: 10 }} />
-                  <TextInput
-                    style={[styles.referralInput, lang === 'AR' && { textAlign: 'right' }]}
-                    value={referralCode}
-                    onChangeText={setReferralCode}
-                    placeholder={t.referralPlaceholder}
-                    placeholderTextColor={Colors.textMuted}
-                    autoCapitalize="characters"
-                    autoCorrect={false}
-                  />
-                </View>
-                <Text style={[styles.helperText, lang === 'AR' && { textAlign: 'right' }]}>
-                  {t.helperText}
-                </Text>
-              </View>
-
-              <Pressable
-                style={({ pressed }) => [
-                  GlobalStyles.primaryButton, 
-                  { marginTop: Spacing.lg, opacity: pressed ? 0.85 : 1 }, 
-                  lang === 'AR' && { flexDirection: 'row-reverse' }
-                ]}
-                onPress={handleRegister} 
-                disabled={loading}
-              >
-                {loading ? (
-                  <ActivityIndicator color={Colors.textOnGold} /> 
-                ) : (
-                  <Text style={GlobalStyles.primaryButtonText}>{t.createBtn}</Text> 
-                )}
-              </Pressable>
-            </View>
-          ) : (
-            <View style={{ marginTop: Spacing.md }}>
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, lang === 'AR' && { textAlign: 'right' }]}>{t.otpLabel}</Text>
-                <View style={[styles.referralInputWrapper, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-                  <MaterialIcons name="security" size={20} color={Colors.gold} style={lang === 'AR' ? { marginLeft: 10 } : { marginRight: 10 }} />
-                  <TextInput
-                    style={[styles.referralInput, { letterSpacing: 4, fontWeight: 'bold', fontSize: FontSize.lg }, lang === 'AR' && { textAlign: 'right' }]}
-                    value={otpInput}
-                    onChangeText={setOtpInput}
-                    placeholder={t.otpPlaceholder}
-                    placeholderTextColor={Colors.textMuted}
-                    keyboardType="number-pad"
-                    maxLength={6}
-                  />
-                </View>
-              </View>
-
-              <Pressable
-                style={({ pressed }) => [
-                  GlobalStyles.primaryButton, 
-                  { marginTop: Spacing.md, opacity: pressed ? 0.85 : 1 }, 
-                  lang === 'AR' && { flexDirection: 'row-reverse' }
-                ]}
-                onPress={handleVerifyRegisterOTP} 
-                disabled={loading}
-              >
-                {loading ? (
-                  <ActivityIndicator color={Colors.textOnGold} /> 
-                ) : (
-                  <Text style={GlobalStyles.primaryButtonText}>{t.verifyBtn}</Text> 
-                )}
-              </Pressable>
-
-              <Pressable 
-                onPress={() => setCurrentStep(1)} 
-                style={{ marginTop: Spacing.lg, alignItems: 'center' }}
-              >
-                <Text style={{ color: Colors.textMuted, fontSize: FontSize.sm, textDecorationLine: 'underline' }}>
-                  {t.backToInfo}
-                </Text>
-              </Pressable>
-            </View>
-          )}
-
-          <View style={[styles.footer, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-             <Text style={styles.footerText}>{t.alreadyHave}</Text>
-             <Pressable onPress={() => router.push('/login')}>
-                <Text style={styles.footerLink}>{t.signInLink}</Text>
-             </Pressable>
+        {/* 💳 بطاقة تسجيل الدخول (Card UI) */}
+        <Animated.View entering={FadeInDown.duration(600)} style={styles.card}>
+          
+          {/* الشعار */}
+          <View style={styles.logoContainer}>
+            <Ionicons name="paw" size={32} color={NOIR_PURPLE} />
           </View>
-        </View>
+
+          {/* العناوين */}
+          <Text style={styles.title}>{t.welcome}</Text>
+          <Text style={styles.subtitle}>{t.subtitle}</Text>
+
+          {/* حقل البريد الإلكتروني */}
+          <View style={[styles.inputContainer, isAR && { flexDirection: 'row-reverse' }]}>
+            <Feather name="mail" size={20} color={TEXT_MUTED} style={styles.inputIcon} />
+            <TextInput
+              style={[styles.input, isAR && { textAlign: 'right' }]}
+              placeholder={t.emailPlace}
+              placeholderTextColor={TEXT_MUTED}
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+          </View>
+
+          {/* حقل كلمة السر */}
+          <View style={[styles.inputContainer, isAR && { flexDirection: 'row-reverse' }, { marginTop: 16 }]}>
+            <Feather name="lock" size={20} color={TEXT_MUTED} style={styles.inputIcon} />
+            <TextInput
+              style={[styles.input, isAR && { textAlign: 'right' }]}
+              placeholder={t.passPlace}
+              placeholderTextColor={TEXT_MUTED}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+            />
+            <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
+              <Feather name={showPassword ? "eye" : "eye-off"} size={20} color={TEXT_MUTED} />
+            </Pressable>
+          </View>
+
+          {/* خيارات: تذكرني & نسيان كلمة السر */}
+          <View style={[styles.optionsRow, isAR && { flexDirection: 'row-reverse' }]}>
+            <Pressable 
+              style={[styles.checkboxContainer, isAR && { flexDirection: 'row-reverse' }]} 
+              onPress={() => setRememberMe(!rememberMe)}
+            >
+              <View style={[styles.checkbox, rememberMe && styles.checkboxActive]}>
+                {rememberMe && <Feather name="check" size={12} color="#FFF" />}
+              </View>
+              <Text style={styles.rememberText}>{t.remember}</Text>
+            </Pressable>
+
+            {/* 👈 التعديل تم هنا: ربط الزر بصفحة نسيت كلمة السر */}
+            <Pressable onPress={() => router.push('/forgot-password')}>
+              <Text style={styles.forgotText}>{t.forgot}</Text>
+            </Pressable>
+          </View>
+
+          {/* زر تسجيل الدخول */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.primaryBtn,
+              { opacity: (email && password) ? (pressed ? 0.85 : 1) : 0.5 }
+            ]}
+            disabled={!email || !password || loading}
+            onPress={handleLogin}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <Text style={styles.primaryBtnText}>{t.loginBtn}</Text>
+            )}
+          </Pressable>
+
+          {/* الانتقال لصفحة التسجيل */}
+          <View style={[styles.footerRow, isAR && { flexDirection: 'row-reverse' }]}>
+            <Text style={styles.footerText}>{t.noAccount} </Text>
+            <Pressable onPress={() => router.push('/register')}>
+              <Text style={styles.signUpText}>{t.signUp}</Text>
+            </Pressable>
+          </View>
+
+        </Animated.View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.lg }, 
-  backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.surface, borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.surfaceBorder }, 
-  title: { fontSize: FontSize.xxl, fontWeight: FontWeight.bold, color: Colors.textPrimary }, 
-  subtitle: { fontSize: FontSize.sm, color: Colors.textSecondary }, 
-  form: { paddingHorizontal: Spacing.lg }, 
-  inputGroup: { marginBottom: Spacing.md }, 
-  inputLabel: { fontSize: FontSize.xs, color: Colors.textMuted, fontWeight: FontWeight.semibold, letterSpacing: 1.2, marginBottom: 6 }, 
-  input: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.surfaceBorder, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: 14, color: Colors.textPrimary, fontSize: FontSize.base }, 
-  langFloatingBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(0,0,0,0.4)', borderWidth: 1, borderColor: Colors.surfaceBorder, paddingHorizontal: 10, paddingVertical: 5, borderRadius: Radius.full },
-  langFloatingText: { color: Colors.gold, fontSize: 10, fontWeight: 'bold' },
-  optional: { color: Colors.textMuted, fontWeight: FontWeight.regular, fontSize: 10 },
-  referralInputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.surfaceBorder, borderRadius: Radius.md, paddingHorizontal: Spacing.md },
-  referralInput: { flex: 1, paddingVertical: 14, color: Colors.textPrimary, fontSize: FontSize.base },
-  helperText: { fontSize: 10, color: Colors.textMuted, marginTop: 6, fontStyle: 'italic' },
-  footer: { flexDirection: 'row', justifyContent: 'center', marginTop: Spacing.xl },
-  footerText: { color: Colors.textSecondary, fontSize: FontSize.sm },
-  footerLink: { color: Colors.gold, fontSize: FontSize.sm, fontWeight: FontWeight.bold },
+  header: {
+    position: 'absolute',
+    left: 20,
+    zIndex: 10,
+  },
+  langBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: '#E2DAEC',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  langText: {
+    fontSize: 12,
+    color: NOIR_PURPLE,
+    fontWeight: 'bold',
+  },
+  card: {
+    backgroundColor: CARD_BG,
+    borderRadius: 24,
+    padding: 24,
+    width: '100%',
+    shadowColor: NOIR_PURPLE,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 5,
+  },
+  logoContainer: {
+    alignSelf: 'center',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: INPUT_BG,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: TEXT_DARK,
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: TEXT_MUTED,
+    textAlign: 'center',
+    marginBottom: 30,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: INPUT_BG,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    height: 56,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  inputIcon: {
+    marginHorizontal: 4,
+  },
+  input: {
+    flex: 1,
+    fontSize: 15,
+    color: TEXT_DARK,
+    paddingHorizontal: 10,
+    height: '100%',
+  },
+  eyeBtn: {
+    padding: 8,
+  },
+  optionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 20,
+    marginBottom: 30,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: TEXT_MUTED,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxActive: {
+    backgroundColor: NOIR_PURPLE,
+    borderColor: NOIR_PURPLE,
+  },
+  rememberText: {
+    fontSize: 14,
+    color: TEXT_MUTED,
+    fontWeight: '500',
+  },
+  forgotText: {
+    fontSize: 14,
+    color: NOIR_PURPLE,
+    fontWeight: '600',
+  },
+  primaryBtn: {
+    backgroundColor: NOIR_PURPLE,
+    borderRadius: 30,
+    height: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: NOIR_PURPLE,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  primaryBtnText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  footerRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 30,
+  },
+  footerText: {
+    fontSize: 14,
+    color: TEXT_MUTED,
+  },
+  signUpText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: NOIR_GOLD,
+  },
 });

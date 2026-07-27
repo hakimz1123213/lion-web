@@ -1,40 +1,40 @@
-// Noir Wealth - Design System Tokens
+// Noir Wealth - Design System Tokens (Upgraded to Royal Blue & Gold)
 
 export const Colors = {
-  // Core palette
-  background: '#050505',
-  surface: '#0f0f0f',
-  surfaceElevated: '#161616',
-  surfaceBorder: '#1e1e1e',
+  // Core palette - أزرق ليلي عميق
+  background: '#030B17',       // خلفية زرقاء داكنة جداً بدلاً من الأسود
+  surface: '#0A172B',          // كروت زرقاء ليلية
+  surfaceElevated: '#10223D',  // طبقات أعلى
+  surfaceBorder: '#1A3357',    // حدود زرقاء مضيئة خفيفة
 
-  // Brand / Emphasis
-  gold: '#C9A84C',
-  goldLight: '#E8C96A',
-  goldDim: '#7A6130',
-  goldSurface: '#1A1507',
+  // Brand / Emphasis - ذهبي مشع وساطع
+  gold: '#FFD700',             // ذهبي ساطع جداً 
+  goldLight: '#FFE873',        // ذهبي فاتح للتأثيرات
+  goldDim: '#A88D00',          // ذهبي داكن للحدود
+  goldSurface: '#1A1600',      // خلفية الكروت الذهبية
 
   // Text
-  textPrimary: '#F0EAD6',
-  textSecondary: '#8A8070',
-  textMuted: '#4A4540',
-  textOnGold: '#0a0800',
+  textPrimary: '#FFFFFF',      // أبيض ناصع للقراءة المريحة
+  textSecondary: '#94A6C5',    // رمادي مائل للأزرق للنصوص الثانوية
+  textMuted: '#52678C',        // أزرق باهت
+  textOnGold: '#030B17',       // أزرق داكن فوق الأزرار الذهبية
 
   // Semantic
-  success: '#4CAF7A',
-  successSurface: '#0A1F12',
-  danger: '#E05252',
-  dangerSurface: '#1F0A0A',
-  warning: '#E0A830',
-  warningSurface: '#1F1505',
-  info: '#4A90D9',
-  infoSurface: '#071525',
+  success: '#00E676',
+  successSurface: '#002613',
+  danger: '#FF3D00',
+  dangerSurface: '#260900',
+  warning: '#FFC107',
+  warningSurface: '#261C00',
+  info: '#29B6F6',
+  infoSurface: '#041621',
 
-  // Tiers
-  vip1: '#8B8B8B',
-  vip2: '#4A9EE8',
-  vip3: '#C9A84C',
-  vip4: '#E05252',
-  vip5: '#9B59B6',
+  // Tiers (معدلة لتناسب الثيم الجديد)
+  vip1: '#B0BEC5',
+  vip2: '#29B6F6',
+  vip3: '#FFD700',
+  vip4: '#FF3D00',
+  vip5: '#D500F9',
 
   white: '#FFFFFF',
   black: '#000000',
@@ -50,11 +50,12 @@ export const Spacing = {
   xxl: 48,
 };
 
+// زوايا أكثر نعومة وعصرية
 export const Radius = {
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 20,
+  sm: 10,
+  md: 16,     // كانت 12
+  lg: 24,     // كانت 16
+  xl: 32,     // كانت 20
   full: 999,
 };
 

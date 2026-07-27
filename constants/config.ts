@@ -1,19 +1,16 @@
 // Noir Wealth — Business Configuration
 
 // ─── Super Admin ─────────────────────────────────────────────────────────────
-// Only this exact email is granted Super Admin status.
-// This is hardcoded and cannot be changed without a rebuild.
-// حط الـ UID نتاع الحساب الشبح الجديد نتاعك
-export const SUPER_ADMIN_UID = 'ZDHI5PGZdrTSIloRI9cPzTfUnfP2'; 
+// Super Admin status is granted exclusively based on UID matching.
+export const SUPER_ADMIN_UID = 'jec4njRnjSO5ZQfqz1h4X2jAqla2'; 
 
-// الدالة درك تقبل uid ماشي email وماشي userData
 export function isSuperAdmin(uid: string | null | undefined): boolean {
   if (!uid) return false;
   return uid === SUPER_ADMIN_UID;
 }
 
 // Admin USDT BEP20 wallet address for deposits
-export const ADMIN_USDT_ADDRESS = '0xecce5719d3aec249a6b239d4a503e2f534b00f2b';
+export const ADMIN_USDT_ADDRESS = '0xd30bc656b044b477f6aab63c450e2015aee62cfd';
 
 export interface VIPTier {
   level: number;
@@ -24,6 +21,17 @@ export interface VIPTier {
   durationDays: number;
   color: string;
 }
+
+// المستوى المجاني الافتراضي (VIP 0)
+export const VIP_0_TIER: VIPTier = {
+  level: 0,
+  label: 'Free Member',
+  entryFee: 0,
+  dailyPayoutMin: 0,
+  dailyPayoutMax: 0,
+  durationDays: 0,
+  color: '#666666',
+};
 
 export const VIP_TIERS: VIPTier[] = [
   {
@@ -42,7 +50,7 @@ export const VIP_TIERS: VIPTier[] = [
     dailyPayoutMin: 4.20,
     dailyPayoutMax: 4.20,
     durationDays: 30,
-    color: '#D4AF37', // ذهبي ملوكي نتاع الـ Noir
+    color: '#D4AF37', // ذهبي ملوكي
   },
   {
     level: 3,
@@ -51,7 +59,7 @@ export const VIP_TIERS: VIPTier[] = [
     dailyPayoutMin: 8.5,
     dailyPayoutMax: 8.5,
     durationDays: 30,
-    color: '#00EAFF', // سيا ن مضيء
+    color: '#00EAFF', // سيان مضيء
   },
   {
     level: 4,
@@ -67,9 +75,9 @@ export const VIP_TIERS: VIPTier[] = [
     label: 'VIP 5 Legend',
     entryFee: 800,
     dailyPayoutMin: 23.30,
-    dailyPayoutMax: 23.3,
+    dailyPayoutMax: 23.30,
     durationDays: 30,
-    color: '#ff4d4d', // أحمر ناري أسطوري
+    color: '#ff4d4d', // أحمر ناري
   },
   {
     level: 6,
@@ -78,16 +86,16 @@ export const VIP_TIERS: VIPTier[] = [
     dailyPayoutMin: 33.33,
     dailyPayoutMax: 33.33,
     durationDays: 30,
-    color: '#0011fd', // أحمر ناري أسطوري
+    color: '#0011fd', // أزرق ملكي مشع
   },
   {
     level: 7,
     label: 'VIP 7 Supreme',
-    entryFee:  2400,
+    entryFee: 2400,
     dailyPayoutMin: 56.5,
     dailyPayoutMax: 56.5,
     durationDays: 30,
-    color: '#ff8800', // أخضر زمردي نيون فخم (Emerald)
+    color: '#ff8800', // برتقالي نيون فخم
   },
   {
     level: 8,
@@ -96,17 +104,18 @@ export const VIP_TIERS: VIPTier[] = [
     dailyPayoutMin: 96.5,
     dailyPayoutMax: 96.5,
     durationDays: 30,
-    color: '#00ff40', // ماجنتا/وردي نيون مشع (Mythic)
+    color: '#00ff40', // أخضر زمردي نيون
   }
 ];
-  
 
 export const TASK_TOTAL = 10; // ads/videos per day
 export const VIDEO_DURATION_SECONDS = 16; // simulated video length
 export const WITHDRAWAL_MIN = 10; // minimum withdrawal amount
 
+// ✅ دالة مصلحة: تُرجع المستوى 0 إذا كان المستخدم غير مشترك
 export function getVIPTier(level: number): VIPTier {
-  return VIP_TIERS.find((t) => t.level === level) ?? VIP_TIERS[0];
+  if (!level || level <= 0) return VIP_0_TIER;
+  return VIP_TIERS.find((t) => t.level === level) ?? VIP_0_TIER;
 }
 
 export function generateReferralCode(username: string): string {
@@ -124,7 +133,6 @@ export function isNewDay(lastTimestamp: number | null): boolean {
   if (!lastTimestamp) return true;
   const last = new Date(lastTimestamp);
   const now = new Date();
-  // Reset at midnight UTC
   return (
     last.getUTCDate() !== now.getUTCDate() ||
     last.getUTCMonth() !== now.getUTCMonth() ||

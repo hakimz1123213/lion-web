@@ -1,460 +1,361 @@
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, TextInput,
-  ActivityIndicator, Platform, KeyboardAvoidingView,
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  ActivityIndicator,
+  Platform,
+  Dimensions,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { MaterialIcons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
-import * as Clipboard from 'expo-clipboard'; 
+import { Feather } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 import { useAuth } from '@/hooks/useAuth';
-import { useWallet } from '@/hooks/useWallet';
-import { sendTelegramAdminAlert } from '@/services/telegramService'; 
 import { useAlert } from '@/template';
-import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/constants/theme';
-import { GlobalStyles } from '@/constants/styles';
 import { VIP_TIERS, ADMIN_USDT_ADDRESS } from '@/constants/config';
-import { sendDepositAlert } from '@/services/discord';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
-import { db } from '@/services/firebaseConfig';
-import { ref, update, get, set, push } from 'firebase/database';
-// 🔥 استيراد مكتبات الـ Storage اللّي راح تنقذنا من اللاق 🔥
-import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+const { width } = Dimensions.get('window');
 
+// 🎨 الألوان المطابقة للصورة
+const THEME = {
+  bg: '#F8F9FA',
+  surface: '#FFFFFF',
+  primary: '#7C3AED', // اللون البنفسجي
+  textMain: '#111827',
+  textSecondary: '#6B7280',
+  success: '#10B981',
+  warning: '#F59E0B',
+  border: '#F3F4F6',
+  inputBg: '#F9FAFB',
+};
+
+// 🌍 الترجمة (حسب لغة المستخدم)
 const depositTranslations: Record<string, Record<string, string>> = {
   EN: {
-    depositFunds: "Deposit Funds", step1: "Send USDT (BEP20) to the address below from your Binance app",
-    step2: "Enter the exact USD amount you transferred below", step3: "Upload your payment screenshot as proof and submit",
-    walletLabel: "USDT BEP20 WALLET ADDRESS", networkText: "BSC (BEP20) Network", qrHint: "Scan with Binance App",
-    copyBtn: "Copy", copiedBtn: "Copied!", warningText: "Send BEP20 only. Other networks will result in loss of funds.",
-    amountLabel: "AMOUNT SENT (USDT)", quickSelectLabel: "QUICK SELECT — VIP ENTRY FEE", proofLabel: "PROOF OF PAYMENT (REQUIRED SCREENSHOT)",
-    removeBtn: "Remove", proofReady: "Screenshot ready", uploadTitle: "Upload Transfer Screenshot",
-    uploadSubtitle: "Must show transaction amount and correct platform wallet deployment address", gallery: "Gallery",
-    camera: "Camera", submitBtn: "SUBMIT DEPOSIT QUERY", footerNote: "Your request will be checked and cleared manually within 24 hours. Rate limited to a maximum of 3 transaction submissions per day node.",
-    invalidAmountTitle: "Invalid Amount", invalidAmountDesc: "Please enter the exact USDT amount you sent.",
-    proofRequiredTitle: "Proof Required", proofRequiredDesc: "Please upload a screenshot of your Binance transfer before submitting.",
-    antiSpamTitle: "Anti-Spam Shield", antiSpamDesc1: "Security lock active. You have reached your maximum limit of 3 deposit requests per day. Please clear your pending queue or retry in",
-    antiSpamDesc2: "hours.", successTitle: "Deposit Submitted", successDesc: "Your deposit query has been secured. Admin operators will inspect your transfer screenshot to approve liquid funds shortly.",
-    permissionRequired: "Permission Required", galleryPermissionDesc: "Please allow access to your photo library to upload proof of payment.",
-    cameraPermissionDesc: "Please allow camera access to capture proof of payment."
+    title: "Deposit USDT",
+    addressTitle: "Deposit Address",
+    network: "",
+    copy: "Copy",
+    copyQR: "Copy QR code",
+    copied: "Copied!",
+    warning: "Send BEP20 only. Other networks will result in loss of funds.",
+    qrTitle: "QR Code",
+    submit: "Submit Deposit Request",
+    uploading: "Submitting...",
+    success: "Success",
+    successMsg: "Request submitted successfully.",
+    depositLabel: "Deposit",
+    currency: "USDT",
   },
   AR: {
-    depositFunds: "شحن رصيد الحساب", step1: "قم بإرسال عملة USDT (شبكة BEP20) إلى العنوان أدناه من تطبيق بايننس الخاص بك",
-    step2: "أدخل قيمة مبلغ الـ USDT الدقيق اللّي قمت بتحويله لأسفل الشاشة", step3: "قم برفع لقطة شاشة (Screenshot) لعملية التحويل كإثبات واضغط إرسال",
-    walletLabel: "عنوان محفظة شحن المنصة (USDT BEP20)", networkText: "شبكة BSC (BEP20) الذكية", qrHint: "امسح الكود عبر تطبيق بايننس ديريكت",
-    copyBtn: "نسخ الكود", copiedBtn: "تم النسخ!", warningText: "تنبيه: أرسل عملاتك عبر شبكة BEP20 فقط. استخدام شبكات أخرى سيؤدي لضياع أموالك للأبد.",
-    amountLabel: "مبلغ الـ USDT المحوّل", quickSelectLabel: "ملء تلقائي سريع — رسوم رتب الـ VIP", proofLabel: "إثبات الدفع والتحويل (لقطة شاشة إجبارية)",
-    removeBtn: "حذف الصورة", proofReady: "الصورة جاهزة للإرسال", uploadTitle: "ارفع لقطة شاشة وصل التحويل",
-    uploadSubtitle: "يجب أن يظهر في الوصل قيمة المبلغ المرسل وعنوان محفظة المستلم بوضوح", gallery: "المعرض",
-    camera: "الكاميرا", submitBtn: "تأكيد وإرسال طلب الشحن للإدارة", footerNote: "سيتم فحص طلبك ومراجعته يدوياً من الإدارة والموافقة عليه في غضون 24 ساعة. نظام مكافحة السبام يسمح بـ 3 طلبات كحد أقصى يومياً لكل حساب.",
-    invalidAmountTitle: "قيمة غير صالحة", invalidAmountDesc: "يرجى إدخل مبلغ USDT دقيق وصحيح.",
-    proofRequiredTitle: "الإثبات مطلوب", proofRequiredDesc: "يرجى رفع صورة وصل التحويل من تطبيق بايننس قبل الضغط على تأكيد.",
-    antiSpamTitle: "حارس مكافحة السبام", antiSpamDesc1: "قفل أمني نشط: لقد وصلت للحد الأقصى المسموح به وهو 3 طلبات إيداع في اليوم. يرجى انتظار معالجة طلباتك السابقة أو المحاولة مجدداً بعد",
-    antiSpamDesc2: "ساعة.", successTitle: "تم إرسال الطلب بنجاح", successDesc: "تم تسجيل وتأمين طلب الشحن الخاص بك بنجاح. سيقوم مديرو المنصة بمراجعة الوصل وضخ الرصيد في محفظتك لايف.",
-    permissionRequired: "الإذن مطلوب", galleryPermissionDesc: "يرجى السماح بالوصول إلى مكتبة الصور لرفع إثبات الدفع.",
-    cameraPermissionDesc: "يرجى السماح بالوصول إلى الكاميرا لالتقاط صورة إثبات الدفع."
+    title: "إيداع USDT",
+    addressTitle: "عنوان الإيداع",
+    network: "",
+    copy: "نسخ",
+    copyQR: "نسخ الكود",
+    copied: "تم النسخ!",
+    warning: "أرسل عبر شبكة BEP20 فقط. الشبكات الأخرى ستؤدي لفقدان الأموال.",
+    qrTitle: "رمز الاستجابة السريعة (QR)",
+    submit: "إرسال طلب الإيداع",
+    uploading: "جاري الإرسال...",
+    success: "نجاح",
+    successMsg: "تم إرسال الطلب بنجاح.",
+    depositLabel: "إيداع",
+    currency: "USDT",
   }
 };
 
 export default function DepositScreen() {
   const { user } = useAuth();
-  const { requestDeposit } = useWallet();
   const { showAlert } = useAlert();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const [amount, setAmount] = useState('');
-  // هنا نحتفظ بمسار الهاتف فقط (بدون Base64)
-  const [proofUri, setProofUri] = useState<string | null>(null);
+  const [amount, setAmount] = useState('4100');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [addressCopied, setAddressCopied] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   if (!user) return null;
 
   // @ts-ignore
   const lang = user?.language || 'EN';
   const t = depositTranslations[lang] || depositTranslations['EN'];
+  const isAR = lang === 'AR';
 
-  const handlePickImage = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      showAlert(t.permissionRequired, t.galleryPermissionDesc);
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.3, // جودة ممتازة وسريعة الرفع
-      allowsEditing: false,
-    });
-    if (!result.canceled && result.assets[0]) {
-      setProofUri(result.assets[0].uri); // نحفظ مسار الصورة في الهاتف
+  // تصفية الباقات المطلوبة فقط (150, 300, 800, 4100)
+  const targetAmounts = [70, 150, 300, 500, 800, 1400, 2400, 4100];
+  const filteredTiers = VIP_TIERS.filter(tier => targetAmounts.includes(tier.entryFee));
+  const displayTiers = filteredTiers.length > 0 ? filteredTiers : [
+    { level: 1, label: 'VIP 1', entryFee: 70 },
+    { level: 2, label: 'VIP 2', entryFee: 150 },
+    { level: 3, label: 'VIP 3', entryFee: 300 },
+    { level: 4, label: 'VIP 4', entryFee: 500 },
+    { level: 5, label: 'VIP 5', entryFee: 800 },
+    { level: 6, label: 'VIP 6', entryFee: 1400 },
+    { level: 7, label: 'VIP 7', entryFee: 2400 },
+    { level: 8, label: 'VIP 8', entryFee: 4100 },
+  ];
+
+  // 🔢 التعامل مع لوحة الأرقام
+  const handleKeyPress = (val: string) => {
+    if (val === 'back') {
+      setAmount(prev => (prev.length <= 1 ? '0' : prev.slice(0, -1)));
+    } else if (val === '.') {
+      if (!amount.includes('.')) setAmount(prev => prev + '.');
+    } else {
+      setAmount(prev => (prev === '0' ? val : prev + val));
     }
   };
 
-  const handleCameraCapture = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      showAlert(t.permissionRequired, t.cameraPermissionDesc);
-      return;
-    }
-    const result = await ImagePicker.launchCameraAsync({
-      quality: 0.3,
-      allowsEditing: false,
-    });
-    if (!result.canceled && result.assets[0]) {
-      setProofUri(result.assets[0].uri);
-    }
+  // 📋 نسخ العنوان
+  const handleCopy = async () => {
+    await Clipboard.setStringAsync(ADMIN_USDT_ADDRESS);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
+  // 🚀 الإرسال
   const handleSubmit = async () => {
     const parsed = parseFloat(amount);
-    if (isNaN(parsed) || parsed <= 0) {
-      showAlert(t.invalidAmountTitle, t.invalidAmountDesc);
-      return;
-    }
-    
-    if (!proofUri) {
-      showAlert(t.proofRequiredTitle, t.proofRequiredDesc);
-      return;
-    }
+    if (isNaN(parsed) || parsed <= 0) return showAlert('Error', 'Invalid amount');
 
     try {
       setIsSubmitting(true);
-      const currentTime = Date.now();
 
-      // فحص نظام السبام (3 طلبات)
-      const depositHistoryRef = ref(db, `users/${user.uid}/depositRequestsHistory`);
-      const historySnap = await get(depositHistoryRef);
-      
-      let timestampsList: number[] = [];
-      if (historySnap.exists()) {
-        const rawData = historySnap.val();
-        timestampsList = Array.isArray(rawData) ? rawData : Object.values(rawData);
-      }
-
-      const activeRequestsInLast24h = timestampsList.filter(
-        (ts) => (currentTime - ts) / (1000 * 60 * 60) < 24
-      );
-
-      if (activeRequestsInLast24h.length >= 3) {
-        const oldestRequestTime = Math.min(...activeRequestsInLast24h);
-        const hoursPassedSinceOldest = (currentTime - oldestRequestTime) / (1000 * 60 * 60);
-        const remainingHours = Math.ceil(24 - hoursPassedSinceOldest);
-
-        showAlert(t.antiSpamTitle, `${t.antiSpamDesc1} ${remainingHours} ${t.antiSpamDesc2}`);
-        setIsSubmitting(false);
-        return;
-      }
-
-      // 🔥 الحل الجذري للـ لاق: رفع الصورة لـ Cloud Storage 🔥
-      let finalImageUrl = "No image";
-      
-      try {
-        const response = await fetch(proofUri);
-        const blob = await response.blob();
-        const storage = getStorage();
-        // إنشاء اسم فريد للصورة
-        const imageRef = storageRef(storage, `deposits/${user.uid}_${currentTime}.jpg`);
-        
-        await uploadBytes(imageRef, blob);
-        // الحصول على الرابط القصير (URL) اللّي راح يتخزن في Database
-        finalImageUrl = await getDownloadURL(imageRef); 
-      } catch (uploadError) {
-        console.error("Storage Upload Error:", uploadError);
-        showAlert("Upload Failed", "حدث خطأ أثناء رفع الصورة، يرجى المحاولة لاحقاً.");
-        setIsSubmitting(false);
-        return;
-      }
-
-      // تسجيل المعاملة في Database بالرابط القصير (كيلوبايتات بدلاً من ميجابايتات)
-      const txsRef = push(ref(db, 'transactions')); 
-      const txIdKey = txsRef.key || currentTime.toString();
-
-      await set(txsRef, {
-        id: txIdKey,
-        userId: user.uid,
-        username: user.username,
-        type: 'Deposit',
-        amount: parsed,
-        txid: 'Verification via Screenshot URI', 
-        proofImageUri: finalImageUrl, // 👈 هنا يتخزن الرابط القصير (https://...)
-        status: 'Pending',
-        note: `User initiated a deposit query of $${parsed} USDT`,
-        createdAt: currentTime,
-      });
-
-      await sendDepositAlert({
-        username: user.username,
+      // استدعاء الـ Cloud Function مباشرة
+      const functions = getFunctions();
+      const submitDepositReq = httpsCallable(functions, 'submitDeposit');
+      await submitDepositReq({
         userId: user.uid,
         amount: parsed,
-        txid: 'Screenshot Provided 📸',
-        proofImageUri: finalImageUrl,
-        timestamp: currentTime,
+        username: user.username
       });
 
-      // 🚀 إرسال التنبيه لتليغرام بالرابط القصير مباشرة 🚀
-      await sendTelegramAdminAlert(
-        user.username, 
-        'Deposit', 
-        parsed, 
-        `Verification: Screenshot Provided 📸`,
-        finalImageUrl
-      );
-      
-      activeRequestsInLast24h.push(currentTime);
-      await set(ref(db, `users/${user.uid}/depositRequestsHistory`), activeRequestsInLast24h);
+      showAlert(t.success, t.successMsg, [{ text: 'OK', onPress: () => router.back() }]);
 
-      showAlert(
-        t.successTitle,
-        t.successDesc,
-        [{ text: 'OK', onPress: () => router.back() }]
-      );
     } catch (err: any) {
-      showAlert('Network Refused', err.message);
+      showAlert('Error', err.message || 'Failed to submit request');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: Colors.background }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <View style={[styles.screen, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* ─── Header ─── */}
+      <View style={[styles.header, isAR && { flexDirection: 'row-reverse' }]}>
+        <Pressable onPress={() => router.back()} style={styles.backBtn}>
+          <Feather name={isAR ? "chevron-right" : "chevron-left"} size={28} color={THEME.textMain} />
+        </Pressable>
+        <Text style={styles.headerTitle}>{t.title}</Text>
+        <View style={{ width: 40 }} />
+      </View>
+
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         
-        <View style={[styles.header, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
-            <MaterialIcons name={lang === 'AR' ? "arrow-forward" : "arrow-back"} size={22} color={Colors.textSecondary} />
-          </Pressable>
-          <Text style={styles.headerTitle}>{t.depositFunds}</Text>
-          <View style={{ width: 40 }} />
+        {/* ─── Amount Display ─── */}
+        <View style={styles.amountContainer}>
+          <Text style={styles.amountText}>${amount}</Text>
         </View>
 
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.xxl, paddingHorizontal: Spacing.lg }}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.instructionCard}>
-            <View style={[styles.instructionStep, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-              <View style={[styles.stepNum, { backgroundColor: Colors.info + '22', borderColor: Colors.info }]}>
-                <Text style={[styles.stepNumText, { color: Colors.info }]}>1</Text>
-              </View>
-              <Text style={[styles.stepText, lang === 'AR' && { textAlign: 'right' }]}>{t.step1}</Text>
-            </View>
-            <View style={[GlobalStyles.divider, { marginVertical: Spacing.sm }]} />
-            <View style={[styles.instructionStep, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-              <View style={[styles.stepNum, { backgroundColor: Colors.gold + '22', borderColor: Colors.gold }]}>
-                <Text style={[styles.stepNumText, { color: Colors.gold }]}>2</Text>
-              </View>
-              <Text style={[styles.stepText, lang === 'AR' && { textAlign: 'right' }]}>{t.step2}</Text>
-            </View>
-            <View style={[GlobalStyles.divider, { marginVertical: Spacing.sm }]} />
-            <View style={[styles.instructionStep, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-              <View style={[styles.stepNum, { backgroundColor: Colors.success + '22', borderColor: Colors.success }]}>
-                <Text style={[styles.stepNumText, { color: Colors.success }]}>3</Text>
-              </View>
-              <Text style={[styles.stepText, lang === 'AR' && { textAlign: 'right' }]}>{t.step3}</Text>
-            </View>
-          </View>
-
-          <Text style={[styles.sectionLabel, lang === 'AR' && { textAlign: 'right' }]}>{t.walletLabel}</Text>
-          <View style={styles.addressCard}>
-            <View style={[styles.networkBadge, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-              <View style={styles.networkDot} />
-              <Text style={styles.networkText}>{t.networkText}</Text>
-            </View>
-
-            <View style={styles.qrContainer}>
-              <View style={styles.qrFrame}>
-                <Image 
-                  source={require('../assets/images/qr-code.png')} 
-                  style={{ width: '100%', height: '100%' }}
-                  contentFit="contain"
-                />
-              </View>
-              <Text style={styles.qrHint}>{t.qrHint}</Text>
-            </View>
-
-            <View style={[styles.addressBox, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-              <Text style={styles.addressText} selectable numberOfLines={1}>
-                {ADMIN_USDT_ADDRESS}
-              </Text>
-              
-              <Pressable
-                style={({ pressed }) => [styles.copyBtn, { opacity: pressed ? 0.7 : 1 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}
-                onPress={async () => {
-                  try {
-                    await Clipboard.setStringAsync(ADMIN_USDT_ADDRESS);
-                    setAddressCopied(true);
-                    showAlert(lang === 'AR' ? 'تم النسخ!' : 'Copied!', lang === 'AR' ? 'تم نسخ عنوان المحفظة بنجاح.' : 'USDT BEP20 Address copied to clipboard.');
-                    setTimeout(() => setAddressCopied(false), 2000);
-                  } catch (err) {
-                    console.error("Failed to copy text: ", err);
-                  }
-                }}
-              >
-                <MaterialIcons
-                  name={addressCopied ? 'check' : 'content-copy'}
-                  size={18}
-                  color={addressCopied ? Colors.success : Colors.gold}
-                />
-                <Text style={[styles.copyText, { color: addressCopied ? Colors.success : Colors.gold }]}>
-                  {addressCopied ? t.copiedBtn : t.copyBtn}
-                </Text>
-              </Pressable>
-            </View>
-
-            <View style={[styles.warningRow, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-              <MaterialIcons name="warning-amber" size={14} color={Colors.warning} />
-              <Text style={[styles.warningText, lang === 'AR' && { textAlign: 'right' }]}>{t.warningText}</Text>
-            </View>
-          </View>
-
-          <Text style={[styles.sectionLabel, lang === 'AR' && { textAlign: 'right' }]}>{t.amountLabel}</Text>
-          <TextInput
-            style={[styles.input, lang === 'AR' && { textAlign: 'right' }]}
-            value={amount}
-            onChangeText={setAmount}
-            keyboardType="decimal-pad"
-            placeholderTextColor={Colors.textMuted}
-            placeholder="0.00"
-          />
-
-          <Text style={[styles.sectionLabel, { marginTop: Spacing.lg }, lang === 'AR' && { textAlign: 'right' }]}>{t.quickSelectLabel}</Text>
-          <View style={[styles.quickGrid, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-            {VIP_TIERS.map((tier) => (
+        {/* ─── VIP Presets (Filtered: 150, 300, 800, 4100) ─── */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.presetsWrapper} contentContainerStyle={styles.presetsContainer}>
+          {displayTiers.map((tier) => {
+            const isActive = amount === tier.entryFee.toString();
+            return (
               <Pressable
                 key={tier.level}
-                style={({ pressed }) => [
-                  styles.quickBtn,
-                  { borderColor: tier.color, opacity: pressed ? 0.75 : 1 },
-                ]}
+                style={[styles.presetPill, isActive && styles.presetPillActive]}
                 onPress={() => setAmount(tier.entryFee.toString())}
               >
-                <Text style={[styles.quickBtnLabel, { color: tier.color }]}>{tier.label}</Text>
-                <Text style={styles.quickBtnAmount}>${tier.entryFee}</Text>
+                <Text style={[styles.presetText, isActive && styles.presetTextActive]}>
+                  ${tier.entryFee} ({tier.label})
+                </Text>
               </Pressable>
-            ))}
+            );
+          })}
+        </ScrollView>
+
+        {/* ─── Deposit Selection Row ─── */}
+        <Pressable style={[styles.depositRowCard, isAR && { flexDirection: 'row-reverse' }]}>
+          <View style={[styles.depositRowLeft, isAR && { flexDirection: 'row-reverse' }]}>
+            <Image 
+              source={require('../assets/images/USDT-BEP20-1.png')} 
+              style={styles.depositIcon} 
+            />
+            <View style={isAR ? { alignItems: 'flex-end' } : { alignItems: 'flex-start' }}>
+              <Text style={styles.depositTitleText}>{t.depositLabel}</Text>
+              <Text style={styles.depositSubtitleText}>{t.currency}</Text>
+            </View>
+          </View>
+          <Feather name={isAR ? "chevron-left" : "chevron-right"} size={20} color="#9CA3AF" />
+        </Pressable>
+
+        {/* ─── Flat Numeric Keypad ─── */}
+        <View style={styles.keypadCard}>
+          {[
+            ['1', '2', '3'], 
+            ['4', '5', '6'], 
+            ['7', '8', '9'], 
+            ['.', '0', 'back']
+          ].map((row, rIdx) => (
+            <View key={rIdx} style={styles.keypadRow}>
+              {row.map((item) => (
+                <Pressable
+                  key={item}
+                  style={styles.keypadBtn}
+                  onPress={() => handleKeyPress(item)}
+                >
+                  {item === 'back' ? (
+                    <Feather name="arrow-left" size={24} color={THEME.textMain} />
+                  ) : (
+                    <Text style={styles.keypadText}>{item}</Text>
+                  )}
+                </Pressable>
+              ))}
+            </View>
+          ))}
+        </View>
+
+        {/* ─── Unified Address, QR Card ─── */}
+        <View style={styles.card}>
+          <Text style={[styles.cardTitle, isAR && { textAlign: 'right' }]}>{t.addressTitle}</Text>
+          
+          <View style={[styles.networkRow, isAR && { flexDirection: 'row-reverse' }]}>
+            <View style={styles.dot} />
+            <Text style={styles.networkText}>{t.network}</Text>
           </View>
 
-          <Text style={[styles.sectionLabel, { marginTop: Spacing.lg }, lang === 'AR' && { textAlign: 'right' }]}>{t.proofLabel}</Text>
-          {proofUri ? (
-            <View style={styles.proofContainer}>
-              <Image
-                source={{ uri: proofUri }}
-                style={styles.proofImage}
-                contentFit="cover"
-                transition={200}
-              />
-              <View style={[styles.proofOverlay, lang === 'AR' && { left: Spacing.sm, right: undefined }]}>
-                <Pressable
-                  style={({ pressed }) => [styles.removeProofBtn, { opacity: pressed ? 0.7 : 1 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}
-                  onPress={() => setProofUri(null)}
-                >
-                  <MaterialIcons name="close" size={16} color={Colors.textPrimary} />
-                  <Text style={styles.removeProofText}>{t.removeBtn}</Text>
-                </Pressable>
-              </View>
-              <View style={[styles.proofSuccessBadge, lang === 'AR' && { right: Spacing.sm, left: undefined, flexDirection: 'row-reverse' }]}>
-                <MaterialIcons name="check-circle" size={16} color={Colors.success} />
-                <Text style={styles.proofSuccessText}>{t.proofReady}</Text>
-              </View>
+          <View style={[styles.addressBox, isAR && { flexDirection: 'row-reverse' }]}>
+            <Text style={styles.addressText} numberOfLines={1} ellipsizeMode="middle">
+              {ADMIN_USDT_ADDRESS}
+            </Text>
+          </View>
+
+          {/* QR & Copy Row */}
+          <Text style={[styles.sectionTitle, { marginTop: 24 }, isAR && { textAlign: 'right' }]}>{t.qrTitle}</Text>
+          <View style={[styles.qrRow, isAR && { flexDirection: 'row-reverse' }]}>
+            <View style={styles.qrBox}>
+              <Image source={require('../assets/images/qr-code.png')} style={styles.qrImage} />
             </View>
+            <Pressable style={styles.qrCopyBtn} onPress={handleCopy}>
+              <Text style={styles.qrCopyBtnText}>{copied ? t.copied : t.copyQR}</Text>
+            </Pressable>
+          </View>
+
+          <View style={[styles.warningRow, isAR && { flexDirection: 'row-reverse' }]}>
+            <Feather name="alert-circle" size={16} color={THEME.warning} />
+            <Text style={[styles.warningText, isAR && { textAlign: 'right' }]}>{t.warning}</Text>
+          </View>
+        </View>
+
+        {/* ─── زر إرسال الطلب الأساسي ─── */}
+        <Pressable 
+          style={[styles.submitBtn, (isSubmitting || amount === '0') && styles.submitBtnDisabled]}
+          onPress={handleSubmit}
+          disabled={isSubmitting || amount === '0'}
+        >
+          {isSubmitting ? (
+            <ActivityIndicator color="#fff" />
           ) : (
-            <View style={styles.uploadBox}>
-              <MaterialIcons name="upload-file" size={32} color={Colors.textMuted} />
-              <Text style={styles.uploadTitle}>{t.uploadTitle}</Text>
-              <Text style={styles.uploadSubtitle}>{t.uploadSubtitle}</Text>
-              <View style={[styles.uploadActions, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-                <Pressable
-                  style={({ pressed }) => [styles.uploadBtn, { opacity: pressed ? 0.8 : 1 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}
-                  onPress={handlePickImage}
-                >
-                  <MaterialIcons name="photo-library" size={18} color={Colors.gold} />
-                  <Text style={styles.uploadBtnText}>{t.gallery}</Text>
-                </Pressable>
-                <Pressable
-                  style={({ pressed }) => [styles.uploadBtn, { opacity: pressed ? 0.8 : 1 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}
-                  onPress={handleCameraCapture}
-                >
-                  <MaterialIcons name="camera-alt" size={18} color={Colors.gold} />
-                  <Text style={styles.uploadBtnText}>{t.camera}</Text>
-                </Pressable>
-              </View>
-            </View>
+            <Text style={styles.submitBtnText}>{t.submit}</Text>
           )}
+        </Pressable>
 
-          <Pressable
-            style={({ pressed }) => [
-              GlobalStyles.primaryButton,
-              { marginTop: Spacing.xl, opacity: isSubmitting || !proofUri ? 0.6 : pressed ? 0.85 : 1 },
-              lang === 'AR' && { flexDirection: 'row-reverse' }
-            ]}
-            onPress={handleSubmit}
-            disabled={isSubmitting || !proofUri}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator color={Colors.textOnGold} />
-            ) : (
-              <>
-                <MaterialIcons name="send" size={18} color={Colors.textOnGold} style={lang === 'AR' ? { marginLeft: 8 } : { marginRight: 8 }} />
-                <Text style={GlobalStyles.primaryButtonText}>{t.submitBtn}</Text>
-              </>
-            )}
-          </Pressable>
-
-          <Text style={styles.footerNote}>{t.footerNote}</Text>
-        </ScrollView>
-      </View>
-    </KeyboardAvoidingView>
+      </ScrollView>
+    </View>
   );
 }
 
+// ─── STYLES ──────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: Colors.background },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md },
-  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.surface, borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.surfaceBorder },
-  headerTitle: { flex: 1, textAlign: 'center', fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.textPrimary },
-  instructionCard: { backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.surfaceBorder, padding: Spacing.md, marginBottom: Spacing.lg },
-  instructionStep: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  stepNum: { width: 28, height: 28, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  stepNumText: { fontSize: FontSize.sm, fontWeight: FontWeight.extrabold },
-  stepText: { flex: 1, fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 20 },
-  sectionLabel: { fontSize: FontSize.xs, color: Colors.textMuted, fontWeight: FontWeight.semibold, letterSpacing: 1.2, marginBottom: Spacing.sm },
-  addressCard: { backgroundColor: Colors.goldSurface, borderRadius: Radius.xl, borderWidth: 1, borderColor: Colors.goldDim, padding: Spacing.lg, marginBottom: Spacing.lg, alignItems: 'center' },
-  networkBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.surface, borderRadius: Radius.full, paddingHorizontal: 12, paddingVertical: 5, marginBottom: Spacing.lg, borderWidth: 1, borderColor: Colors.surfaceBorder },
-  networkDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.success },
-  networkText: { fontSize: FontSize.xs, color: Colors.textSecondary, fontWeight: FontWeight.semibold, letterSpacing: 0.5 },
-  qrContainer: { alignItems: 'center', marginBottom: Spacing.lg },
-  qrFrame: { width: 180, height: 180, backgroundColor: '#FFFFFF', borderRadius: Radius.md, padding: 10, borderWidth: 1, borderColor: Colors.goldDim, marginBottom: 8, overflow: 'hidden' },
-  qrHint: { fontSize: FontSize.xs, color: Colors.goldDim, fontWeight: FontWeight.medium },
-  addressBox: { width: '100%', flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.background, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.goldDim, padding: Spacing.sm, gap: Spacing.sm, marginBottom: Spacing.sm },
-  addressText: { flex: 1, fontSize: FontSize.xs, color: Colors.textSecondary, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', lineHeight: 18 },
-  copyBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: Spacing.sm, paddingVertical: 6, borderRadius: Radius.sm, backgroundColor: Colors.goldSurface, borderWidth: 1, borderColor: Colors.goldDim },
-  copyText: { fontSize: FontSize.xs, fontWeight: FontWeight.bold },
-  warningRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  warningText: { fontSize: FontSize.xs, color: Colors.warning, flex: 1, lineHeight: 18 },
-  input: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.surfaceBorder, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: 14, color: Colors.textPrimary, fontSize: FontSize.xl, fontWeight: FontWeight.bold, marginBottom: Spacing.md },
-  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  quickBtn: { width: '30%', borderWidth: 1, borderRadius: Radius.md, paddingVertical: Spacing.sm, alignItems: 'center', backgroundColor: Colors.surface },
-  quickBtnLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, letterSpacing: 0.5 },
-  quickBtnAmount: { fontSize: FontSize.md, color: Colors.textPrimary, fontWeight: FontWeight.semibold, marginTop: 2 },
-  uploadBox: { borderWidth: 1.5, borderColor: Colors.surfaceBorder, borderStyle: 'dashed', borderRadius: Radius.lg, padding: Spacing.xl, alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.surface },
-  uploadTitle: { fontSize: FontSize.base, color: Colors.textSecondary, fontWeight: FontWeight.semibold, textAlign: 'center' },
-  uploadSubtitle: { fontSize: FontSize.xs, color: Colors.textMuted, textAlign: 'center', lineHeight: 18 },
-  uploadActions: { flexDirection: 'row', gap: Spacing.md, marginTop: Spacing.sm },
-  uploadBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: Colors.goldDim, borderRadius: Radius.md, paddingVertical: 10, paddingHorizontal: Spacing.md, backgroundColor: Colors.goldSurface },
-  uploadBtnText: { fontSize: FontSize.sm, color: Colors.gold, fontWeight: FontWeight.semibold },
-  proofContainer: { borderRadius: Radius.lg, overflow: 'hidden', borderWidth: 1, borderColor: Colors.success + '55', height: 200 },
-  proofImage: { width: '100%', height: '100%' },
-  proofOverlay: { position: 'absolute', top: Spacing.sm, right: Spacing.sm },
-  removeProofBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.background + 'DD', borderRadius: Radius.full, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: Colors.surfaceBorder },
-  removeProofText: { fontSize: FontSize.xs, color: Colors.textPrimary, fontWeight: FontWeight.semibold },
-  proofSuccessBadge: { position: 'absolute', bottom: Spacing.sm, left: Spacing.sm, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.successSurface + 'EE', borderRadius: Radius.full, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: Colors.success },
-  proofSuccessText: { fontSize: FontSize.xs, color: Colors.success, fontWeight: FontWeight.semibold },
-  footerNote: { fontSize: FontSize.xs, color: Colors.textMuted, textAlign: 'center', marginTop: Spacing.md, lineHeight: 18 },
+  container: { flex: 1, backgroundColor: THEME.bg },
+  scrollContent: { paddingHorizontal: 16, paddingBottom: 60 },
+  
+  // Header
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12 },
+  headerTitle: { fontSize: 18, fontWeight: '800', color: THEME.textMain },
+  backBtn: { padding: 4 },
+
+  // Amount
+  amountContainer: { alignItems: 'center', marginVertical: 24 },
+  amountText: { fontSize: 48, fontWeight: '900', color: THEME.textMain, letterSpacing: -1 },
+
+  // VIP Presets
+  presetsWrapper: { flexGrow: 0, marginBottom: 24 },
+  presetsContainer: { gap: 10, paddingHorizontal: 4 },
+  presetPill: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: THEME.surface },
+  presetPillActive: { borderColor: THEME.primary, backgroundColor: THEME.primary + '10' },
+  presetText: { fontSize: 13, fontWeight: '600', color: THEME.textSecondary },
+  presetTextActive: { color: THEME.primary, fontWeight: '700' },
+
+  // Deposit Selection Row Styles
+ // Deposit Selection Row Styles
+  depositRowCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between', // تم التصحيح هنا
+    backgroundColor: THEME.inputBg,
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 24,
+  },
+  depositRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  depositIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+  },
+  depositTitleText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: THEME.textMain,
+  },
+  depositSubtitleText: {
+    fontSize: 13,
+    color: THEME.textSecondary,
+    marginTop: 2,
+  },
+
+  // Keypad
+  keypadCard: { backgroundColor: THEME.surface, borderRadius: 24, paddingVertical: 16, marginBottom: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 2 },
+  keypadRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  keypadBtn: { flex: 1, height: 65, justifyContent: 'center', alignItems: 'center' },
+  keypadText: { fontSize: 24, fontWeight: '700', color: THEME.textMain },
+
+  // Unified Card
+  card: { backgroundColor: THEME.surface, borderRadius: 24, padding: 20, marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 2 },
+  cardTitle: { fontSize: 16, fontWeight: '700', color: THEME.textMain, marginBottom: 12 },
+  sectionTitle: { fontSize: 15, fontWeight: '700', color: THEME.textMain, marginBottom: 12 },
+  
+  networkRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: THEME.success },
+  networkText: { fontSize: 13, color: THEME.textSecondary, fontWeight: '500' },
+
+  addressBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: THEME.inputBg, borderRadius: 12, padding: 12 },
+  addressText: { flex: 1, fontSize: 13, color: THEME.textMain, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
+
+  // QR Row
+  qrRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  qrBox: { padding: 12, borderRadius: 16, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' },
+  qrImage: { width: 90, height: 90 },
+  qrCopyBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 24, borderWidth: 1, borderColor: '#D1D5DB', backgroundColor: THEME.surface },
+  qrCopyBtnText: { fontSize: 13, fontWeight: '600', color: '#374151' },
+
+  warningRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 24 },
+  warningText: { flex: 1, fontSize: 12, color: THEME.warning, fontWeight: '500' },
+
+  // Submit Button
+  submitBtn: { backgroundColor: THEME.primary, height: 56, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginTop: 10 },
+  submitBtnDisabled: { opacity: 0.5 },
+  submitBtnText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
 });

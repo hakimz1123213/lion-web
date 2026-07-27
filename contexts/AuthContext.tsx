@@ -5,12 +5,13 @@ import {
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   signOut,
-  updatePassword,          // 🔥 مضاف حديثاً لتحديث كلمة السر سحابياً
-  EmailAuthProvider,       // 🔥 مضاف حديثاً لإعادة التحقق الأمني
-  reauthenticateWithCredential // 🔥 مضاف لإعادة المصادقة قبل تغيير الباسورد تماماً مثل التطبيقات العالمية
+  updatePassword,
+  EmailAuthProvider,
+  reauthenticateWithCredential
 } from "firebase/auth";
 import { ref, set, get, update, push, onValue, remove } from "firebase/database";
-import { generateReferralCode, isSuperAdmin } from '@/constants/config';
+import { getFunctions, httpsCallable } from "firebase/functions";
+import { generateReferralCode, isSuperAdmin, getVIPTier, SUPER_ADMIN_UID } from '@/constants/config';
 
 export interface UserProfile {
   uid: string;
@@ -20,13 +21,13 @@ export interface UserProfile {
   balance: number;
   vip_level: number;
   referralCode: string;
-  referredBy: string; // نص صريح لكي تظهر دائماً في قاعدة البيانات ولا تختفي أبداً
+  referredBy: string;
   createdAt: string;
   isAdmin?: boolean;
   emailVerified: boolean;
   isFullyVerified: boolean; 
-  profileImage?: string; // لضمان قراءة مسار الصورة المحددة بنجاح
-  password?: string;     // لتفادي أخطاء الـ TypeScript عند جلب الباسورد في الحالات الاستثنائية
+  profileImage?: string;
+  password?: string;
 }
 
 interface AuthContextType {
@@ -34,7 +35,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ error: string | null }>;
   register: (username: string, email: string, password: string, phone: string, referralCode?: string) => Promise<{ error: string | null }>;
-  confirmRegisterOTP: (email: string, codeInput: string) => Promise<{ error: string | null }>; // 🔥 الدالة الأمنية لتثبيت الحساب لايف
+  confirmRegisterOTP: (email: string, codeInput: string) => Promise<{ error: string | null }>;
   logout: () => void;
   updateBalance: (newBalance: number) => void;
   upgradeVIP: (newLevel: number, cost: number) => Promise<{ error: string | null }>;
@@ -45,14 +46,29 @@ interface AuthContextType {
   adminSetVIP: (userId: string, level: number) => Promise<void>;
   updateVerificationStatus: (type: 'email' | 'phone') => Promise<void>;
   verifyPhone: () => Promise<{ verificationId: null; error: string }>;
-  changeUserPassword: (currentPassword: string, newPassword: string) => Promise<{ error: string | null }>; // 🔥 دالة الأمان وتغيير الباسورد
-  updateUserProfileData: (newUsername: string, newPhotoUri?: string | null) => Promise<{ error: string | null }>; // ⚡ دالة تحديث الاسم والصورة معاً
-  adminDeleteUser: (userId: string, userGeneratedCode: string) => Promise<void>; // 🛑 دالة مسح الحساب نهائياً من الجذور
-  sendPasswordResetOTP: (emailInput: string) => Promise<{ error: string | null }>; // 🚀 دالة إرسال OTP استعادة الباسورد للحسابات القديمة والجديدة
-  confirmPasswordResetAndChange: (emailInput: string, codeInput: string, newPasswordInput: string) => Promise<{ error: string | null }>; // 🔐 دالة تغيير الباسورد المتزامنة سحابياً
+  changeUserPassword: (currentPassword: string, newPassword: string) => Promise<{ error: string | null }>;
+  updateUserProfileData: (newUsername: string, newPhotoUri?: string | null) => Promise<{ error: string | null }>;
+  adminDeleteUser: (userId: string, userGeneratedCode: string) => Promise<void>;
+  sendPasswordResetOTP: (emailInput: string) => Promise<{ error: string | null }>;
+  confirmPasswordResetAndChange: (emailInput: string, codeInput: string, newPasswordInput: string) => Promise<{ error: string | null }>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// 🛠️ دالة مساعدة لتوحيد تهيئة الإيميل في مسارات الداتابيز
+const getSafeEmailNode = (email: string): string => email.trim().toLowerCase().replace(/\./g, '_');
+
+// 🛠️ دالة توليد كود عشوائي للإحالة
+// 🛠️ دالة توليد كود عشوائي للإحالة بطول 6 رموز (مطابق لنمط الصورة)
+const generateRandomCode = (length = 6) => {
+  // تم إضافة حرف 'O' ليتطابق مع النمط في الصورة
+  const chars = 'ABCDEFGHJKLMNOPQRSTUVWXYZ23456789'; 
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+};
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -78,7 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               ...data, 
               balance: parseFloat(data.balance?.toString() || '0'),
               vip_level: parseInt(data.vip_level?.toString() || '0'),
-              isAdmin: isSuperAdmin(data.email),
+              isAdmin: isSuperAdmin(firebaseUser.uid),
               emailVerified: data.emailVerified || false,
               isFullyVerified: data.isFullyVerified || false
             });
@@ -89,37 +105,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setIsLoading(false);
         });
 
-        // 📡 [محرك حكيم الخارق لمزامنة الحسابات القديمة 10,000 حساب فوراً وبدون تضارب]
-        try {
-          const usersSnap = await get(ref(db, 'users'));
-          const emailToUidSnap = await get(ref(db, 'emailToUid'));
-          
-          if (usersSnap.exists()) {
-            const allUsers = usersSnap.val();
-            const currentEmailToUid = emailToUidSnap.exists() ? emailToUidSnap.val() : {};
-            const updates: any = {};
+        if (isSuperAdmin(firebaseUser.uid)) {
+          try {
+            const usersSnap = await get(ref(db, 'users'));
+            const emailToUidSnap = await get(ref(db, 'emailToUid'));
+            
+            if (usersSnap.exists()) {
+              const allUsers = usersSnap.val();
+              const currentEmailToUid = emailToUidSnap.exists() ? emailToUidSnap.val() : {};
+              const updates: any = {};
 
-            for (const userId in allUsers) {
-              const u = allUsers[userId];
-              if (u && u.email) {
-                const safeEmailNode = u.email.trim().replace(/\./g, '_');
-                
-                if (!currentEmailToUid[safeEmailNode]) {
-                  updates[`emailToUid/${safeEmailNode}`] = {
-                    uid: userId,
-                    password: u.password || "123456" 
-                  };
+              for (const userId in allUsers) {
+                const u = allUsers[userId];
+                if (u && u.email) {
+                  const safeEmailNode = getSafeEmailNode(u.email);
+                  
+                  if (!currentEmailToUid[safeEmailNode]) {
+                    updates[`emailToUid/${safeEmailNode}`] = {
+                      uid: userId,
+                      password: u.password || "123456" 
+                    };
+                  }
                 }
               }
-            }
 
-            if (Object.keys(updates).length > 0) {
-              await update(ref(db), updates);
-              console.log(`[Database Self-Healing Complete] Auto-Synchronized ${Object.keys(updates).length} old accounts into emailToUid node.`);
+              if (Object.keys(updates).length > 0) {
+                await update(ref(db), updates);
+              }
             }
+          } catch (syncErr) {
+            console.error("Auto Data Migration Script Crash:", syncErr);
           }
-        } catch (syncErr) {
-          console.error("Auto Data Migration Script Crash:", syncErr);
         }
 
       } else {
@@ -149,7 +165,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
       const expiresAt = Date.now() + 5 * 60 * 1000;
-      const safeEmailNode = email.trim().replace(/\./g, '_');
+      const safeEmailNode = getSafeEmailNode(email);
 
       const referredByValue = (referralCodeInput && referralCodeInput.trim() !== "") 
         ? referralCodeInput.trim().toUpperCase() 
@@ -180,13 +196,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               to_name: username.trim(),
               to_email: email.trim().toLowerCase(),
               otp_code: verificationCode,
-              location: "Secure Mobile Network Node" // ✅ حقن أمان ثابت لمنع كراش الـ params
+              location: "Secure Mobile Network Node"
             }
           })
         });
-        console.log('[EmailJS API] Broadcast deployed successfully! Code dispatched.');
       } catch (emailErr) {
-        console.error('[EmailJS API] Network transmission crash:', emailErr);
+        console.log('[EmailJS API] Network transmission crash:', emailErr);
       }
 
       setIsLoading(false);
@@ -196,10 +211,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: "Handshake secure timeout. Please check your connection." };
     }
   };
- // 🔒 دالة التحقق الملوكية والمطهرة من الكراش الوهمي
+
   const confirmRegisterOTP = async (email: string, code: string) => {
     try {
-      const safeEmailNode = email.trim().toLowerCase().replace(/\./g, '_');
+      const safeEmailNode = getSafeEmailNode(email);
       const otpRef = ref(db, `emailVerificationOTPs/${safeEmailNode}`);
       const snapshot = await get(otpRef);
 
@@ -209,13 +224,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const data = snapshot.val();
 
-      // 1. مطابقة الكود
       if (String(data.code).trim() !== String(code).trim()) {
         return { error: "Invalid security token. Please check the digits." };
       }
 
-      // 2. الكود صحيح! الآن نبني الحساب في الـ Auth
-      // 2. الكود صحيح! الآن نبني الحساب في الـ Auth
       let userCredential;
       try {
         userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
@@ -223,36 +235,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error: authErr.message || "Failed to create authentication node." };
       }
 
-      const user = userCredential.user;
+      const firebaseUser = userCredential.user;
+      const generatedRefCode = generateRandomCode(6);
 
-      // 🚀 بناء كود الإحالة الخاص بالمستخدم الجديد
-      const generatedRefCode = `NOIR-${data.username.trim().toUpperCase().substring(0, 4)}-${user.uid.toUpperCase().substring(0, 4)}`;
-
-      // 3. بناء البروفايل الكامل في الداتابيز
-      const userProfile = {
-        uid: user.uid,
+      const userProfile: UserProfile = {
+        uid: firebaseUser.uid,
         username: data.username,
         email: data.email,
+        phone: data.phone || "",
         referredBy: data.referredBy || "none_no_code_entered",
-        referralCode: generatedRefCode, // 🔥 هادي هي الخانة اللّي كانت مفقودة!
+        referralCode: generatedRefCode,
         balance: 0,
-        vipLevel: 0,
-        createdAt: Date.now(),
+        vip_level: 0, 
+        createdAt: String(Date.now()),
+        emailVerified: false,
+        isFullyVerified: false,
+        password: data.password
       };
 
-      // حفظ البيانات في كاع المسارات الأساسية ومسح الـ OTP القديم
-      await set(ref(db, `users/${user.uid}`), userProfile);
-      await set(ref(db, `emailToUid/${safeEmailNode}`), user.uid);
-      await set(ref(db, `referralCodes/${generatedRefCode}`), user.uid); // ✅ تسجيل الكود في محرك البحث نتاع الإحالات
+      await set(ref(db, `users/${firebaseUser.uid}`), userProfile);
+      await set(ref(db, `emailToUid/${safeEmailNode}`), { uid: firebaseUser.uid, password: data.password });
+      await set(ref(db, `referralCodes/${generatedRefCode}`), firebaseUser.uid);
       await remove(otpRef);
 
-      return { error: null, user };
+      return { error: null };
 
     } catch (error: any) {
       console.error("[OTP Verification Critical Error]:", error);
       return { error: error.message || "Database permission denied. Check Firebase Rules." };
     }
   };
+
   const logout = async () => {
     setIsLoading(true);
     await signOut(auth);
@@ -283,7 +296,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const newBalance = user.balance - cost;
       
-      // 1. خصم الرصيد للترقية
       await update(ref(db, `users/${user.uid}`), { balance: newBalance, vip_level: newLevel }); 
 
       const isFirstTimeUpgrade = !user.vip_level || user.vip_level === 0;
@@ -302,7 +314,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const uRefCode = u.referralCode ? u.referralCode.trim().toUpperCase() : ""; 
 
             let isMatch = false;
-            // 🛡️ نفس الدرع لتأمين الأرباح تروح لمولاها الحقيقي
             if (enteredCode.startsWith("NOIR-")) {
               isMatch = (uRefCode !== "" && enteredCode === uRefCode);
             } else {
@@ -321,18 +332,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             
             if (snap.exists()) {
               const referrerData = snap.val();
-              
-              let actualVIPPrice = cost;
-              if (cost === 0) {
-                if (newLevel === 1) actualVIPPrice = 70; 
-                else if (newLevel === 2) actualVIPPrice = 150;  
-                else if (newLevel === 3) actualVIPPrice = 300;  
-                else if (newLevel === 4) actualVIPPrice = 500;  
-                else if (newLevel === 5) actualVIPPrice = 800;  
-                else if (newLevel === 6) actualVIPPrice = 1400; 
-                else if (newLevel === 7) actualVIPPrice = 2500; 
-                else if (newLevel === 8) actualVIPPrice = 5000; 
-              }
+              const targetTier = getVIPTier(newLevel);
+              const actualVIPPrice = cost > 0 ? cost : targetTier.entryFee;
 
               const commission = actualVIPPrice * 0.10; 
               const currentRefBal = parseFloat(referrerData.balance?.toString() || '0');
@@ -340,7 +341,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
               await update(referrerRef, { balance: finalNewBalance }); 
 
-              if (parentUid === user.uid || user.email === "ZDHI5PGZdrTSIloRI9cPzTfUnfP2") {
+              if (parentUid === user.uid || isSuperAdmin(user.uid)) {
                 setUser(prev => prev ? { ...prev, balance: finalNewBalance } : null);
               }
 
@@ -370,7 +371,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true);
       const cleanEmail = emailInput.trim().toLowerCase();
-      const safeEmailNode = cleanEmail.replace(/[\.\@]/g, '_');
+      const safeEmailNode = getSafeEmailNode(cleanEmail);
 
       const usersSnap = await get(ref(db, 'users'));
       let targetUid = null;
@@ -421,11 +422,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               to_name: targetUsername,
               to_email: cleanEmail,
               otp_code: resetCode,
-              location: "Secure Mobile Network Node" // ✅ حماية مطلقة
+              location: "Secure Mobile Network Node"
             }
           })
         });
-        console.log('[Reset OTP] Broadcast dispatched safely to:', cleanEmail);
       } catch (emailErr) {
         console.error('[Reset OTP Email Failed]:', emailErr);
       }
@@ -442,32 +442,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true);
       const cleanEmail = email.trim().toLowerCase();
-      const safeEmailNode = cleanEmail.replace(/[\.\@]/g, '_');
-
-      const pendingSnap = await get(ref(db, `passwordResetOTPs/${safeEmailNode}`));
-
-      if (pendingSnap.exists() && pendingSnap.val().verified && pendingSnap.val().pendingPassword && pendingSnap.val().oldPassword && pendingSnap.val().userKey) {
-        const { pendingPassword, oldPassword, userKey } = pendingSnap.val();
-
-        if (password.trim() === pendingPassword) {
-          const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, oldPassword);
-          if (userCredential.user) {
-            await updatePassword(userCredential.user, pendingPassword);
-            await update(ref(db, `users/${userKey}`), { password: pendingPassword });
-            await update(ref(db, `emailToUid/${safeEmailNode}`), { password: pendingPassword });
-            await remove(ref(db, `passwordResetOTPs/${safeEmailNode}`));
-            
-            setIsLoading(false);
-            return { error: null };
-          }
-        }
+      
+      try {
+        const functionsInstance = getFunctions();
+        const checkPendingPasswordFunc = httpsCallable(functionsInstance, 'checkPendingPassword');
+        await checkPendingPasswordFunc({ email: cleanEmail, password: password.trim() });
+      } catch (cfErr) {
+        console.log("No pending password or CF skipped:", cfErr);
       }
 
       await signInWithEmailAndPassword(auth, cleanEmail, password.trim());
+      
       setIsLoading(false);
       return { error: null };
     } catch (error: any) {
       setIsLoading(false);
+      if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
+          return { error: "البريد الإلكتروني أو كلمة المرور غير صحيحة." };
+      }
       return { error: error.message };
     }
   };
@@ -476,7 +468,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true);
       const cleanEmail = emailInput.trim().toLowerCase();
-      const safeEmailNode = cleanEmail.replace(/\./g, '_');
+      const safeEmailNode = getSafeEmailNode(cleanEmail);
       const newPassword = newPasswordInput.trim();
 
       const resetRef = ref(db, `passwordResetOTPs/${safeEmailNode}`);
@@ -547,7 +539,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (user) { await update(ref(db, `users/${user.uid}`), { balance: nb }); }  
   };
 
-const getReferredUsers = async (referrerId: string) => { 
+  const getReferredUsers = async (referrerId: string) => { 
     try {
       if (!user) return [];
       const snap = await get(ref(db, 'users'));  
@@ -566,11 +558,9 @@ const getReferredUsers = async (referrerId: string) => {
           const checkVal = String(u.referredBy).trim().toUpperCase();
 
           let isMatch = false;
-          // 🛡️ الدرع الذكي: إذا الكود يبدأ بـ NOIR فهو كود رسمي (نقارنه مع الكود فقط ومستحيل يغلط مع الاسم)
           if (checkVal.startsWith("NOIR-")) {
             isMatch = (myRefCode !== "" && checkVal === myRefCode);
           } else {
-            // إذا كان كلمة عادية (مثل حساباتك القديمة)، نقارنه مع الاسم
             isMatch = (checkVal === myUsername || checkVal === myUid);
           }
 
@@ -587,12 +577,8 @@ const getReferredUsers = async (referrerId: string) => {
   };
 
   const getAllUsers = async () => { 
-    // 1️⃣ التصحيح الأول: نقارنو الـ UID مع الـ UID ماشي مع الإيميل
-    if (user?.uid !== 'ZDHI5PGZdrTSIloRI9cPzTfUnfP2') return []; 
-    
+    if (!user?.isAdmin) return []; 
     const snap = await get(ref(db, 'users'));  
-    
-    // 2️⃣ التصحيح الثاني: نبعثو u.uid لدالة isSuperAdmin باش تتأكد مليح
     return snap.exists() 
       ? Object.values(snap.val()).filter((u: any) => !isSuperAdmin(u.uid)) as UserProfile[] 
       : []; 
@@ -603,9 +589,9 @@ const getReferredUsers = async (referrerId: string) => {
 
   const adminDeleteUser = async (uid: string, userGeneratedCode: string) => {
     try {
-      await set(ref(db, `users/${uid}`), null);
+      await remove(ref(db, `users/${uid}`));
       if (userGeneratedCode) {
-        await set(ref(db, `referralCodes/${userGeneratedCode.toUpperCase()}`), null);
+        await remove(ref(db, `referralCodes/${userGeneratedCode.toUpperCase()}`));
       }
     } catch (e) {
       console.error("Error in admin user wiping execution:", e);

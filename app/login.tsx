@@ -5,292 +5,348 @@ import {
   StyleSheet,
   TextInput,
   Pressable,
-  ScrollView,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MaterialIcons, Ionicons, Feather } from '@expo/vector-icons';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useAuth } from '@/hooks/useAuth';
 import { useAlert } from '@/template';
-import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/constants/theme';
-import { GlobalStyles } from '@/constants/styles';
-import { Ionicons } from '@expo/vector-icons';
 
-// 🌍 قاموس التعريب الفوري المدمج مضافاً إليه مفاتيح الـ Forgot Password
+// 🎨 ألوان الهوية (تم دمجها مع ستايل البطاقة المطلوب)
+const NOIR_PURPLE = '#2A103C';
+const NOIR_GOLD = '#D4AF37';
+const LIGHT_BG = '#F0EDF5'; // خلفية فاتحة تبرز البطاقة
+const CARD_BG = '#FFFFFF';
+const INPUT_BG = '#F4F4F8';
+const TEXT_DARK = '#1C1524';
+const TEXT_MUTED = '#8E8899';
+
 const loginTranslations: Record<string, Record<string, string>> = {
   EN: {
-    welcomeBack: "Welcome Back",
-    signInSub: "Sign in to your account",
-    emailLabel: "EMAIL",
-    emailPlaceholder: "your@email.com",
-    passwordLabel: "PASSWORD",
-    forgotPassword: "Forgot Password?",
-    signInBtn: "SIGN IN",
-    noAccount: "No account?",
-    createOne: "Create one",
-    missingFieldsTitle: "Missing Fields",
-    missingFieldsDesc: "Please enter your email and password.",
-    loginFailedTitle: "Login Failed"
+    welcome: "Welcome Back",
+    subtitle: "Continue your investment journey",
+    emailPlace: "Email address",
+    passPlace: "Password",
+    remember: "Remember me",
+    forgot: "Forgot Password?",
+    loginBtn: "Log In",
+    noAccount: "Don't have an account?",
+    signUp: "Sign up",
+    missingFields: "Please enter email and password.",
   },
   AR: {
-    welcomeBack: "مرحباً بك مجدداً",
-    signInSub: "قم بتسجيل الدخول إلى حسابك الاستثماري",
-    emailLabel: "البريد الإلكتروني",
-    emailPlaceholder: "أدخل بريدك الإلكتروني هنا...",
-    passwordLabel: "كلمة السر الخاصة بالحساب",
-    forgotPassword: "هل نسيت كلمة السر؟",
-    signInBtn: "تسجيل دخول",
+    welcome: "مرحباً بعودتك",
+    subtitle: "أكمل رحلتك الاستثمارية الآن",
+    emailPlace: "البريد الإلكتروني",
+    passPlace: "كلمة المرور",
+    remember: "تذكرني",
+    forgot: "نسيت كلمة السر؟",
+    loginBtn: "تسجيل الدخول",
     noAccount: "ليس لديك حساب؟",
-    createOne: "أنشئ حساباً جديداً الآن",
-    missingFieldsTitle: "خانات مفقودة",
-    missingFieldsDesc: "يرجى كتابة البريد الإلكتروني وكلمة السر أولاً.",
-    loginFailedTitle: "فشل تسجيل الدخول"
+    signUp: "سجل الآن",
+    missingFields: "يرجى إدخال البريد الإلكتروني وكلمة المرور.",
   }
 };
 
 export default function LoginScreen() {
-  const { login, isLoading } = useAuth();
+  const { login } = useAuth();
   const { showAlert } = useAlert();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [lang, setLang] = useState<'EN' | 'AR'>('EN');
 
-  // 🌍 زر التبديل المحلي للغة
-  const [currentLang, setCurrentLang] = useState<'EN' | 'AR'>('EN');
-  const t = loginTranslations[currentLang];
+  const t = loginTranslations[lang];
+  const isAR = lang === 'AR';
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      showAlert(t.missingFieldsTitle, t.missingFieldsDesc);
+      showAlert("Notice", t.missingFields);
       return;
     }
-    const { error } = await login(email.trim(), password.trim());
-    if (error) {
-      showAlert(t.loginFailedTitle, error);
-    } else {
-      router.replace('/(tabs)');
-    }
-  };
 
-  const toggleLanguage = () => {
-    setCurrentLang((prev) => (prev === 'EN' ? 'AR' : 'EN'));
+    setLoading(true);
+    const result = await login(email.trim(), password);
+    setLoading(false);
+
+    if (result.error === null) {
+      router.replace('/(tabs)');
+    } else {
+      const cleanMsg = typeof result.error === 'string' ? result.error : "Login failed.";
+      showAlert("Error", cleanMsg);
+    }
   };
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: Colors.background }}
+      style={{ flex: 1, backgroundColor: LIGHT_BG }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView
-        contentContainerStyle={{ flexGrow: 1 }}
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 20 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Hero Image */}
-        <View style={styles.heroContainer}>
-          <Image
-            source={require('@/assets/images/login-hero.png')}
-            style={styles.heroImage}
-            contentFit="cover"
-            transition={300}
-          />
-          <View style={styles.heroOverlay} />
-          
-          {/* 🌍 زر تبديل اللغة الذهبي العائم الفوق لكسر الحماية */}
+        {/* 🔝 زر تغيير اللغة */}
+        <View style={[styles.header, { top: insets.top + 10 }, isAR && { right: 20, left: 'auto' }]}>
           <Pressable 
-            style={[styles.langFloatingBtn, { top: insets.top + Spacing.sm }, currentLang === 'AR' ? { left: Spacing.lg } : { right: Spacing.lg }, currentLang === 'AR' && { flexDirection: 'row-reverse' }]} 
-            onPress={toggleLanguage}
+            style={[styles.langBtn, isAR && { flexDirection: 'row-reverse' }]} 
+            onPress={() => setLang(l => l === 'EN' ? 'AR' : 'EN')}
           >
-            <Ionicons name="language" size={16} color={Colors.gold} />
-            <Text style={styles.langFloatingText}>{currentLang === 'EN' ? "العربية 🇩🇿" : "English 🇬🇧"}</Text>
+            <Ionicons name="globe-outline" size={14} color={NOIR_GOLD} />
+            <Text style={styles.langText}>{isAR ? "English" : "العربية"}</Text>
           </Pressable>
-
-          <View style={[styles.heroBranding, currentLang === 'AR' && { left: undefined, right: Spacing.lg, alignItems: 'flex-end' }]}>
-            <Text style={styles.brandName}>NOIR</Text>
-            <Text style={styles.brandTagline}>WEALTH MANAGEMENT</Text>
-          </View>
         </View>
 
-        {/* Form */}
-        <View style={[styles.formContainer, { paddingBottom: insets.bottom + Spacing.xl }]}>
-          <Text style={[styles.formTitle, currentLang === 'AR' && { textAlign: 'right' }]}>{t.welcomeBack}</Text>
-          <Text style={[styles.formSubtitle, currentLang === 'AR' && { textAlign: 'right' }]}>{t.signInSub}</Text>
+        {/* 💳 بطاقة تسجيل الدخول (Card UI) */}
+        <Animated.View entering={FadeInDown.duration(600)} style={styles.card}>
+          
+          {/* الشعار */}
+          <View style={styles.logoContainer}>
+            <Ionicons name="paw" size={32} color={NOIR_PURPLE} />
+          </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={[styles.inputLabel, currentLang === 'AR' && { textAlign: 'right' }]}>{t.emailLabel}</Text>
+          {/* العناوين */}
+          <Text style={styles.title}>{t.welcome}</Text>
+          <Text style={styles.subtitle}>{t.subtitle}</Text>
+
+          {/* حقل البريد الإلكتروني */}
+          <View style={[styles.inputContainer, isAR && { flexDirection: 'row-reverse' }]}>
+            <Feather name="mail" size={20} color={TEXT_MUTED} style={styles.inputIcon} />
             <TextInput
-              style={[styles.input, currentLang === 'AR' && { textAlign: 'right' }]}
+              style={[styles.input, isAR && { textAlign: 'right' }]}
+              placeholder={t.emailPlace}
+              placeholderTextColor={TEXT_MUTED}
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
-              autoCorrect={false}
-              placeholderTextColor={Colors.textMuted}
-              placeholder={t.emailPlaceholder}
             />
           </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={[styles.inputLabel, currentLang === 'AR' && { textAlign: 'right' }]}>{t.passwordLabel}</Text>
+          {/* حقل كلمة السر */}
+          <View style={[styles.inputContainer, isAR && { flexDirection: 'row-reverse' }, { marginTop: 16 }]}>
+            <Feather name="lock" size={20} color={TEXT_MUTED} style={styles.inputIcon} />
             <TextInput
-              style={[styles.input, currentLang === 'AR' && { textAlign: 'right' }]}
+              style={[styles.input, isAR && { textAlign: 'right' }]}
+              placeholder={t.passPlace}
+              placeholderTextColor={TEXT_MUTED}
               value={password}
               onChangeText={setPassword}
-              secureTextEntry
-              placeholderTextColor={Colors.textMuted}
-              placeholder="••••••••"
+              secureTextEntry={!showPassword}
             />
-            
-            {/* 🔥 [الحقن العسكري الحصين]: زر هل نسيت كلمة السر الملوكي متناسق مع الاتجاهين */}
-            <Pressable 
-              onPress={() => router.push('/forgot-password')}
-              style={({ pressed }) => [
-                styles.forgotPasswordBtn,
-                { alignSelf: currentLang === 'AR' ? 'flex-start' : 'flex-end', opacity: pressed ? 0.7 : 1 }
-              ]}
-              hitSlop={12}
-            >
-              <Text style={styles.forgotPasswordText}>{t.forgotPassword}</Text>
+            <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
+              <Feather name={showPassword ? "eye" : "eye-off"} size={20} color={TEXT_MUTED} />
             </Pressable>
           </View>
 
+          {/* خيارات: تذكرني & نسيان كلمة السر */}
+          <View style={[styles.optionsRow, isAR && { flexDirection: 'row-reverse' }]}>
+            <Pressable 
+              style={[styles.checkboxContainer, isAR && { flexDirection: 'row-reverse' }]} 
+              onPress={() => setRememberMe(!rememberMe)}
+            >
+              <View style={[styles.checkbox, rememberMe && styles.checkboxActive]}>
+                {rememberMe && <Feather name="check" size={12} color="#FFF" />}
+              </View>
+              <Text style={styles.rememberText}>{t.remember}</Text>
+            </Pressable>
+
+            {/* 👈 التعديل تم هنا: ربط الزر بصفحة نسيت كلمة السر */}
+            <Pressable onPress={() => router.push('/forgot-password')}>
+              <Text style={styles.forgotText}>{t.forgot}</Text>
+            </Pressable>
+          </View>
+
+          {/* زر تسجيل الدخول */}
           <Pressable
             style={({ pressed }) => [
-              GlobalStyles.primaryButton,
-              { marginTop: Spacing.xs, opacity: pressed ? 0.85 : 1 }, // تعديل الـ margin ليتناسق مع وجود الزر الجديد
-              currentLang === 'AR' && { flexDirection: 'row-reverse' }
+              styles.primaryBtn,
+              { opacity: (email && password) ? (pressed ? 0.85 : 1) : 0.5 }
             ]}
+            disabled={!email || !password || loading}
             onPress={handleLogin}
-            disabled={isLoading}
           >
-            {isLoading ? (
-              <ActivityIndicator color={Colors.textOnGold} />
+            {loading ? (
+              <ActivityIndicator color="#FFF" />
             ) : (
-              <Text style={GlobalStyles.primaryButtonText}>{t.signInBtn}</Text>
+              <Text style={styles.primaryBtnText}>{t.loginBtn}</Text>
             )}
           </Pressable>
 
-          <Pressable onPress={() => router.push('/register')} style={styles.registerLink}>
-            <Text style={styles.registerLinkText}>
-              {t.noAccount}{' '}
-              <Text style={{ color: Colors.gold, fontWeight: FontWeight.semibold }}>
-                {t.createOne}
-              </Text>
-            </Text>
-          </Pressable>
-        </View>
+          {/* الانتقال لصفحة التسجيل */}
+          <View style={[styles.footerRow, isAR && { flexDirection: 'row-reverse' }]}>
+            <Text style={styles.footerText}>{t.noAccount} </Text>
+            <Pressable onPress={() => router.push('/register')}>
+              <Text style={styles.signUpText}>{t.signUp}</Text>
+            </Pressable>
+          </View>
+
+        </Animated.View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  heroContainer: {
-    height: 300,
-    position: 'relative',
-  },
-  heroImage: {
-    width: '100%',
-    height: '100%',
-  },
-  heroOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(5,5,5,0.55)',
-  },
-  langFloatingBtn: {
+  header: {
     position: 'absolute',
+    left: 20,
+    zIndex: 10,
+  },
+  langBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    backgroundColor: '#FFF',
     borderWidth: 1,
-    borderColor: Colors.goldDim,
+    borderColor: '#E2DAEC',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: Radius.full,
-    zIndex: 50,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  langFloatingText: {
-    color: Colors.gold,
+  langText: {
     fontSize: 12,
+    color: NOIR_PURPLE,
     fontWeight: 'bold',
   },
-  heroBranding: {
-    position: 'absolute',
-    bottom: Spacing.xl,
-    left: Spacing.lg,
+  card: {
+    backgroundColor: CARD_BG,
+    borderRadius: 24,
+    padding: 24,
+    width: '100%',
+    shadowColor: NOIR_PURPLE,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 5,
   },
-  brandName: {
-    fontSize: 42,
-    fontWeight: FontWeight.extrabold,
-    color: Colors.gold,
-    letterSpacing: 8,
+  logoContainer: {
+    alignSelf: 'center',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: INPUT_BG,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
   },
-  brandTagline: {
-    fontSize: FontSize.xs,
-    fontWeight: FontWeight.medium,
-    color: Colors.textSecondary,
-    letterSpacing: 3,
-    marginTop: 2,
-  },
-  formContainer: {
-    flex: 1,
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.xl,
-  },
-  formTitle: {
-    fontSize: FontSize.xxl,
-    fontWeight: FontWeight.bold,
-    color: Colors.textPrimary,
-    marginBottom: 4,
-  },
-  formSubtitle: {
-    fontSize: FontSize.md,
-    color: Colors.textSecondary,
-    marginBottom: Spacing.xl,
-  },
-  inputGroup: {
-    marginBottom: Spacing.md,
-  },
-  inputLabel: {
-    fontSize: FontSize.xs,
-    color: Colors.textMuted,
-    fontWeight: FontWeight.semibold,
-    letterSpacing: 1.2,
+  title: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: TEXT_DARK,
+    textAlign: 'center',
     marginBottom: 6,
   },
-  input: {
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.surfaceBorder,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 14,
-    color: Colors.textPrimary,
-    fontSize: FontSize.base,
+  subtitle: {
+    fontSize: 14,
+    color: TEXT_MUTED,
+    textAlign: 'center',
+    marginBottom: 30,
   },
-  // 🔥 ستايل رابط نسيت كلمة السر الملوكي الجديد
-  forgotPasswordBtn: {
-    marginTop: 8,
-    paddingVertical: 2,
-  },
-  forgotPasswordText: {
-    color: Colors.gold, // يستعمل نفس درجة الذهب الموحدة للمشروع لقفل الحماية البصرية
-    fontSize: FontSize.sm,
-    fontWeight: FontWeight.semibold,
-  },
-  registerLink: {
+  inputContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: Spacing.lg,
-    paddingVertical: Spacing.sm,
+    backgroundColor: INPUT_BG,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    height: 56,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
-  registerLinkText: {
-    fontSize: FontSize.md,
-    color: Colors.textSecondary,
+  inputIcon: {
+    marginHorizontal: 4,
+  },
+  input: {
+    flex: 1,
+    fontSize: 15,
+    color: TEXT_DARK,
+    paddingHorizontal: 10,
+    height: '100%',
+  },
+  eyeBtn: {
+    padding: 8,
+  },
+  optionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 20,
+    marginBottom: 30,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: TEXT_MUTED,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxActive: {
+    backgroundColor: NOIR_PURPLE,
+    borderColor: NOIR_PURPLE,
+  },
+  rememberText: {
+    fontSize: 14,
+    color: TEXT_MUTED,
+    fontWeight: '500',
+  },
+  forgotText: {
+    fontSize: 14,
+    color: NOIR_PURPLE,
+    fontWeight: '600',
+  },
+  primaryBtn: {
+    backgroundColor: NOIR_PURPLE,
+    borderRadius: 30,
+    height: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: NOIR_PURPLE,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  primaryBtnText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  footerRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 30,
+  },
+  footerText: {
+    fontSize: 14,
+    color: TEXT_MUTED,
+  },
+  signUpText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: NOIR_GOLD,
   },
 });

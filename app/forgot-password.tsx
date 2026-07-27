@@ -9,16 +9,24 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Alert
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MaterialIcons } from '@expo/vector-icons';
+import { Ionicons, Feather } from '@expo/vector-icons';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useAuth } from '@/hooks/useAuth';
 import { useAlert } from '@/template';
-import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/constants/theme';
 
-// 🌍 قاموس الترجمة الملوكي نتاع حكيم المخصص للاستعادة الحصينة
+// 🎨 ألوان الهوية المطابقة تماماً لتطبيق NoirWealth
+const NOIR_PURPLE = '#2A103C';
+const NOIR_GOLD = '#D4AF37';
+const LIGHT_BG = '#F0EDF5'; // خلفية فاتحة تبرز البطاقة
+const CARD_BG = '#FFFFFF';
+const INPUT_BG = '#F4F4F8';
+const TEXT_DARK = '#1C1524';
+const TEXT_MUTED = '#8E8899';
+
+// 🌍 قاموس الترجمة الملوكي
 const forgotTranslations: Record<string, Record<string, string>> = {
   EN: {
     title: "Reset Password",
@@ -83,13 +91,14 @@ export default function ForgotPasswordScreen() {
   const [otp, setOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [lang, setLang] = useState<'EN' | 'AR'>('EN');
 
-  const lang = (user as any)?.language || 'EN';
-  const t = forgotTranslations[lang] || forgotTranslations['EN'];
+  const t = forgotTranslations[lang];
+  const isAR = lang === 'AR';
 
-  // ─── المرحلة 1: توليد الكود وإرساله فوراً بنقاء الـ REST API المباشر ──────────────────────
-// ─── المرحلة 1: توليد الكود وإرساله عبر السيرفر المحصن (لا مفاتيح هنا!) ──────────────────
   const handleSendOTP = async () => {
     if (!email.trim()) {
       showAlert(t.missingFields, "");
@@ -97,27 +106,23 @@ export default function ForgotPasswordScreen() {
     }
     setIsLoading(true);
     
-    // 1. توليد وحفظ الكود في الداتابيز
     const result = await generateAndSaveOTP(email.trim());
     
     if (result.error === null && result.otpCode) {
       try {
-        // 🚀 [الربط الآمن]: استدعاء الدالة السحابية المحصنة
         const { getFunctions, httpsCallable } = await import('firebase/functions');
         const functions = getFunctions();
         const sendSecureEmail = httpsCallable(functions, 'sendSecureEmail');
 
-        // السيرفر هو اللي يملك المفاتيح، التطبيق يبعث البيانات فقط
         await sendSecureEmail({
           to_name: "User", 
           to_email: email.trim(),
           otp_code: result.otpCode,
-          template_id: 'template_fr26ah9' // القالب الآمن
+          template_id: 'template_fr26ah9'
         });
 
         showAlert(t.codeSentTitle, t.codeSentDesc);
-        setCurrentStep(2); // الانتقال للخطوة التالية
-
+        setCurrentStep(2);
       } catch (err: any) {
         console.error("[Secure Node Refused]:", err);
         showAlert('Security Error', "Secure node handshake rejected. Please retry.");
@@ -127,6 +132,7 @@ export default function ForgotPasswordScreen() {
     }
     setIsLoading(false);
   };
+
   const handleVerifyCode = async () => {
     if (!otp.trim()) {
       showAlert(t.missingFields, "");
@@ -174,120 +180,321 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false}>
-        <View style={[styles.header, { paddingTop: insets.top + Spacing.md }, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
-            <MaterialIcons name={lang === 'AR' ? "arrow-forward-ios" : "arrow-back-ios"} size={18} color={Colors.gold} />
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: LIGHT_BG }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 20 }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* 🔝 زر تغيير اللغة وزر الرجوع العلوي */}
+        <View style={[styles.topBar, { top: insets.top + 10 }, isAR && { flexDirection: 'row-reverse' }]}>
+          <Pressable style={styles.iconButton} onPress={() => router.back()}>
+            <Ionicons name={isAR ? "arrow-forward" : "arrow-back"} size={18} color={NOIR_PURPLE} />
           </Pressable>
-          <Text style={styles.title}>{t.title}</Text>
+          <Pressable 
+            style={[styles.langBtn, isAR && { flexDirection: 'row-reverse' }]} 
+            onPress={() => setLang(l => l === 'EN' ? 'AR' : 'EN')}
+          >
+            <Ionicons name="globe-outline" size={14} color={NOIR_GOLD} />
+            <Text style={styles.langText}>{isAR ? "English" : "العربية"}</Text>
+          </Pressable>
         </View>
 
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.form}>
-          <Text style={[styles.subtitle, lang === 'AR' && { textAlign: 'right' }]}>NoirWealth Security Node</Text>
+        {/* 💳 بطاقة استعادة كلمة السر (Card UI المطابقة للوجين) */}
+        <Animated.View entering={FadeInDown.duration(600)} style={styles.card}>
           
-          <Text style={[styles.metaDesc, lang === 'AR' && { textAlign: 'right' }]}>
+          {/* أيقونة الأمان داخل البطاقة */}
+          <View style={styles.logoContainer}>
+            <Ionicons name="shield-checkmark-outline" size={32} color={NOIR_PURPLE} />
+          </View>
+
+          {/* العناوين */}
+          <Text style={styles.title}>{t.title}</Text>
+          <Text style={styles.subtitle}>Lion Security Node</Text>
+          <Text style={[styles.metaDesc, isAR && { textAlign: 'right' }]}>
             {currentStep === 1 && t.subEmail}
             {currentStep === 2 && t.subOTP}
             {currentStep === 3 && t.subNewPass}
           </Text>
 
+          {/* الخطوة 1: البريد الإلكتروني */}
           {currentStep === 1 && (
             <View style={styles.stepContainer}>
               <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, lang === 'AR' && { textAlign: 'right' }]}>{t.emailLabel}</Text>
-                <TextInput
-                  style={[styles.input, lang === 'AR' && { textAlign: 'right' }]}
-                  value={email}
-                  onChangeText={setEmail}
-                  placeholder={t.emailPlaceholder}
-                  placeholderTextColor="#333"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
+                <Text style={[styles.inputLabel, isAR && { textAlign: 'right' }]}>{t.emailLabel}</Text>
+                <View style={[styles.inputContainer, isAR && { flexDirection: 'row-reverse' }]}>
+                  <Feather name="mail" size={20} color={TEXT_MUTED} style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input, isAR && { textAlign: 'right' }]}
+                    value={email}
+                    onChangeText={setEmail}
+                    placeholder={t.emailPlaceholder}
+                    placeholderTextColor={TEXT_MUTED}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                </View>
               </View>
-              <Pressable style={styles.actionBtn} onPress={handleSendOTP} disabled={isLoading}>
-                {isLoading ? <ActivityIndicator color="#000" /> : <Text style={styles.actionBtnText}>{t.sendCodeBtn}</Text>}
+
+              <Pressable
+                style={({ pressed }) => [styles.primaryBtn, { opacity: email ? (pressed ? 0.85 : 1) : 0.5 }]}
+                disabled={!email || isLoading}
+                onPress={handleSendOTP}
+              >
+                {isLoading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.primaryBtnText}>{t.sendCodeBtn}</Text>}
               </Pressable>
             </View>
           )}
 
+          {/* الخطوة 2: إدخال الكود (OTP) */}
           {currentStep === 2 && (
             <View style={styles.stepContainer}>
               <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, lang === 'AR' && { textAlign: 'right' }]}>{t.otpLabel}</Text>
-                <TextInput
-                  style={[styles.input, lang === 'AR' && { textAlign: 'right' }]}
-                  value={otp}
-                  onChangeText={setOtp}
-                  placeholder={t.otpPlaceholder}
-                  placeholderTextColor="#333"
-                  keyboardType="number-pad"
-                  maxLength={6}
-                />
+                <Text style={[styles.inputLabel, isAR && { textAlign: 'right' }]}>{t.otpLabel}</Text>
+                <View style={[styles.inputContainer, isAR && { flexDirection: 'row-reverse' }]}>
+                  <Feather name="key" size={20} color={TEXT_MUTED} style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input, isAR && { textAlign: 'right' }, { letterSpacing: 4, fontWeight: 'bold' }]}
+                    value={otp}
+                    onChangeText={setOtp}
+                    placeholder={t.otpPlaceholder}
+                    placeholderTextColor={TEXT_MUTED}
+                    keyboardType="number-pad"
+                    maxLength={6}
+                  />
+                </View>
               </View>
-              <Pressable style={styles.actionBtn} onPress={handleVerifyCode} disabled={isLoading}>
-                {isLoading ? <ActivityIndicator color="#000" /> : <Text style={styles.actionBtnText}>{t.verifyBtn}</Text>}
+
+              <Pressable
+                style={({ pressed }) => [styles.primaryBtn, { opacity: otp.length === 6 ? (pressed ? 0.85 : 1) : 0.5 }]}
+                disabled={otp.length !== 6 || isLoading}
+                onPress={handleVerifyCode}
+              >
+                {isLoading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.primaryBtnText}>{t.verifyBtn}</Text>}
               </Pressable>
             </View>
           )}
 
+          {/* الخطوة 3: كلمة السر الجديدة */}
           {currentStep === 3 && (
             <View style={styles.stepContainer}>
               <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, lang === 'AR' && { textAlign: 'right' }]}>{t.newPassLabel}</Text>
-                <TextInput
-                  style={[styles.input, lang === 'AR' && { textAlign: 'right' }]}
-                  value={newPassword}
-                  onChangeText={setNewPassword}
-                  placeholder={t.passPlaceholder}
-                  placeholderTextColor="#333"
-                  secureTextEntry
-                />
+                <Text style={[styles.inputLabel, isAR && { textAlign: 'right' }]}>{t.newPassLabel}</Text>
+                <View style={[styles.inputContainer, isAR && { flexDirection: 'row-reverse' }]}>
+                  <Feather name="lock" size={20} color={TEXT_MUTED} style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input, isAR && { textAlign: 'right' }]}
+                    value={newPassword}
+                    onChangeText={setNewPassword}
+                    placeholder={t.passPlaceholder}
+                    placeholderTextColor={TEXT_MUTED}
+                    secureTextEntry={!showPassword}
+                  />
+                  <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
+                    <Feather name={showPassword ? "eye" : "eye-off"} size={20} color={TEXT_MUTED} />
+                  </Pressable>
+                </View>
               </View>
 
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, lang === 'AR' && { textAlign: 'right' }]}>{t.confirmPassLabel}</Text>
-                <TextInput
-                  style={[styles.input, lang === 'AR' && { textAlign: 'right' }]}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  placeholder={t.passPlaceholder}
-                  placeholderTextColor="#333"
-                  secureTextEntry
-                />
+              <View style={[styles.inputGroup, { marginTop: 16 }]}>
+                <Text style={[styles.inputLabel, isAR && { textAlign: 'right' }]}>{t.confirmPassLabel}</Text>
+                <View style={[styles.inputContainer, isAR && { flexDirection: 'row-reverse' }]}>
+                  <Feather name="lock" size={20} color={TEXT_MUTED} style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input, isAR && { textAlign: 'right' }]}
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    placeholder={t.passPlaceholder}
+                    placeholderTextColor={TEXT_MUTED}
+                    secureTextEntry={!showConfirmPassword}
+                  />
+                  <Pressable onPress={() => setShowConfirmPassword(!showConfirmPassword)} style={styles.eyeBtn}>
+                    <Feather name={showConfirmPassword ? "eye" : "eye-off"} size={20} color={TEXT_MUTED} />
+                  </Pressable>
+                </View>
               </View>
 
-              <Pressable style={styles.actionBtn} onPress={handleUpdatePassword} disabled={isLoading}>
-                {isLoading ? <ActivityIndicator color="#000" /> : <Text style={styles.actionBtnText}>{t.updateBtn}</Text>}
+              <Pressable
+                style={({ pressed }) => [
+                  styles.primaryBtn,
+                  { marginTop: 10, opacity: (newPassword && confirmPassword) ? (pressed ? 0.85 : 1) : 0.5 }
+                ]}
+                disabled={!newPassword || !confirmPassword || isLoading}
+                onPress={handleUpdatePassword}
+              >
+                {isLoading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.primaryBtnText}>{t.updateBtn}</Text>}
               </Pressable>
             </View>
           )}
 
+          {/* زر العودة لتسجيل الدخول */}
           <Pressable style={styles.backToLoginBtn} onPress={() => router.replace('/login')}>
             <Text style={styles.backToLoginText}>{t.backToLogin}</Text>
           </Pressable>
 
-        </KeyboardAvoidingView>
+        </Animated.View>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.lg },
-  backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.surface, borderRadius: Radius.full },
-  title: { fontSize: FontSize.xxl, fontWeight: FontWeight.bold, color: Colors.textPrimary },
-  subtitle: { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2, paddingHorizontal: Spacing.lg },
-  form: { paddingHorizontal: Spacing.lg, marginTop: Spacing.md },
-  metaDesc: { color: '#666', fontSize: 13, lineHeight: 19, marginTop: 10, fontWeight: '500', marginBottom: 25, paddingHorizontal: 5 },
-  stepContainer: { width: '100%', marginTop: 5 },
-  inputGroup: { marginBottom: Spacing.md },
-  inputLabel: { fontSize: FontSize.xs, color: Colors.textMuted, fontWeight: FontWeight.semibold, letterSpacing: 1.2, marginBottom: 8 },
-  input: { backgroundColor: Colors.surface, color: '#fff', borderWidth: 1, borderColor: Colors.surfaceBorder, borderRadius: Radius.md, paddingHorizontal: Spacing.md, height: 50, fontSize: 15 },
-  actionBtn: { backgroundColor: Colors.gold, padding: 16, borderRadius: Radius.md, alignItems: 'center', marginTop: 15 },
-  actionBtnText: { color: '#000', fontWeight: 'bold', fontSize: 14, letterSpacing: 0.5 },
-  backToLoginBtn: { alignItems: 'center', marginTop: Spacing.xl, paddingVertical: Spacing.sm },
-  backToLoginText: { color: Colors.textSecondary, fontSize: FontSize.sm, fontWeight: '500' }
+  topBar: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  iconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: '#E2DAEC',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  langBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: '#E2DAEC',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  langText: {
+    fontSize: 12,
+    color: NOIR_PURPLE,
+    fontWeight: 'bold',
+  },
+  card: {
+    backgroundColor: CARD_BG,
+    borderRadius: 24,
+    padding: 24,
+    width: '100%',
+    shadowColor: NOIR_PURPLE,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 5,
+  },
+  logoContainer: {
+    alignSelf: 'center',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: INPUT_BG,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: TEXT_DARK,
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  subtitle: {
+    fontSize: 12,
+    color: NOIR_GOLD,
+    textAlign: 'center',
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginBottom: 12,
+    textTransform: 'uppercase',
+  },
+  metaDesc: {
+    fontSize: 14,
+    color: TEXT_MUTED,
+    textAlign: 'center',
+    marginBottom: 25,
+    lineHeight: 20,
+  },
+  stepContainer: {
+    width: '100%',
+  },
+  inputGroup: {
+    width: '100%',
+  },
+  inputLabel: {
+    fontSize: 11,
+    color: TEXT_MUTED,
+    fontWeight: '700',
+    letterSpacing: 1.1,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: INPUT_BG,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    height: 56,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  inputIcon: {
+    marginHorizontal: 4,
+  },
+  input: {
+    flex: 1,
+    fontSize: 15,
+    color: TEXT_DARK,
+    paddingHorizontal: 10,
+    height: '100%',
+  },
+  eyeBtn: {
+    padding: 8,
+  },
+  primaryBtn: {
+    backgroundColor: NOIR_PURPLE,
+    borderRadius: 30,
+    height: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 24,
+    shadowColor: NOIR_PURPLE,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  primaryBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
+  },
+  backToLoginBtn: {
+    alignItems: 'center',
+    marginTop: 24,
+    paddingVertical: 8,
+  },
+  backToLoginText: {
+    color: NOIR_PURPLE,
+    fontSize: 14,
+    fontWeight: '600',
+  },
 });

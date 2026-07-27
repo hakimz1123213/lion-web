@@ -10,7 +10,6 @@ interface DepositAlertPayload {
   userId: string;
   amount: number;
   txid: string; // 🔥 حقل الـ TXID لتوثيق المعاملة الرقمية
-  proofImageUri?: string;
   timestamp: number;
 }
 
@@ -52,8 +51,8 @@ const VIP_COLORS: Record<number, number> = {
 export async function sendDepositAlert(payload: DepositAlertPayload): Promise<void> {
   if (!DEPOSIT_WEBHOOK_URL || DEPOSIT_WEBHOOK_URL.length < 20) return;
   const body: any = {
-    username: 'NoirWealth Monitor',
-    avatar_url: 'https://i.imgur.com/AfFp7pu.png',
+    username: 'LION Monitor',
+    avatar_url: 'https://i.imgur.com/G2hWYfv.jpeg',
     embeds: [
       {
         title: '💰 New Deposit Request',
@@ -63,22 +62,13 @@ export async function sendDepositAlert(payload: DepositAlertPayload): Promise<vo
           { name: 'Amount', value: `**$${payload.amount.toFixed(2)} USDT**`, inline: true },
           { name: 'Status', value: '🟡 Pending Approval', inline: true },
           { name: 'Transaction TXID (BEP20)', value: `\`${payload.txid}\``, inline: false }, // حقل النص المضمون من بايننس
-          {
-            name: 'Proof of Payment',
-            value: payload.proofImageUri ? `✅ Screenshot uploaded` : '⚠️ No screenshot provided (Using TXID Check)',
-            inline: false,
-          },
           { name: 'Submitted At', value: formatTime(payload.timestamp), inline: false },
         ],
-        footer: { text: 'NoirWealth Admin System' },
+        footer: { text: 'LION Admin System' },
         timestamp: new Date(payload.timestamp).toISOString(),
       },
     ],
   };
-
-  if (payload.proofImageUri && payload.proofImageUri.startsWith('http')) {
-    body.embeds[0].image = { url: payload.proofImageUri };
-  }
 
   try {
     await fetch(DEPOSIT_WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -91,8 +81,8 @@ export async function sendWithdrawalAlert(payload: WithdrawalAlertPayload): Prom
 
   const ts = payload.timestamp || Date.now();
   const body = {
-    username: 'NoirWealth Monitor',
-    avatar_url: 'https://i.imgur.com/AfFp7pu.png',
+    username: 'LION Monitor',
+    avatar_url: 'https://i.imgur.com/G2hWYfv.jpeg',
     embeds: [
       {
         title: '🏦 New Withdrawal Request',
@@ -104,7 +94,7 @@ export async function sendWithdrawalAlert(payload: WithdrawalAlertPayload): Prom
           { name: 'Wallet Address (BEP20)', value: `\`${payload.address}\``, inline: false },
           { name: 'Submitted At', value: formatTime(ts), inline: false },
         ],
-        footer: { text: 'NoirWealth Admin System' },
+        footer: { text: 'LION Admin System' },
         timestamp: new Date(ts).toISOString(),
       },
     ],
@@ -123,8 +113,8 @@ export async function sendVIPUpgradeAlert(payload: VIPUpgradeAlertPayload): Prom
   const color = VIP_COLORS[payload.newLevel] ?? 0xc9a84c;
 
   const body = {
-    username: 'NoirWealth Monitor',
-    avatar_url: 'https://i.imgur.com/AfFp7pu.png',
+    username: 'LION Monitor',
+    avatar_url: 'https://i.imgur.com/G2hWYfv.jpeg',
     embeds: [
       {
         title: `💎 VIP Upgrade — ${newLabel}`,
@@ -135,7 +125,7 @@ export async function sendVIPUpgradeAlert(payload: VIPUpgradeAlertPayload): Prom
           { name: 'Fee Paid', value: `**$${payload.entryFee.toFixed(2)} USDT**`, inline: true },
           { name: 'New Daily Earnings', value: `$${payload.dailyPayoutMin} – $${payload.dailyPayoutMax} / day`, inline: false },
         ],
-        footer: { text: 'NoirWealth Admin System' },
+        footer: { text: 'LION Admin System' },
         timestamp: new Date(payload.timestamp).toISOString(),
       },
     ],

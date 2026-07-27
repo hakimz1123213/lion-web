@@ -1,349 +1,496 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   Pressable,
-  ActivityIndicator,
-  Dimensions,
-  Platform
+  Animated,
+  Easing,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-
-// 👑 نترك استيراد الأيقونات فقط للأزرار والأسهم التي تعمل عندك بنجاح
-import { MaterialIcons, FontAwesome } from '@expo/vector-icons'; 
-
+import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient'; 
 import { useAuth } from '@/hooks/useAuth';
 import { useTask } from '@/hooks/useTask';
 import { useWallet } from '@/hooks/useWallet';
-import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/constants/theme';
-import { GlobalStyles } from '@/constants/styles';
-import { VIP_TIERS, TASK_TOTAL, getVIPTier } from '@/constants/config';
+import { ref, onValue } from 'firebase/database';
+import { TASK_TOTAL, getVIPTier } from '@/constants/config';
 import { Transaction } from '@/contexts/WalletContext';
+import { db } from '../../services/firebaseConfig';
+import { registerForPushNotificationsAsync } from '@/services/pushNotificationService';
 
-// 🌍 قاموس التعريب
 const dashboardTranslations: Record<string, Record<string, string>> = {
   EN: {
-    goodDay: "Good day,",
-    noVip: "No VIP",
-    totalBalance: "TOTAL BALANCE",
-    deposit: "Deposit",
-    withdraw: "Withdraw",
-    dailyTask: "Daily Task",
-    start: "Start →",
-    completed: "Completed ✓",
-    rewardClaimed: "Reward claimed!",
-    upgradeToEarn: "Upgrade VIP to earn",
-    remainingVideos: "videos remaining",
-    potentialReward: "Today's Potential Reward",
-    payoutNote: "Credited after completing all 10 tasks",
-    activateVip: "Activate Your VIP Plan",
-    earnDaily: "Earn daily rewards from $1.20 to $24.00",
-    recentActivity: "Recent Activity",
-    viewAll: "View all →",
-    noTransactions: "No transactions yet",
-    depositType: "Deposit",
-    withdrawalType: "Withdrawal",
-    rewardType: "Daily Reward",
-    referralType: "Referral Bonus",
-    pendingStatus: "Pending",
-    completedStatus: "Completed",
-    rejectedStatus: "Rejected"
+    greeting: "Hello,", noVip: "No VIP", totalBalance: "Credit • Available", deposit: "Deposit",
+    withdraw: "Withdraw", dailyTask: "Daily Tasks", vipPlan: "VIP Plan",
+    rewardClaimed: "Reward claimed!", upgradeToEarn: "Upgrade to earn more", remainingVideos: "videos remaining",
+    recentActivity: "Recent transactions", viewAll: "View more", noTransactions: "No transactions yet",
+    depositType: "Account Deposit", withdrawalType: "Withdrawal", rewardType: "Daily Reward",
+    referralType: "Referral Bonus", pendingStatus: "Pending", completedStatus: "Completed",
+    rejectedStatus: "Rejected", notifCenter: "Notifications", noNotifs: "No new notifications.", justNow: "Today, Just now"
   },
   AR: {
-    goodDay: "أهلاً بك، يوماً سعيداً",
-    noVip: "بدون اشتراك VIP",
-    totalBalance: "إجمالي الرصيد الحالي",
-    deposit: "إيداع شحن",
-    withdraw: "سحب أرباح",
-    dailyTask: "المهام والـفيديوهات اليومية",
-    start: "ابدأ الآن ←",
-    completed: "مكتملة بالكامل ✓",
-    rewardClaimed: "تم استلام المكافأة الملوكية بنجاح!",
-    upgradeToEarn: "قم بترقية الـ VIP لبدء جني الأرباح",
-    remainingVideos: "فيديوهات متبقية للحصول على الجائزة",
-    potentialReward: "العائد المالي المحتمل اليوم",
-    payoutNote: "يتم احتساب الرصيد تلقائياً بعد إتمام كامل الـ 10 فيديوهات",
-    activateVip: "قم بتفعيل خطة الـ VIP الخاصة بك",
-    earnDaily: "اربح عوائد مالية يومية مضمونة من $1.20 إلى $24.00",
-    recentActivity: "أحدث النشاطات المالية المؤخرة",
-    viewAll: "عرض السجل كامل ←",
-    noTransactions: "لا يوجد أي عمليات مسجلة بعد",
-    depositType: "عملية إيداع",
-    withdrawalType: "طلب سحب",
-    rewardType: "مكافأة المهام",
-    referralType: "بونص الإحالة",
-    pendingStatus: "قيد الانتظار",
-    completedStatus: "مكتملة",
-    rejectedStatus: "مرفوضة"
+    greeting: "مرحباً،", noVip: "بدون VIP", totalBalance: "الرصيد • المتاح", deposit: "إيداع",
+    withdraw: "سحب رصيد", dailyTask: "المهام", vipPlan: "خطة VIP",
+    rewardClaimed: "استلمت المكافأة!", upgradeToEarn: "رقّي حسابك للربح", remainingVideos: "مهمة متبقية",
+    recentActivity: "أحدث المعاملات", viewAll: "عرض المزيد", noTransactions: "لا توجد حركات بعد",
+    depositType: "إيداع في الحساب", withdrawalType: "سحب رصيد", rewardType: "مكافأة يومية",
+    referralType: "بونص إحالة", pendingStatus: "قيد الانتظار", completedStatus: "مكتملة",
+    rejectedStatus: "مرفوضة", notifCenter: "الإشعارات", noNotifs: "لا توجد إشعارات.", justNow: "اليوم، الآن"
   }
 };
 
 function formatDate(dateStr: string | number, lang: string): string {
   const d = new Date(dateStr);
-  return d.toLocaleDateString(lang === 'AR' ? 'ar-DZ' : 'en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const time = d.toLocaleTimeString(lang === 'AR' ? 'ar-DZ' : 'en-US', { hour: '2-digit', minute: '2-digit' });
+  return lang === 'AR' ? `اليوم، ${time}` : `Today, ${time}`; 
 }
 
 function formatAmount(type: string, amount: number): string {
-  const sign = type === 'Withdrawal' ? '-' : '+';
-  return `${sign}$${amount.toFixed(2)}`;
+  const sign = type === 'Withdrawal' ? '-' : ''; 
+  return `${sign}${amount.toFixed(2)}$`;
 }
 
-function TxRow({ tx, lang }: { tx: Transaction; lang: string }) {
+function TxRow({ tx, lang, rtlRow, rtlAlign, isLast }: { tx: Transaction; lang: string, rtlRow: any, rtlAlign: any, isLast: boolean }) {
+  const t = dashboardTranslations[lang] || dashboardTranslations['EN'];
   const isReward = tx.type === 'Reward';
   const isDeposit = tx.type === 'Deposit';
-  const color = tx.type === 'Withdrawal' ? Colors.danger : Colors.success;
   
-  const t = dashboardTranslations[lang] || dashboardTranslations['EN'];
-  const txTypeString = tx.type as string;
-  const txStatusString = tx.status as string;
+  let displayType: string = tx.type;
+  if (displayType === 'Deposit') displayType = t.depositType;
+  else if (displayType === 'Withdrawal') displayType = t.withdrawalType;
+  else if (displayType === 'Reward') displayType = t.rewardType;
+  else if (displayType === 'Referral Bonus') displayType = t.referralType;
 
-  let displayType = txTypeString;
-  if (txTypeString === 'Deposit') displayType = t.depositType;
-  else if (txTypeString === 'Withdrawal') displayType = t.withdrawalType;
-  else if (txTypeString === 'Reward') displayType = t.rewardType;
-  else if (txTypeString === 'Referral Bonus') displayType = t.referralType;
+  const iconName = isReward ? 'gift' : isDeposit ? 'arrow-down-left' : 'credit-card';
+  const iconColor = isReward ? '#F59E0B' : isDeposit ? '#10B981' : '#6B7280';
+  const iconBg = isReward ? '#FEF3C7' : isDeposit ? '#D1FAE5' : '#F3F4F6';
 
-  let displayStatus = txStatusString;
-  const lowerStatus = txStatusString.toLowerCase();
-  if (lowerStatus === 'pending' || lowerStatus === 'waiting') displayStatus = t.pendingStatus;
-  else if (lowerStatus === 'completed' || lowerStatus === 'approved' || lowerStatus === 'success') displayStatus = t.completedStatus;
-  else if (lowerStatus === 'rejected' || lowerStatus === 'failed') displayStatus = t.rejectedStatus;
+  // 🔴 استخراج سبب الرفض وتنظيف النص
+  const isRejected = String(tx.status).toLowerCase().includes('reject');
+  const rawNote = tx.note || (tx as any).rejectReason || (tx as any).reason;
+  const rejectReason = rawNote ? rawNote.replace(/^Rejected Reason:\s*/i, '') : null;
 
   return (
-    <View style={[styles.txRow, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-      <View style={[styles.txIcon, { backgroundColor: isReward ? Colors.goldSurface : isDeposit ? Colors.infoSurface : Colors.dangerSurface }]}>
-        {isReward ? (
-          <Text style={{ fontSize: 12 }}>⭐</Text>
-        ) : isDeposit ? (
-          <FontAwesome name="arrow-down" size={14} color={Colors.info} />
-        ) : (
-          <FontAwesome name="arrow-up" size={14} color={Colors.danger} />
+    <View style={[styles.txRow, rtlRow, isLast && { borderBottomWidth: 0, paddingBottom: 0 }]}>
+      <View style={[styles.txIconBox, { borderColor: iconBg }]}>
+         <View style={[styles.txIconInner, { backgroundColor: iconBg }]}>
+            <Feather name={iconName} size={16} color={iconColor} />
+         </View>
+      </View>
+
+      <View style={[styles.txDetails, rtlAlign]}>
+        <Text style={styles.txTitle}>{displayType}</Text>
+        <Text style={styles.txDate}>{formatDate(tx.createdAt, lang)}</Text>
+        
+        {/* 🔥 عرض سبب الرفض تحت المعاملة إذا كانت مرفوضة */}
+        {isRejected && rejectReason && (
+          <Text style={{ fontSize: 11, color: '#EF4444', marginTop: 3, fontWeight: '600' }}>
+            {lang === 'AR' ? `سبب الرفض: ${rejectReason}` : `Reason: ${rejectReason}`}
+          </Text>
         )}
       </View>
-      <View style={[{ flex: 1 }, lang === 'AR' && { alignItems: 'flex-end', marginRight: 12 }]}>
-        <Text style={styles.txType}>{displayType}</Text>
-        <Text style={styles.txDate}>{formatDate(tx.createdAt, lang)}</Text>
-      </View>
+
       <View style={{ alignItems: lang === 'AR' ? 'flex-start' : 'flex-end' }}>
-        <Text style={[styles.txAmount, { color }]}>{formatAmount(tx.type, tx.amount)}</Text>
-        <View style={[styles.txStatusBadge, { backgroundColor: lowerStatus === 'completed' || lowerStatus === 'approved' || lowerStatus === 'success' ? Colors.successSurface : lowerStatus === 'rejected' || lowerStatus === 'failed' ? Colors.dangerSurface : Colors.warningSurface }]}>
-          <Text style={[styles.txStatusText, { color: lowerStatus === 'completed' || lowerStatus === 'approved' || lowerStatus === 'success' ? Colors.success : lowerStatus === 'rejected' || lowerStatus === 'failed' ? Colors.danger : Colors.warning }]}>
-            {displayStatus}
-          </Text>
-        </View>
+        <Text style={styles.txAmount}>{formatAmount(tx.type, tx.amount)}</Text>
+        <Text style={[styles.txStatusText, isRejected && { color: '#EF4444' }]}>
+          {isRejected ? (lang === 'AR' ? 'مرفوضة' : 'Rejected') : 'Credit'}
+        </Text>
       </View>
     </View>
   );
 }
 
 export default function DashboardScreen() {
-  const { user, isLoading } = useAuth(); 
+  const { user } = useAuth(); 
   const { dailyCounter, tasksDoneToday } = useTask();
   const { transactions } = useWallet();
+  
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  // @ts-ignore
-  const lang = user?.language || 'EN';
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [showNotifModal, setShowNotifModal] = useState(false);
+  const unreadCount = notifications.filter(n => !n.isRead).length;
+  
+  const lang = (user as any)?.language || 'EN';
+  const isAR = lang === 'AR';
   const t = dashboardTranslations[lang] || dashboardTranslations['EN'];
 
-  const secretTapCount = React.useRef(0);
-  const secretTapTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rtlRow = isAR ? { flexDirection: 'row-reverse' as const } : {};
+  const rtlAlign = isAR ? { alignItems: 'flex-end' as const, marginRight: 12, marginLeft: 0 } : { marginLeft: 12 };
 
-  const handleSecretTap = () => {
-    if (!user || !user.isAdmin) return; 
-    secretTapCount.current += 1;
-    if (secretTapTimer.current) clearTimeout(secretTapTimer.current);
-    if (secretTapCount.current >= 5) {
-      secretTapCount.current = 0;
-      router.push('/admin');
-      return;
+  // --- إعدادات الأنيميشن (الميدالية الحية) ---
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const floatAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(scaleAnim, { toValue: 1.05, duration: 1000, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
+        Animated.timing(scaleAnim, { toValue: 1, duration: 1000, useNativeDriver: true, easing: Easing.inOut(Easing.ease) })
+      ])
+    ).start();
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, { toValue: -6, duration: 1500, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
+        Animated.timing(floatAnim, { toValue: 0, duration: 1500, useNativeDriver: true, easing: Easing.inOut(Easing.ease) })
+      ])
+    ).start();
+  }, [scaleAnim, floatAnim]);
+
+  useEffect(() => {
+    if (user?.uid) {
+      registerForPushNotificationsAsync(user.uid);
+      const notifRef = ref(db, `users/${user.uid}/notifications`);
+      const unsubNotif = onValue(notifRef, (snap) => {
+        if (snap.exists()) {
+          const data = snap.val();
+          const notifArray = Object.keys(data).map(key => ({ id: key, ...data[key] }));
+          notifArray.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+          setNotifications(notifArray);
+        } else {
+          setNotifications([]);
+        }
+      });
+      return () => unsubNotif();
     }
-    secretTapTimer.current = setTimeout(() => { secretTapCount.current = 0; }, 3000);
-  };
+  }, [user?.uid]);
 
   if (!user) return null;
 
-  const userVip = user.vip_level || 0;
+  const userVip = (user as any).vip_level || 0;
   const tier = getVIPTier(userVip);
-  const progress = dailyCounter / TASK_TOTAL;
-  const recentTxs = transactions ? transactions.slice(0, 4) : [];
+  const recentTxs = transactions ? transactions.slice(0, 5) : [];
 
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={{ paddingBottom: Spacing.xl }}
-      showsVerticalScrollIndicator={false}
-    >
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-        <View style={lang === 'AR' && { alignItems: 'flex-end' }}>
-          <Text style={styles.greeting}>{t.goodDay}</Text>
-          <Text style={styles.username}>{user.username}</Text>
-        </View>
-        <Pressable
-          style={[styles.vipBadge, lang === 'AR' && { flexDirection: 'row-reverse' }]}
-          onPress={() => router.push('/vip-upgrade')}
-        >
-          {/* 🛠️ تعديل 1: استبدال المربع الأبيض الأول بإيموجي الماسة الثابت للتطبيق والموقع */}
-          <Text style={{ fontSize: 12, marginRight: 2, opacity: userVip > 0 ? 1 : 0.6 }}>💎</Text>
-          <Text style={[styles.vipBadgeText, { color: userVip > 0 ? tier.color : Colors.textMuted }]}>
-            {userVip > 0 ? tier.label : t.noVip}
-          </Text>
-        </Pressable>
-      </View>
-
-      {/* Balance Hero Card */}
-      <View style={styles.balanceCard}>
-        <View style={styles.balanceGlow} />
-        <Text style={[styles.balanceLabel, lang === 'AR' && { textAlign: 'right' }]}>{t.totalBalance}</Text>
-        <Text style={[styles.balanceAmount, lang === 'AR' && { textAlign: 'right' }]}>${user.balance.toFixed(2)}</Text>
-        <View style={[styles.balanceActions, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-          <Pressable
-            style={({ pressed }) => [styles.balanceBtn, { opacity: pressed ? 0.8 : 1 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}
-            onPress={() => router.push('/deposit')}
-          >
-            <FontAwesome name="arrow-down" size={14} color={Colors.textOnGold} />
-            <Text style={styles.balanceBtnText}>{t.deposit}</Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.balanceBtnOutline, { opacity: pressed ? 0.8 : 1 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}
-            onPress={() => router.push('/withdraw')}
-          >
-            <FontAwesome name="arrow-up" size={14} color={Colors.gold} />
-            <Text style={styles.balanceBtnOutlineText}>{t.withdraw}</Text>
-          </Pressable>
-        </View>
-      </View>
-
-      {/* Daily Task Progress */}
-      <View style={[GlobalStyles.card, styles.section]}>
-        <View style={[GlobalStyles.spaceBetween, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-          <Text style={GlobalStyles.sectionTitle}>{t.dailyTask}</Text>
-          <Pressable onPress={() => router.push('/tasks')}>
-            <Text style={{ color: Colors.gold, fontSize: FontSize.sm, fontWeight: FontWeight.semibold }}>
-              {tasksDoneToday ? t.completed : t.start}
+    <View style={styles.screen}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 100, paddingTop: insets.top + 10 }} showsVerticalScrollIndicator={false}>
+        
+        {/* 1. Header Section */}
+        <View style={[styles.header, rtlRow]}>
+          <View style={[styles.userInfo, rtlRow]}>
+            <View style={styles.avatar}>
+              <Ionicons name="person-outline" size={20} color="#6B7280" />
+            </View>
+            <Text style={styles.greetingText}>
+              {t.greeting} <Text style={styles.usernameText}>{user.username || 'User'}</Text>
             </Text>
+          </View>
+          <Pressable onPress={() => setShowNotifModal(true)} style={styles.notifBtn}>
+            <Ionicons name="notifications-outline" size={24} color="#1A1A1A" />
+            {unreadCount > 0 && <View style={styles.notifDot} />}
           </Pressable>
         </View>
-        <View style={[styles.taskProgressRow, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-          <Text style={[styles.taskCountText, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-            <Text style={{ color: Colors.gold, fontSize: FontSize.xl, fontWeight: FontWeight.bold }}>{dailyCounter}</Text>
-            <Text style={styles.taskCountOf}>/{TASK_TOTAL}</Text>
-          </Text>
-          <Text style={styles.taskStatusText}>
-            {tasksDoneToday
-              ? t.rewardClaimed
-              : userVip === 0
-              ? t.upgradeToEarn
-              : `${TASK_TOTAL - dailyCounter} ${t.remainingVideos}`}
-          </Text>
-        </View>
-        <View style={styles.progressBarBg}>
-          <View style={[styles.progressBarFill, { width: `${progress * 100}%` }, lang === 'AR' && { alignSelf: 'flex-end' }]} />
-        </View>
-      </View>
 
-      {/* VIP Payout Info */}
-      {userVip > 0 && (
-        <View style={[GlobalStyles.cardGold, styles.section]}>
-          <View style={[GlobalStyles.spaceBetween, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-            <Text style={GlobalStyles.sectionTitle}>{t.potentialReward}</Text>
-            {/* 🛠️ تعديل 2: استبدال المربع الأبيض الثاني هنا بإيموجي نجمة نصية ثابتة */}
-            <Text style={{ fontSize: 14 }}>⭐</Text>
+        {/* 2. Balance Section */}
+        <View style={styles.balanceSection}>
+          <Text style={styles.balanceSubtitle}>{t.totalBalance}</Text>
+          <Text style={styles.balanceAmountBig}>
+            {((user as any).balance || 0).toFixed(2)}<Text style={styles.currencySymbol}>$</Text>
+          </Text>
+          
+          <Animated.View style={[
+            styles.medalContainer, 
+            { transform: [{ scale: scaleAnim }, { translateY: floatAnim }] }
+          ]}>
+            <LinearGradient
+              colors={userVip > 0 ? ['#FCD34D', '#F59E0B', '#D97706'] : ['#E5E7EB', '#9CA3AF', '#6B7280']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.medalGradient}
+            >
+              <MaterialCommunityIcons 
+                name={userVip > 0 ? "crown" : "star-outline"} 
+                size={16} 
+                color="#FFF" 
+                style={styles.medalIcon} 
+              />
+              <Text style={styles.medalText}>
+                {/* تم تعديل هذا السطر لإزالة تكرار "VIP" */}
+                {userVip > 0 ? `${tier.label}` : t.upgradeToEarn}
+              </Text>
+            </LinearGradient>
+          </Animated.View>
+          
+          {/* Pagination Dots */}
+          <View style={styles.paginationDots}>
+             <View style={[styles.dot, styles.dotActive]} />
+             <View style={styles.dot} />
           </View>
-          <Text style={[styles.payoutRange, lang === 'AR' && { textAlign: 'right' }]}>
-            ${tier.dailyPayoutMin.toFixed(2)} – ${tier.dailyPayoutMax.toFixed(2)}
-          </Text>
-          <Text style={[styles.payoutNote, lang === 'AR' && { textAlign: 'right' }]}>{t.payoutNote}</Text>
         </View>
-      )}
 
-      {/* VIP Upgrade Prompt */}
-      {userVip === 0 && (
-        <Pressable
-          style={({ pressed }) => [styles.upgradePrompt, { opacity: pressed ? 0.85 : 1 }, lang === 'AR' && { flexDirection: 'row-reverse' }]}
-          onPress={() => router.push('/vip-upgrade')}
-        >
-          <Text style={{ fontSize: 16, marginRight: 6 }}>💎</Text>
-          <View style={[{ flex: 1 }, lang === 'AR' && { alignItems: 'flex-end', marginRight: Spacing.sm, marginLeft: 0 }]}>
-            <Text style={styles.upgradeTitle}>{t.activateVip}</Text>
-            <Text style={styles.upgradeSubtitle}>{t.earnDaily}</Text>
-          </View>
-          <Text style={{ fontSize: 14, color: Colors.goldDim }}>
-            {lang === 'AR' ? '◀' : '▶'}
-          </Text>
-        </Pressable>
-      )}
+        {/* 3. Action Buttons Section */}
+  {/* 3. Action Buttons Section */}
+        <View style={[styles.actionRow, rtlRow]}>
+          <Pressable style={styles.actionBtn} onPress={() => router.push('/withdraw')}>
+            <View style={styles.actionCircle}>
+              {/* أيقونة السحب الجديدة (سهم لأعلى يرمز لخروج المال) */}
+              <Feather name="arrow-up-circle" size={24} color="#7C3AED" />
+            </View>
+            <Text style={styles.actionText}>{t.withdraw}</Text>
+          </Pressable>
 
-      {/* Recent Transactions */}
-      <View style={[GlobalStyles.card, styles.section]}>
-        <View style={[GlobalStyles.spaceBetween, { marginBottom: Spacing.md }, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-          <Text style={GlobalStyles.sectionTitle}>{t.recentActivity}</Text>
-          <Pressable onPress={() => router.push('/wallet')}>
-            <Text style={{ color: Colors.gold, fontSize: FontSize.sm, fontWeight: FontWeight.semibold }}>
-              {t.viewAll}
-            </Text>
+          <Pressable style={styles.actionBtn} onPress={() => router.push('/deposit')}>
+            <View style={styles.actionCircle}>
+              {/* أيقونة الإيداع الجديدة (سهم لأسفل يرمز لدخول المال) */}
+              <Feather name="arrow-down-circle" size={24} color="#7C3AED" />
+            </View>
+            <Text style={styles.actionText}>{t.deposit}</Text>
+          </Pressable>
+
+          <Pressable style={styles.actionBtn} onPress={() => router.push('/tasks')}>
+            <View style={styles.actionCircle}>
+              <MaterialCommunityIcons name="target" size={24} color="#7C3AED" />
+              {tasksDoneToday === false && <View style={styles.taskBadge} />}
+            </View>
+            <Text style={styles.actionText}>{t.dailyTask}</Text>
           </Pressable>
         </View>
-        {recentTxs.length === 0 ? (
-          <Text style={{ color: Colors.textMuted, fontSize: FontSize.sm, textAlign: 'center', paddingVertical: Spacing.lg }}>
-            {t.noTransactions}
-          </Text>
-        ) : (
-          recentTxs.map((tx, i) => {
-            return (
-              <View key={tx.id}>
-                <TxRow tx={tx} lang={lang} />
-                {i < recentTxs.length - 1 && <View style={GlobalStyles.divider} />}
+
+        {/* 4. Transactions List Section */}
+        <View style={styles.transactionsContainer}>
+          <View style={[styles.sectionHeader, rtlRow]}>
+            <Text style={styles.sectionTitle}>{t.recentActivity}</Text>
+            <Pressable onPress={() => router.push('/wallet')}>
+              <Text style={styles.viewAllText}>{t.viewAll}</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.transactionsCard}>
+            {recentTxs.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>{t.noTransactions}</Text>
               </View>
-            );
-          })
-        )}
-      </View>
-    </ScrollView>
+            ) : (
+              recentTxs.map((tx, index) => (
+                <TxRow 
+                  key={tx.id} 
+                  tx={tx} 
+                  lang={lang} 
+                  rtlRow={rtlRow} 
+                  rtlAlign={rtlAlign}
+                  isLast={index === recentTxs.length - 1} 
+                />
+              ))
+            )}
+          </View>
+        </View>
+
+      </ScrollView>
+    </View>
   );
 }
 
+// 🎨 Styles
+const THEME = {
+  bg: '#F8F9FA',
+  surface: '#FFFFFF',
+  primaryText: '#111827',
+  secondaryText: '#6B7280',
+  accentLight: '#EDE9F6',
+  accentDark: '#7C3AED',
+  greenDate: '#658141',
+};
+
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: Colors.background },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md },
-  greeting: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.medium },
-  username: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.textPrimary },
-  vipBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.surfaceBorder, borderRadius: Radius.full, paddingHorizontal: 12, paddingVertical: 6 },
-  vipBadgeText: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, letterSpacing: 0.5 },
-  balanceCard: { marginHorizontal: Spacing.lg, marginBottom: Spacing.md, backgroundColor: Colors.goldSurface, borderRadius: Radius.xl, borderWidth: 1, borderColor: Colors.goldDim, padding: Spacing.lg, overflow: 'hidden' },
-  balanceGlow: { position: 'absolute', top: -40, right: -40, width: 160, height: 160, borderRadius: 80, backgroundColor: Colors.gold, opacity: 0.06 },
-  balanceLabel: { fontSize: FontSize.xs, color: Colors.goldDim, fontWeight: FontWeight.semibold, letterSpacing: 1.5, marginBottom: Spacing.sm },
-  balanceAmount: { fontSize: 44, fontWeight: FontWeight.extrabold, color: Colors.gold, marginBottom: Spacing.lg, letterSpacing: -1 },
-  balanceActions: { flexDirection: 'row', gap: Spacing.sm },
-  balanceBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: Colors.gold, borderRadius: Radius.md, paddingVertical: 12 },
-  balanceBtnText: { color: Colors.textOnGold, fontSize: FontSize.md, fontWeight: FontWeight.bold },
-  balanceBtnOutline: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderColor: Colors.goldDim, borderRadius: Radius.md, paddingVertical: 12 },
-  balanceBtnOutlineText: { color: Colors.gold, fontSize: FontSize.md, fontWeight: FontWeight.semibold },
-  section: { marginHorizontal: Spacing.lg, marginBottom: Spacing.md },
-  taskProgressRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: Spacing.sm },
-  taskCountText: { flexDirection: 'row', alignItems: 'baseline' },
-  taskCountOf: { fontSize: FontSize.lg, color: Colors.textMuted, fontWeight: FontWeight.medium },
-  taskStatusText: { fontSize: FontSize.sm, color: Colors.textSecondary },
-  progressBarBg: { height: 6, backgroundColor: Colors.surfaceBorder, borderRadius: Radius.full, overflow: 'hidden', marginBottom: Spacing.sm },
-  progressBarFill: { height: '100%', backgroundColor: Colors.gold, borderRadius: Radius.full },
-  taskDots: { flexDirection: 'row', gap: 4, flexWrap: 'wrap' },
-  taskDot: { width: 20, height: 8, borderRadius: Radius.full, backgroundColor: Colors.surfaceBorder },
-  taskDotDone: { backgroundColor: Colors.gold },
-  payoutRange: { fontSize: FontSize.xxl, fontWeight: FontWeight.bold, color: Colors.gold, marginBottom: 4 },
-  payoutNote: { fontSize: FontSize.sm, color: Colors.goldDim },
-  upgradePrompt: { flexDirection: 'row', alignItems: 'center', marginHorizontal: Spacing.lg, marginBottom: Spacing.md, backgroundColor: Colors.goldSurface, borderWidth: 1, borderColor: Colors.goldDim, borderRadius: Radius.lg, padding: Spacing.md },
-  upgradeTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
-  upgradeSubtitle: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 },
-  txRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: 4 },
-  txIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  txType: { fontSize: FontSize.md, color: Colors.textPrimary, fontWeight: FontWeight.semibold },
-  txDate: { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2 },
-  txAmount: { fontSize: FontSize.md, fontWeight: FontWeight.bold, marginBottom: 4 },
-  txStatusBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: Radius.sm },
-  txStatusText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold },
+  screen: { flex: 1, backgroundColor: THEME.bg },
+  
+  // Header
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    marginBottom: 30,
+  },
+  userInfo: { flexDirection: 'row', alignItems: 'center' },
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+    marginLeft: 10,
+  },
+  greetingText: { fontSize: 16, color: THEME.primaryText },
+  usernameText: { fontWeight: '700' },
+  notifBtn: { position: 'relative', padding: 4 },
+  notifDot: { position: 'absolute', top: 2, right: 4, width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444', borderWidth: 1.5, borderColor: THEME.bg },
+
+  // Balance Section
+  balanceSection: {
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  balanceSubtitle: {
+    fontSize: 13,
+    color: THEME.secondaryText,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  balanceAmountBig: {
+    fontSize: 48,
+    fontWeight: '900',
+    color: THEME.primaryText,
+    letterSpacing: -1.5,
+  },
+  currencySymbol: {
+    fontSize: 36,
+    fontWeight: '700',
+  },
+  
+  // 🏅 Live Medal Styles
+  medalContainer: {
+    marginTop: 12,
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+    borderRadius: 20,
+  },
+  medalGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  medalIcon: {
+    marginRight: 6,
+  },
+  medalText: {
+    fontSize: 13,
+    color: '#FFFFFF',
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+
+  paginationDots: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 20,
+  },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#D1D5DB' },
+  dotActive: { backgroundColor: THEME.secondaryText },
+
+  // Action Buttons
+  actionRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 20,
+    marginBottom: 40,
+    paddingHorizontal: 20,
+  },
+  actionBtn: {
+    alignItems: 'center',
+    width: 90,
+  },
+  actionCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: THEME.accentLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  actionText: {
+    fontSize: 12,
+    color: THEME.primaryText,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  taskBadge: {
+    position: 'absolute', top: 0, right: 0, width: 12, height: 12, borderRadius: 6, backgroundColor: '#EF4444', borderWidth: 2, borderColor: THEME.accentLight
+  },
+
+  // Transactions Section
+  transactionsContainer: {
+    paddingHorizontal: 24,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: THEME.primaryText,
+  },
+  viewAllText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: THEME.primaryText,
+    textDecorationLine: 'underline',
+  },
+  transactionsCard: {
+    backgroundColor: THEME.surface,
+    borderRadius: 24,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.03,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  txRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  txIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  txIconInner: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  txDetails: {
+    flex: 1,
+  },
+  txTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: THEME.primaryText,
+    marginBottom: 4,
+  },
+  txDate: {
+    fontSize: 12,
+    color: THEME.greenDate,
+    fontWeight: '500',
+  },
+  txAmount: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: THEME.primaryText,
+    marginBottom: 4,
+  },
+  txStatusText: {
+    fontSize: 11,
+    color: THEME.secondaryText,
+    fontWeight: '500',
+  },
+  emptyState: { paddingVertical: 20, alignItems: 'center' },
+  emptyText: { color: THEME.secondaryText, fontSize: 13 },
 });

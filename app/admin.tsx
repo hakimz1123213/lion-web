@@ -1,22 +1,20 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Pressable, FlatList,
-  TextInput, Modal, KeyboardAvoidingView, ActivityIndicator, Animated, Alert, RefreshControl, TouchableOpacity, Platform
+  TextInput, Modal, KeyboardAvoidingView, ActivityIndicator, Alert, RefreshControl, TouchableOpacity, Platform
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { ref, get, update, onValue } from 'firebase/database'; 
+import { ref, get, onValue } from 'firebase/database'; 
 import * as Clipboard from 'expo-clipboard'; 
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 import { useAuth } from '../hooks/useAuth';
 import { useWallet } from '../hooks/useWallet';
 import { useAlert } from '../template';
 import { Colors } from '../constants/theme';
 import { isSuperAdmin, getVIPTier } from '../constants/config';
-import { recordFinancialTransaction } from '../services/financialService';
 import { db } from '../services/firebaseConfig';
-import { sendPushNotification } from '../services/pushNotificationService'; // 🚀 محرك الإشعارات
 
 export default function AdminScreen() {
   // @ts-ignore
@@ -42,10 +40,8 @@ export default function AdminScreen() {
   const [newBalance, setNewBalance] = useState('');
   const [newVip, setNewVip] = useState(0);
 
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
 
-  // 🔴 متغيرات نافذة الرفض (Reject Modal)
   const [rejectModalVisible, setRejectModalVisible] = useState(false);
   const [rejectingTx, setRejectingTx] = useState<any | null>(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -59,8 +55,6 @@ export default function AdminScreen() {
     activeUsers: 0,
     vipHolders: 0
   });
-
-  const [fadeAnim] = useState(new Animated.Value(0));
 
   useEffect(() => {
     if (!user?.uid || !isSuperAdmin(user?.uid)) return;
@@ -92,7 +86,7 @@ export default function AdminScreen() {
     });
 
     return () => unsubscribeTxs();
-  }, [user?.uid, user?.email]);
+  }, [user?.uid]);
 
   useEffect(() => {
     let result = historyTxs;
@@ -101,16 +95,18 @@ export default function AdminScreen() {
     }
     if (historySearchQuery.trim() !== '') {
       result = result.filter(t => 
-        // 🚨 حماية البحث في السجل
-        (t.username || '').toLowerCase().includes(historySearchQuery.toLowerCase())
+        (t.username || '').toLowerCase().includes(historySearchQuery.toLowerCase()) ||
+        (t.userId || '').toLowerCase().includes(historySearchQuery.toLowerCase())
       );
     }
     setFilteredHistory(result);
   }, [historyTxs, historyFilter, historySearchQuery]);
+
   const loadData = useCallback(async () => {
     if (!user?.uid) return;
     try {
       setIsRefreshing(true);
+      
       const rawUsers = await getAllUsers();
       let usersArray: any[] = [];
       if (rawUsers) {
@@ -168,7 +164,6 @@ export default function AdminScreen() {
         vipHolders: usersArray.filter(u => (parseInt(u.vip_level?.toString()) || 0) > 0).length
       });
 
-      Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();
     } catch (e) {
       console.error("Database parsing error in admin overview:", e);
     } finally {
@@ -202,16 +197,12 @@ export default function AdminScreen() {
     }
   };
 
-  if (!user || !isSuperAdmin(user?.uid)) return null;
-
- const filteredUsers = allUsers.filter(u => {
-    // 1️⃣ إذا كان مربع البحث فارغ، خليهم كامل يفوتو بلا مشاكل
+  const filteredUsers = allUsers.filter(u => {
     if (!searchQuery || searchQuery.trim() === '') {
       if (showVipOnly) return (parseInt(u.vip_level?.toString()) || 0) > 0;
       return true;
     }
 
-    // 2️⃣ إذا كاين بحث، نحميو المتغيرات باش ما يخرجناش إيرور Undefined
     const safeUsername = String(u.username || '').toLowerCase();
     const safeEmail = String(u.email || '').toLowerCase();
     const safeQuery = searchQuery.toLowerCase().trim();
@@ -232,64 +223,6 @@ export default function AdminScreen() {
     return getSafeTime(b.createdAt) - getSafeTime(a.createdAt);
   });
 
-  // 🟢 دالة القبول (Approve) + إرسال الإشعار للعميل 🟢
-  const handleApprove = (tx: any) => {
-    if (!tx || !tx.id) return;
-    if (processingId !== null) return;
-
-    Alert.alert("MASTER COMMAND", `Are you sure you want to approve $${tx.amount} for ${tx.username}?`, [
-      { text: "STOP", style: "cancel" },
-      { text: "EXECUTE", onPress: async () => {
-        if (processingId !== null) return;
-        try {
-          setProcessingId(tx.id);
-          const txRef = ref(db, `transactions/${tx.id}`);
-          const checkSnap = await get(txRef);
-          if (checkSnap.exists()) {
-            const currentStatus = (checkSnap.val().status || '').toLowerCase();
-            if (currentStatus === 'completed' || currentStatus === 'approved' || currentStatus === 'success') {
-              showAlert('BLOCKED', 'Security Alert: This transaction was already processed! Operation denied.');
-              return;
-            }
-          }
-
-          await update(txRef, { status: 'Completed', note: 'Approved successfully by Admin.' });
-
-          if (tx.type === 'Deposit' && tx.userId) {
-            const userRef = ref(db, `users/${tx.userId}`);
-            const userSnap = await get(userRef);
-            if (userSnap.exists()) {
-              const oldBal = parseFloat(userSnap.val().balance?.toString()) || 0;
-              const newBal = oldBal + parseFloat(tx.amount.toString());
-              await update(userRef, { balance: newBal });
-              await recordFinancialTransaction(tx.userId, tx.username, tx.amount);
-            }
-          }
-
-          // 🚀 [جديـــد]: إرسال إشعار القبول الفوري (Push Notification) 🚀
-          if (tx.userId) {
-            const uSnap = await get(ref(db, `users/${tx.userId}`));
-            if (uSnap.exists() && uSnap.val().expoPushToken) {
-              const title = tx.type === 'Deposit' ? '✅ تم تأكيد الإيداع!' : '💸 تمت الموافقة على السحب!';
-              const body = tx.type === 'Deposit' 
-                ? `تم شحن رصيدك بنجاح بمبلغ $${tx.amount}. استمتع بترقية حسابك!`
-                : `تمت الموافقة على سحب $${tx.amount}. تفقد محفظتك قريباً!`;
-              await sendPushNotification(uSnap.val().expoPushToken, title, body);
-            }
-          }
-
-          await loadData();
-          showAlert('SUCCESS', `Successfully approved ${tx.type}.`);
-        } catch (error: any) {
-          Alert.alert("System Crash", error.message);
-        } finally {
-          setProcessingId(null);
-        }
-      }}
-    ]);
-  };
-
-  // 🔴 فتح نافذة الرفض
   const openRejectPrompt = (tx: any) => {
     if (processingId !== null) return;
     setRejectingTx(tx);
@@ -297,7 +230,6 @@ export default function AdminScreen() {
     setRejectModalVisible(true);
   };
 
-  // 🔴 تأكيد الرفض من النافذة (مع السبب وإرسال الإشعار للعميل) 🔴
   const confirmReject = async () => {
     if (!rejectingTx) return;
     if (!rejectReason.trim()) {
@@ -307,53 +239,43 @@ export default function AdminScreen() {
 
     try {
       setProcessingId(rejectingTx.id);
-      setRejectModalVisible(false); // إغلاق النافذة
+      setRejectModalVisible(false);
 
-      const txRef = ref(db, `transactions/${rejectingTx.id}`);
-      const checkSnap = await get(txRef);
-      if (checkSnap.exists() && (checkSnap.val().status || '').toLowerCase() === 'completed') {
-        showAlert('BLOCKED', 'Too late! This transaction is already completed.');
-        return;
-      }
-
-      // 1️⃣ تحديث المعاملة بالرفض وتسجيل السبب
-      await update(txRef, { 
-        status: 'Rejected', 
-        note: `Rejected Reason: ${rejectReason.trim()}` 
+      const functions = getFunctions();
+      const rejectTransaction = httpsCallable(functions, 'adminRejectTransaction');
+      
+      await rejectTransaction({ 
+          txId: rejectingTx.id, 
+          reason: rejectReason.trim() 
       });
-
-      // 2️⃣ نظام الاسترجاع (Refund) إذا كان السحب مرفوض
-      if ((rejectingTx.type === 'Withdrawal' || rejectingTx.type === 'withdraw') && rejectingTx.userId) {
-        const userRef = ref(db, `users/${rejectingTx.userId}`);
-        const userSnap = await get(userRef);
-        if (userSnap.exists()) {
-          const currentBalance = parseFloat(userSnap.val().balance?.toString()) || 0;
-          const refundAmount = parseFloat(rejectingTx.amount?.toString()) || 0;
-          await update(userRef, { balance: currentBalance + refundAmount });
-        }
-      }
-
-      // 3️⃣ 🚀 [جديـــد]: إرسال إشعار الرفض مع السبب للعميل 🚀
-      if (rejectingTx.userId) {
-        const uSnap = await get(ref(db, `users/${rejectingTx.userId}`));
-        if (uSnap.exists() && uSnap.val().expoPushToken) {
-          const opType = (rejectingTx.type === 'Deposit') ? 'الإيداع' : 'السحب';
-          await sendPushNotification(
-            uSnap.val().expoPushToken, 
-            '❌ تم رفض المعاملة', 
-            `عذراً، تم رفض طلب ${opType} الخاص بك بمبلغ $${rejectingTx.amount}.\nالسبب: ${rejectReason.trim()}`
-          );
-        }
-      }
 
       await loadData();
       showAlert('REJECTED', 'Order rejected successfully and user notified.');
     } catch (e: any) { 
-      Alert.alert("Reject Fail", e.message); 
+      Alert.alert("Reject Fail", e.message || "An error occurred"); 
     } finally {
       setProcessingId(null);
       setRejectingTx(null);
       setRejectReason('');
+    }
+  };
+
+  const handleApprove = async (tx: any) => {
+    if (processingId !== null) return;
+
+    try {
+      setProcessingId(tx.id);
+      const functions = getFunctions();
+      const approveTransaction = httpsCallable(functions, 'adminApproveTransaction');
+      
+      await approveTransaction({ txId: tx.id });
+      
+      await loadData();
+      showAlert('APPROVED', 'Order approved successfully.');
+    } catch (e: any) {
+      Alert.alert("Approve Fail", e.message || "An error occurred");
+    } finally {
+      setProcessingId(null);
     }
   };
 
@@ -381,7 +303,6 @@ export default function AdminScreen() {
        t.userId === sponsorUser.uid && 
        t.type === 'Referral Bonus' && 
        t.note && 
-       // 🚨 حماية اسم المستخدم أثناء الحساب
        t.note.toLowerCase().includes((editingUser.username || '').toLowerCase())
     )
     .reduce((sum, t) => sum + (parseFloat(t.amount || 0) || 0), 0) : 0;
@@ -399,6 +320,8 @@ export default function AdminScreen() {
   const totalNetworkEarned = editingUser ? historyTxs
     .filter(t => t.userId === editingUser.uid && t.type === 'Referral Bonus')
     .reduce((sum, t) => sum + (parseFloat(t.amount || 0) || 0), 0) : 0;
+
+  if (!user || !isSuperAdmin(user?.uid)) return null;
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
@@ -435,7 +358,7 @@ export default function AdminScreen() {
         </View>
       </View>
 
-      <Animated.View style={{ flex: 1, opacity: fadeAnim, width: '100%' }}>
+      <View style={{ flex: 1, width: '100%' }}>
         {isLoading && !isRefreshing ? (
           <View style={styles.center}><ActivityIndicator size="large" color={Colors.gold} /></View>
         ) : (
@@ -444,7 +367,6 @@ export default function AdminScreen() {
               
               {activeTab === 'overview' && (
                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent} refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={loadData} tintColor={Colors.gold} />}>
-                  {/* ... Overview Content ... */}
                   <View style={styles.mainProfitCard}>
                     <View style={styles.glassEffect} />
                     <View style={styles.cardContent}>
@@ -497,86 +419,95 @@ export default function AdminScreen() {
                 </ScrollView>
               )}
 
-              {activeTab === 'requests' && (
-                <FlatList
-                  data={pendingTxs}
-                  keyExtractor={(item) => item.id}
-                  contentContainerStyle={styles.listPadding}
-                  renderItem={({ item }) => {
-                    const isCurrentProcessing = processingId === item.id;
-                    return (
-                      <View style={styles.luxuryReqCard}>
-                        <View style={styles.reqTop}>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.reqName}>{item.username || 'Unknown User'}</Text>
-                            <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center', marginTop: 4 }}>
-                              <View style={[styles.reqBadge, { marginTop: 0, backgroundColor: (item.type || 'Deposit') === 'Deposit' ? '#00FF0015' : '#FF000015' }]}>
-                                <Text style={{ color: (item.type || 'Deposit') === 'Deposit' ? '#00FF00' : '#FF0000', fontSize: 10, fontWeight: 'bold' }}>{(item.type || 'Deposit').toUpperCase()}</Text>
-                              </View>
-                              <Text style={{ color: '#444', fontSize: 11 }}>ID: {item.userId ? item.userId.substring(0,6) : 'N/A'}</Text>
-                            </View>
-                          </View>
-                          <Text style={styles.reqAmount}>${(item.amount || item.value || 0).toLocaleString()}</Text>
-                        </View>
+            {activeTab === 'requests' && (
+  <FlatList
+    data={pendingTxs}
+    keyExtractor={(item) => item.id}
+    contentContainerStyle={styles.listPadding}
+    renderItem={({ item }) => {
+      const isCurrentProcessing = processingId === item.id;
+      const normalizedType = (item.type || '').toLowerCase();
+      const isWithdrawal = normalizedType === 'withdrawal' || normalizedType === 'withdraw';
+      const isDeposit = normalizedType === 'deposit';
+      const targetAddress = item.walletAddress || item.address || '';
 
-                        {/* TXID / Wallet Address Boxes */}
-                        {item.type === 'Deposit' && (
-                          <View style={styles.txidIntelBlock}>
-                            <Text style={styles.txidBlockLabel}>TRANSACTION HASH :</Text>
-                            <View style={styles.txidRow}>
-                              <Text style={styles.txidTextString} numberOfLines={1} selectable>{item.txid || '⚠️ Missing Hash Code'}</Text>
-                              {item.txid && (
-                                <Pressable style={styles.txidMiniCopyBtn} onPress={async () => { await Clipboard.setStringAsync(item.txid); showAlert('Copied!', 'TXID Hash copied to admin clipboard.'); }}>
-                                  <Text style={{ fontSize: 11 }}>📋</Text>
-                                  <Text style={{ color: Colors.gold, fontSize: 10, fontWeight: 'bold' }}>Copy</Text>
-                                </Pressable>
-                              )}
-                            </View>
-                          </View>
-                        )}
-                        {(item.type === 'Withdrawal' || item.type === 'withdraw') && (item.address || item.walletAddress) && (
-                          <View style={styles.txidIntelBlock}>
-                            <Text style={styles.txidBlockLabel}>USDT BEP20 DESTINATION ADDRESS :</Text>
-                            <View style={styles.txidRow}>
-                              <Text style={styles.txidTextString} numberOfLines={1} selectable>{item.address || item.walletAddress || '⚠️ Missing Address'}</Text>
-                              <Pressable style={styles.txidMiniCopyBtn} onPress={async () => { await Clipboard.setStringAsync(item.address || item.walletAddress); showAlert('Copied!', 'Wallet Address copied to admin clipboard.'); }}>
-                                <Text style={{ fontSize: 11 }}>📋</Text>
-                                <Text style={{ color: Colors.gold, fontSize: 10, fontWeight: 'bold' }}>Copy</Text>
-                              </Pressable>
-                            </View>
-                          </View>
-                        )}
-                        
-                        {item.proofImageUri && item.proofImageUri !== 'No image/TXID Mode' && (
-                          <Pressable style={styles.proofFrame} onPress={() => setPreviewImage(item.proofImageUri || null)} disabled={processingId !== null}>
-                            <Image source={{ uri: item.proofImageUri }} style={styles.proofImg} contentFit="cover" />
-                            <View style={styles.zoomIndicator}>
-                              <Text style={{ fontSize: 12 }}>🔍</Text>
-                              <Text style={styles.zoomText}>Click to Zoom</Text>
-                            </View>
-                          </Pressable>
-                        )}
+      return (
+        <View style={styles.luxuryReqCard}>
+          <View style={styles.reqTop}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.reqName}>{item.username || 'Unknown User'}</Text>
+              <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center', marginTop: 4 }}>
+                <View style={[styles.reqBadge, { marginTop: 0, backgroundColor: isDeposit ? '#00FF0015' : '#FF000015' }]}>
+                  <Text style={{ color: isDeposit ? '#00FF00' : '#FF0000', fontSize: 10, fontWeight: 'bold' }}>
+                    {(item.type || 'Deposit').toUpperCase()}
+                  </Text>
+                </View>
+                <Text style={{ color: '#444', fontSize: 11 }}>ID: {item.userId ? item.userId.substring(0,6) : 'N/A'}</Text>
+              </View>
+            </View>
+            <Text style={styles.reqAmount}>${(item.amount || item.value || 0).toLocaleString()}</Text>
+          </View>
 
-                        <View style={styles.reqActions}>
-                          <Pressable style={[styles.miniBtnRej, processingId !== null && { opacity: 0.4 }]} onPress={() => openRejectPrompt(item)} disabled={processingId !== null}>
-                            <Text style={{ fontSize: 12, marginRight: 2 }}>❌</Text>
-                            <Text style={styles.miniBtnText}>REJECT</Text>
-                          </Pressable>
-                          
-                          <Pressable style={[styles.miniBtnApp, processingId !== null && { opacity: 0.6 }]} onPress={() => handleApprove(item)} disabled={processingId !== null}>
-                            {isCurrentProcessing ? (
-                              <ActivityIndicator size="small" color="#000" />
-                            ) : (
-                              <><Text style={{ fontSize: 12, marginRight: 2 }}>✅</Text><Text style={[styles.miniBtnText, { color: '#000' }]}>APPROVE</Text></>
-                            )}
-                          </Pressable>
-                        </View>
-                      </View>
-                    );
-                  }}
-                  ListEmptyComponent={<Text style={styles.emptyText}>No pending operations.</Text>}
-                />
+          {/* حالة الإيداع: عرض الـ Hash */}
+          {isDeposit && (
+            <View style={styles.txidIntelBlock}>
+              <Text style={styles.txidBlockLabel}>TRANSACTION HASH :</Text>
+              <View style={styles.txidRow}>
+                <Text style={styles.txidTextString} numberOfLines={1} selectable>{item.txid || '⚠️ Missing Hash Code'}</Text>
+                {item.txid && (
+                  <Pressable style={styles.txidMiniCopyBtn} onPress={async () => { await Clipboard.setStringAsync(item.txid); showAlert('Copied!', 'TXID Hash copied to admin clipboard.'); }}>
+                    <Text style={{ fontSize: 11 }}>📋</Text>
+                    <Text style={{ color: Colors.gold, fontSize: 10, fontWeight: 'bold' }}>Copy</Text>
+                  </Pressable>
+                )}
+              </View>
+            </View>
+          )}
+
+          {/* حالة السحب: عرض العنوان + زر النسخ */}
+          {isWithdrawal && (
+            <View style={styles.txidIntelBlock}>
+              <Text style={styles.txidBlockLabel}>USDT BEP20 DESTINATION ADDRESS :</Text>
+              <View style={styles.txidRow}>
+                <Text style={styles.txidTextString} numberOfLines={1} selectable>
+                  {targetAddress || '⚠️ Missing Address'}
+                </Text>
+                {targetAddress ? (
+                  <Pressable 
+                    style={styles.txidMiniCopyBtn} 
+                    onPress={async () => { 
+                      await Clipboard.setStringAsync(targetAddress); 
+                      showAlert('Copied!', 'Wallet Address copied to admin clipboard.'); 
+                    }}
+                  >
+                    <Text style={{ fontSize: 11 }}>📋</Text>
+                    <Text style={{ color: Colors.gold, fontSize: 10, fontWeight: 'bold' }}>Copy</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            </View>
+          )}
+          
+          <View style={styles.reqActions}>
+            <Pressable style={[styles.miniBtnRej, processingId !== null && { opacity: 0.4 }]} onPress={() => openRejectPrompt(item)} disabled={processingId !== null}>
+              <Text style={{ fontSize: 12, marginRight: 2 }}>❌</Text>
+              <Text style={styles.miniBtnText}>REJECT</Text>
+            </Pressable>
+            
+            <Pressable style={[styles.miniBtnApp, processingId !== null && { opacity: 0.6 }]} onPress={() => handleApprove(item)} disabled={processingId !== null}>
+              {isCurrentProcessing ? (
+                <ActivityIndicator size="small" color="#000" />
+              ) : (
+                <><Text style={{ fontSize: 12, marginRight: 2 }}>✅</Text><Text style={[styles.miniBtnText, { color: '#000' }]}>APPROVE</Text></>
               )}
+            </Pressable>
+          </View>
+        </View>
+      );
+    }}
+    ListEmptyComponent={<Text style={styles.emptyText}>No pending operations.</Text>}
+  />
+)}
 
               {activeTab === 'users' && (
                 <View style={{ flex: 1, width: '100%' }}>
@@ -591,26 +522,21 @@ export default function AdminScreen() {
                     </View>
                   )}
                   <FlatList
-    data={filteredUsers}
-    keyExtractor={(item) => item.uid || Math.random().toString()}
-    contentContainerStyle={styles.listPadding}
-    
-    // 👇 ضيف هاد الرادار هنا 👇
-    ListEmptyComponent={
-      <View style={{ alignItems: 'center', marginTop: 80 }}>
-        <Text style={{ fontSize: 50 }}>📭</Text>
-        <Text style={{ color: '#fff', fontSize: 18, marginTop: 15, fontWeight: 'bold' }}>
-          {allUsers.length === 0 ? "قاعدة البيانات مارجعت حتى مستخدم!" : "مكاش مستخدم بهاد الاسم!"}
-        </Text>
-        <Text style={{ color: Colors.gold, fontSize: 14, marginTop: 8 }}>
-          (إجمالي المستخدمين في الذاكرة: {allUsers.length})
-        </Text>
-      </View>
-    }
-    // 👆 👆
-    
-    renderItem={({ item }) => {
-      // ... (خلي كود الرندر نتاعك كيما راه)
+                    data={filteredUsers}
+                    keyExtractor={(item) => item.uid || Math.random().toString()}
+                    contentContainerStyle={styles.listPadding}
+                    ListEmptyComponent={
+                      <View style={{ alignItems: 'center', marginTop: 80 }}>
+                        <Text style={{ fontSize: 50 }}>📭</Text>
+                        <Text style={{ color: '#fff', fontSize: 18, marginTop: 15, fontWeight: 'bold' }}>
+                          {allUsers.length === 0 ? "قاعدة البيانات مارجعت حتى مستخدم!" : "مكاش مستخدم بهاد الاسم!"}
+                        </Text>
+                        <Text style={{ color: Colors.gold, fontSize: 14, marginTop: 8 }}>
+                          (إجمالي المستخدمين في الذاكرة: {allUsers.length})
+                        </Text>
+                      </View>
+                    }
+                    renderItem={({ item }) => {
                       const tier = getVIPTier(item.vip_level || 0);
                       const totalReferredCount = allUsers.filter(u => {
                         if (!u.referredBy) return false;
@@ -659,7 +585,7 @@ export default function AdminScreen() {
                   </ScrollView>
                   <View style={[styles.searchContainer, { marginTop: 0, marginBottom: 15 }]}>
                     <Text style={{ fontSize: 14, marginRight: 6 }}>🔍</Text>
-                    <TextInput style={styles.searchInput} placeholder="Search history by username..." placeholderTextColor="#444" value={historySearchQuery} onChangeText={setHistorySearchQuery} editable={processingId === null} />
+                    <TextInput style={styles.searchInput} placeholder="Search history by username or user ID..." placeholderTextColor="#444" value={historySearchQuery} onChangeText={setHistorySearchQuery} editable={processingId === null} />
                   </View>
                   <View style={styles.historySummaryCard}>
                     <Text style={styles.hSumTitle}>FILTERED LOGS: <Text style={{color: Colors.gold}}>{filteredHistory.length}</Text></Text>
@@ -695,9 +621,8 @@ export default function AdminScreen() {
             </View>
           </View>
         )}
-      </Animated.View>
+      </View>
 
-      {/* 🔴 مودال تأكيد الرفض مع كتابة السبب */}
       <Modal visible={rejectModalVisible} transparent animationType="fade">
         <View style={styles.rejectModalOverlay}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.rejectModalContent}>
@@ -725,17 +650,6 @@ export default function AdminScreen() {
         </View>
       </Modal>
 
-      {/* مودال معاينة الصور */}
-      <Modal visible={!!previewImage} transparent animationType="fade">
-        <Pressable style={styles.previewModalOverlay} onPress={() => setPreviewImage(null)}>
-          <TouchableOpacity style={styles.previewCloseBtn} onPress={() => setPreviewImage(null)}>
-            <Text style={{ fontSize: 32 }}>❌</Text>
-          </TouchableOpacity>
-          {previewImage && (<Image source={{ uri: previewImage }} style={styles.fullPreviewImg} contentFit="contain" />)}
-        </Pressable>
-      </Modal>
-
-      {/* مودال تعديل حساب المستخدم */}
       <Modal visible={!!editingUser} transparent animationType="slide">
         <View style={styles.modal}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.mContent}>
@@ -879,13 +793,6 @@ const styles = StyleSheet.create({
   reqName: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
   reqBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginTop: 5 },
   reqAmount: { color: Colors.gold, fontSize: 22, fontWeight: 'bold' },
-  proofFrame: { width: '100%', height: 240, borderRadius: 20, overflow: 'hidden', marginTop: 15, borderWidth: 1, borderColor: '#111', position: 'relative' },
-  proofImg: { width: '100%', height: '100%' },
-  zoomIndicator: { position: 'absolute', bottom: 10, right: 10, backgroundColor: 'rgba(0,0,0,0.7)', flexDirection: 'row', paddingVertical: 4, paddingHorizontal: 10, borderRadius: 10, alignItems: 'center', gap: 5, borderWidth: 1, borderColor: '#222' },
-  zoomText: { color: '#fff', fontSize: 10, fontWeight: 'bold' },
-  previewModalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.98)', justifyContent: 'center', alignItems: 'center' },
-  previewCloseBtn: { position: 'absolute', top: 50, right: 25, zIndex: 100, padding: 5 },
-  fullPreviewImg: { width: '95%', height: '85%' },
   reqActions: { flexDirection: 'row', gap: 10, marginTop: 20 },
   miniBtnApp: { flex: 2, backgroundColor: Colors.gold, flexDirection: 'row', padding: 15, borderRadius: 15, justifyContent: 'center', alignItems: 'center', gap: 8 },
   miniBtnRej: { flex: 1, backgroundColor: '#111', flexDirection: 'row', padding: 15, borderRadius: 15, justifyContent: 'center', alignItems: 'center', gap: 8 },
@@ -959,7 +866,6 @@ const styles = StyleSheet.create({
   refUserVip: { color: '#00EAFF', fontSize: 10, fontWeight: 'bold', marginBottom: 2 },
   refUserBalance: { color: Colors.gold, fontSize: 12, fontWeight: 'bold' },
 
-  // 🔴 ستايلات شاشة الرفض (Reject Modal) 🔴
   rejectModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   rejectModalContent: { backgroundColor: '#0a0a0a', width: '100%', maxWidth: 400, borderRadius: 25, padding: 25, borderWidth: 1, borderColor: '#222' },
   rejectTitle: { color: '#ff4d4d', fontSize: 18, fontWeight: 'bold', marginBottom: 10, textAlign: 'center' },

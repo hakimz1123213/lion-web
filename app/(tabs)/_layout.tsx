@@ -1,117 +1,91 @@
-import React, { useEffect, useState } from 'react';
-import { Platform, View, ActivityIndicator, StyleSheet, Text } from 'react-native';
-import { Tabs, useRouter } from 'expo-router';
+import React from 'react';
+import { Platform, View, StyleSheet } from 'react-native';
+import { Tabs } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors } from '@/constants/theme';
-import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from '../../services/firebaseConfig'; 
+import { Feather } from '@expo/vector-icons';
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<any>(null);
 
-  // 📡 مراقبة الجلسة لتأمين الحساب
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setLoading(false);
-    });
-    return unsubscribe;
-  }, []);
-
-  // 🚀 التوجيه التلقائي
-  useEffect(() => {
-    if (loading) return;
-    const id = setTimeout(() => {
-      if (!user) {
-        router.replace('/login');
-      }
-    }, 10);
-    return () => clearTimeout(id);
-  }, [user, loading]);
+  // 🧹 تم حذف أكواد الفحص (loading & user) من هنا!
+  // لماذا؟ لأن الملف الرئيسي _layout.tsx أصبح هو الحارس العام للتطبيق بأكمله
+  // ولن يسمح لأي شخص بالوصول إلى هذه الصفحة إلا إذا كان مسجلاً للدخول فعلاً.
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#000' }}>
-      <Tabs
- screenOptions={{
-          headerShown: false,
-          tabBarStyle: {
-            backgroundColor: Colors.surface,
-            borderTopWidth: 1,
-            borderTopColor: Colors.surfaceBorder,
-            // 🔒 تثبيت الشريط للويب بطريقة صارمة ومحمية
-            position: Platform.OS === 'web' ? ('fixed' as any) : 'absolute',
-            bottom: 0,
-            left: 0,
-            right: 0,
-            // 🚀 الارتفاع المثالي للويب (65 بيكسل) بدون زيادة
-            height: Platform.OS === 'web' ? 65 : 65 + (insets.bottom || 0),
-            // 🔥 الحل: مسحنا الـ Padding تماماً في الويب (0) باش يختفي هاداك السطر الصغير الخربان
-            paddingBottom: Platform.OS === 'web' ? 0 : (insets.bottom || 5),
-            paddingTop: 8,
-          },
-          // 🎯 إجبار العناصر على السنطرة العمودية والأفقية في النص بالضبط
-          tabBarItemStyle: {
-            justifyContent: 'center',
-            alignItems: 'center',
-            height: '100%', 
-          },
-          tabBarLabelStyle: {
-            fontSize: 11,
-            fontWeight: 'bold',
-            marginTop: 2, 
-            marginBottom: Platform.OS === 'web' ? 5 : 0, // رفع طفيف للكتابة لتتنفس
-          },
-          tabBarActiveTintColor: Colors.gold,
-          tabBarInactiveTintColor: '#888888',
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarShowLabel: false,
+        tabBarStyle: {
+          position: 'absolute',
+          bottom: Platform.OS === 'ios' ? insets.bottom + 10 : 20,
+          left: 20,
+          right: 20,
+          backgroundColor: '#FFFFFF', // خلفية بيضاء ناصعة
+          borderRadius: 40,
+          height: 65,
+          borderWidth: 1.5, // 👈 سمك الخط المحيط
+          borderColor: '#7C3AED', // 👈 لون الخط الأرجواني الفاخر
+          paddingBottom: 0,
+          shadowColor: '#7C3AED', // ظل بلون أرجواني خفيف لزيادة الجمال
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.15,
+          shadowRadius: 10,
+          elevation: 8,
+        },
+        tabBarActiveTintColor: '#7C3AED', // اللون الأرجواني للأيقونة المفعلة
+        tabBarInactiveTintColor: '#9CA3AF', // لون رمادي واضح للأيقونات غير المفعلة
+      }}
+    >
+      <Tabs.Screen
+        name="index"
+        options={{
+          tabBarIcon: ({ color }) => (
+            <Feather name="grid" size={24} color={color} />
+          ),
         }}
-      >
-        <Tabs.Screen
-          name="index"
-          options={{
-            title: 'Dashboard',
-            // 2️⃣ السر العظيم هنا: حددنا lineHeight: 22 باش الإيموجي ما يبلعش المساحة!
-            tabBarIcon: ({ color }) => (
-              <Text style={{ fontSize: 20, color: color, lineHeight: 22, textAlign: 'center' }}>📊</Text>
-            ),
-          }}
-        />
-        <Tabs.Screen
-          name="tasks"
-          options={{
-            title: 'Tasks',
-            tabBarIcon: ({ color }) => (
-              <Text style={{ fontSize: 20, color: color, lineHeight: 22, textAlign: 'center' }}>▶️</Text>
-            ),
-          }}
-        />
-        <Tabs.Screen
-          name="wallet"
-          options={{
-            title: 'Wallet',
-            tabBarIcon: ({ color }) => (
-              <Text style={{ fontSize: 20, color: color, lineHeight: 22, textAlign: 'center' }}>💰</Text>
-            ),
-          }}
-        />
-        <Tabs.Screen
-          name="profile"
-          options={{
-            title: 'Profile',
-            tabBarIcon: ({ color }) => (
-              <Text style={{ fontSize: 20, color: color, lineHeight: 22, textAlign: 'center' }}>💎</Text>
-            ),
-          }}
-        />
-      </Tabs>
-
-      {loading && (
-        <View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#000000', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }]}>
-          <ActivityIndicator size="large" color={Colors.gold || '#D4AF37'} />
-        </View>
-      )}
-    </View>
+      />
+      <Tabs.Screen
+        name="tasks"
+        options={{
+          tabBarIcon: ({ color }) => (
+            <Feather name="play-circle" size={24} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="wallet"
+        options={{
+          tabBarIcon: ({ color }) => (
+            <Feather name="credit-card" size={24} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          tabBarIcon: ({ color }) => (
+            <View>
+              <Feather name="user" size={24} color={color} />
+              <View style={styles.notificationDot} />
+            </View>
+          ),
+        }}
+      />
+    </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  notificationDot: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#EF4444',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  }
+});

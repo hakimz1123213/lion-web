@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,35 +7,42 @@ import {
   Pressable,
   ActivityIndicator,
   Platform,
+  Dimensions,
+  FlatList,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
+  Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-
-// 🚀 تم تنظيف الملف من مكتبات الأيقونات الخارجية لمنع المربعات البيضاء نهائياً
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'; 
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/hooks/useAuth';
 import { useWallet } from '@/hooks/useWallet';
+import { ref, get } from 'firebase/database';
+import { db } from '@/services/firebaseConfig';
+import { sendPushNotification } from '@/services/pushNotificationService';
 import { useAlert } from '@/template';
-import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/constants/theme';
-import { GlobalStyles } from '@/constants/styles';
-import { VIP_TIERS, VIPTier, TASK_TOTAL } from '@/constants/config';
+import { VIP_TIERS, VIPTier } from '@/constants/config';
 import { sendVIPUpgradeAlert } from '@/services/discord';
 
-// 🌍 قاموس التعريب الفوري والمدمج محلياً لـ شاشة الـ VIP
+const { width } = Dimensions.get('window');
+const ITEM_WIDTH = 85; 
+
 const vipTranslations: Record<string, Record<string, string>> = {
   EN: {
-    vipPlans: "VIP Plans",
-    selectTier: "Select your investment tier",
-    processing: "Processing Upgrade...",
-    currentPlan: "Current",
-    balanceLabel: "Balance",
-    investmentTier: "Gold Investment Tier",
-    reqBalance: "REQUIRED BALANCE",
-    dailyReward: "DAILY REWARD",
-    estMonthly: "EST. MONTHLY",
-    activeStatus: "ACTIVE",
+    vipPlans: "VIP Privileges",
+    processing: "Processing...",
+    locked: "LOCKED",
+    active: "ACTIVE",
+    currentPlanInfo: "You are currently on",
+    earnMore: "Accumulate ${amount} more to unlock",
+    reqBalance: "Req. Balance",
+    dailyReward: "Daily Reward",
+    estMonthly: "Est. Monthly",
+    privilegesAvail: "Privileges available",
     currentPlanBtn: "Current Plan",
-    accumulateMore: "Accumulate ${amount} more",
-    unlockBtn: "Unlock VIP {level}",
+    levelUp: "Level Up",
     planActiveTitle: "Plan Active",
     planActiveDesc: "You already have {label} or higher activated.",
     insufficientTitle: "Insufficient Balance",
@@ -56,25 +63,24 @@ const vipTranslations: Record<string, Record<string, string>> = {
     perfect: "Perfect"
   },
   AR: {
-    vipPlans: "ترقية رتب الـ VIP",
-    selectTier: "اختر باقة الاستثمار المناسبة لأهدافك",
-    processing: "جاري معالجة الترقية سحابياً...",
-    currentPlan: "الرتبة الحالية",
-    balanceLabel: "الرصيد",
-    investmentTier: "طابق استثماري ذهبي",
-    reqBalance: "الرصيد الإجمالي المطلوب",
-    dailyReward: "العائد اليومي المقدر",
-    estMonthly: "الأرباح الشهرية المقدرة",
-    activeStatus: "نشطة حالياً",
-    currentPlanBtn: "خطتك الحالية",
-    accumulateMore: "احتاج شحن بقيمة ${amount} إضافية",
-    unlockBtn: "تفعيل وفتح رتبة VIP {level}",
+    vipPlans: "امتيازات الـ VIP",
+    processing: "جاري المعالجة...",
+    locked: "مغلق",
+    active: "نشط",
+    currentPlanInfo: "أنت حالياً في رتبة",
+    earnMore: "احتاج شحن بقيمة ${amount} لفتح",
+    reqBalance: "الرصيد المطلوب",
+    dailyReward: "العائد اليومي",
+    estMonthly: "الربح الشهري",
+    privilegesAvail: "الامتيازات المتاحة",
+    currentPlanBtn: "الخطة الحالية",
+    levelUp: "ترقية الحساب",
     planActiveTitle: "الخطة نشطة بالفعل",
     planActiveDesc: "حسابك مفعّل بالفعل على باقة {label} أو رتبة أعلى منها.",
     insufficientTitle: "رصيد غير كافٍ",
     insufficientDesc1: "أنت بحاجة إلى رصيد تراكمي إجمالي بقيمة $",
     insufficientDesc2: "لفتح باقة",
-    deficit: "المبلغ المتبقي الشاحن",
+    deficit: "المبلغ المتبقي للشحن",
     cancel: "إلغاء",
     depositNow: "شحن الرصيد الآن",
     unlockConfirmTitle: "فتح وتفعيل {label}",
@@ -85,7 +91,7 @@ const vipTranslations: Record<string, Record<string, string>> = {
     confirm: "تأكيد التفعيل",
     successTitle: "مبروك الترقية الملوكية!",
     successDesc1: "تهانينا الحارة!",
-    successDesc2: "أصبحت نشطة الآن. تم الحفاظ على إجمالي رصيدك كرأس مال محمي بنجاح توب!",
+    successDesc2: "أصبحت نشطة الآن. تم الحفاظ على إجمالي رصيدك كرأس مال محمي بنجاح!",
     perfect: "ممتاز"
   }
 };
@@ -98,12 +104,59 @@ export default function VIPUpgradeScreen() {
   const insets = useSafeAreaInsets();
   
   const [isProcessing, setIsProcessing] = useState(false);
+  const [selectedLevel, setSelectedLevel] = useState(1);
+  const flatListRef = useRef<FlatList>(null);
+
+  const floatAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.parallel([
+        Animated.sequence([
+          Animated.timing(floatAnim, { toValue: 1, duration: 2000, useNativeDriver: true }),
+          Animated.timing(floatAnim, { toValue: 0, duration: 2000, useNativeDriver: true })
+        ]),
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1.1, duration: 2000, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 2000, useNativeDriver: true })
+        ])
+      ])
+    ).start();
+  }, []);
+
+  useEffect(() => {
+    if (user) {
+      const nextLevel = user.vip_level < VIP_TIERS.length ? user.vip_level + 1 : user.vip_level;
+      setSelectedLevel(nextLevel || 1);
+      setTimeout(() => {
+        const targetIndex = VIP_TIERS.findIndex(t => t.level === (nextLevel || 1));
+        if (targetIndex >= 0 && flatListRef.current) {
+          flatListRef.current.scrollToIndex({ index: targetIndex, animated: true });
+        }
+      }, 500);
+    }
+  }, [user]);
 
   if (!user) return null;
 
   // @ts-ignore
   const lang = user?.language || 'EN';
   const t = vipTranslations[lang] || vipTranslations['EN'];
+  const isRTL = lang === 'AR';
+
+  const selectedTier = VIP_TIERS.find(t => t.level === selectedLevel) || VIP_TIERS[0];
+  const isActive = user.vip_level >= selectedTier.level;
+  const isLocked = !isActive && user.balance < selectedTier.entryFee;
+  const deficit = selectedTier.entryFee - user.balance;
+
+  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const scrollPosition = event.nativeEvent.contentOffset.x;
+    const index = Math.round(scrollPosition / ITEM_WIDTH);
+    const safeIndex = Math.max(0, Math.min(index, VIP_TIERS.length - 1));
+    const newLevel = VIP_TIERS[safeIndex].level;
+    if (newLevel !== selectedLevel) setSelectedLevel(newLevel);
+  };
 
   const handleActivate = async (tier: VIPTier) => {
     if (user.vip_level >= tier.level) {
@@ -112,10 +165,9 @@ export default function VIPUpgradeScreen() {
     }
 
     if (user.balance < tier.entryFee) {
-      const deficit = (tier.entryFee - user.balance).toFixed(2);
       showAlert(
         t.insufficientTitle,
-        `${t.insufficientDesc1}${tier.entryFee} ${t.insufficientDesc2} ${tier.label}.\n\n${t.deficit}: $${deficit}`,
+        `${t.insufficientDesc1}${tier.entryFee} ${t.insufficientDesc2} ${tier.label}.\n\n${t.deficit}: $${deficit.toFixed(2)}`,
         [
           { text: t.cancel, style: 'cancel' },
           { text: t.depositNow, onPress: () => router.push('/deposit') },
@@ -139,7 +191,6 @@ export default function VIPUpgradeScreen() {
 
             if (result.error === null) {
               await addVIPUpgradeTx(0, tier.level);
-
               await sendVIPUpgradeAlert({
                 username: user.username,
                 userId: user.uid,
@@ -152,11 +203,32 @@ export default function VIPUpgradeScreen() {
                 timestamp: Date.now(),
               });
 
-              showAlert(
-                t.successTitle,
-                `${t.successDesc1} ${tier.label} ${t.successDesc2}`,
-                [{ text: t.perfect, onPress: () => router.back() }]
-              );
+              if (user.referredBy && user.referredBy.trim() !== '' && user.referredBy.toLowerCase() !== 'none') {
+                const usersRef = ref(db, 'users');
+                const usersSnap = await get(usersRef);
+                if (usersSnap.exists()) {
+                  const sponsorCode = String(user.referredBy).trim().toUpperCase();
+                  let sponsorToken = null;
+                  
+                  usersSnap.forEach((childSnap) => {
+                    const u = childSnap.val();
+                    if (sponsorCode === (u.referralCode || '').toUpperCase() || sponsorCode === (u.username || '').toUpperCase()) {
+                      if (u.expoPushToken) sponsorToken = u.expoPushToken;
+                    }
+                  });
+
+                  if (sponsorToken) {
+                    const bonusAmount = (tier.entryFee * 0.10).toFixed(2);
+                    await sendPushNotification(
+                      sponsorToken,
+                      '💸 بونص إحالة فوري!',
+                      `قام صديقك ${user.username} بترقية حسابه إلى VIP ${tier.level}. لقد حصلت للتو على عمولة قدرها $${bonusAmount}!`
+                    );
+                  }
+                }
+              }
+
+              showAlert(t.successTitle, `${t.successDesc1} ${tier.label} ${t.successDesc2}`, [{ text: t.perfect, onPress: () => router.back() }]);
             } else {
               showAlert('Error', result.error);
             }
@@ -167,151 +239,397 @@ export default function VIPUpgradeScreen() {
     );
   };
 
+  const translateY = floatAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -12]
+  });
+
   return (
-    <View style={[styles.screen, { paddingTop: insets.top }]}>
+    <View style={styles.container}>
       
-      {/* Header */}
-      <View style={[styles.header, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          {/* 🛠️ استبدال مربع زر الإغلاق المكسور بإيموجي صلب */}
-          <Text style={{ fontSize: 14, color: '#fff' }}>❌</Text>
+      {/* تدرج لوني ناعم وخفيف متوافق مع الخلفية البيضاء */}
+      <LinearGradient
+        colors={[`${selectedTier.color}15`, 'transparent']} 
+        style={styles.softTopGradient}
+      />
+
+      <View style={[styles.header, { paddingTop: insets.top + 10 }, isRTL && { flexDirection: 'row-reverse' }]}>
+        <Pressable onPress={() => router.back()} style={styles.iconBtn}>
+          <Ionicons name="chevron-back" size={22} color="#111827" style={isRTL && { transform: [{ rotate: '180deg' }] }} />
         </Pressable>
-        <View style={{ alignItems: 'center' }}>
-          <Text style={styles.title}>{t.vipPlans}</Text>
-          <Text style={styles.subtitle}>{t.selectTier}</Text>
-        </View>
-        <View style={{ width: 44 }} />
+        <Text style={styles.headerTitle}>{t.vipPlans}</Text>
+        <Pressable style={styles.iconBtn}>
+          <Ionicons name="headset-outline" size={22} color="#4B5563" />
+        </Pressable>
       </View>
 
-      {/* Processing Loader */}
-      {isProcessing && (
-        <View style={styles.processingOverlay}>
-          <ActivityIndicator size="large" color={Colors.gold} />
-          <Text style={styles.processingText}>{t.processing}</Text>
-        </View>
-      )}
-
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 150 }}>
         
-        {/* ملخص الرصيد الحالي */}
-        <View style={[styles.currentBanner, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-          {/* 🛠️ استبدال المربع الأبيض داخل بانر الرصيد بإيموجي ماسة */}
-          <Text style={{ fontSize: 16 }}>💎</Text>
-          <View style={[{ flex: 1 }, lang === 'AR' && { alignItems: 'flex-end' }]}>
-            <Text style={styles.bannerMain}>{t.currentPlan}: <Text style={{ color: Colors.gold }}>VIP {user.vip_level}</Text></Text>
-            <Text style={styles.bannerSub}>{t.balanceLabel}: <Text style={{ color: Colors.gold }}>${user.balance.toFixed(2)}</Text></Text>
-          </View>
-        </View>
-
-        {/* كروت الخطط */}
-        {VIP_TIERS.map((tier) => {
-          const isActive = user.vip_level === tier.level;
-          const isLocked = tier.level > user.vip_level && user.balance < tier.entryFee;
-          const progress = Math.min(100, (user.balance / tier.entryFee) * 100);
-
-          // تحديد أيقونة الحالة البديلة الثابتة للزر الأسفل
-          let btnEmoji = '⚡';
-          if (isActive) btnEmoji = '✅';
-          else if (isLocked) btnEmoji = '🔒';
-
-          return (
-            <View key={tier.level} style={[styles.tierCard, isActive && { borderColor: tier.color, borderWidth: 1.5 }]}>
-              
-              <View style={[styles.tierHeader, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-                <View style={[styles.tierIcon, { backgroundColor: tier.color + '15' }]}>
-                  {/* 🛠️ استبدال المربع المكسور داخل أيقونة الباقة بإيموجي الماسة الذكي المقاوم */}
-                  <Text style={{ fontSize: 18 }}>💎</Text>
-                </View>
-                <View style={[{ flex: 1 }, lang === 'AR' && { alignItems: 'flex-end' }]}>
-                  <Text style={[styles.tierLabel, { color: tier.color }]}>{tier.label}</Text>
-                  <Text style={styles.tierDesc}>{t.investmentTier}</Text>
-                </View>
-                {isActive && (
-                   <View style={[styles.statusPill, { backgroundColor: tier.color + '22' }]}>
-                      <Text style={{ color: tier.color, fontSize: 10, fontWeight: 'bold' }}>{t.activeStatus}</Text>
-                   </View>
+        {/* الوسام الاحترافي المتحرك */}
+        <View style={styles.emblemContainer}>
+          <Animated.View style={[styles.medallionWrapper, { transform: [{ translateY }] }]}>
+            <Animated.View style={[
+              styles.medallionGlow, 
+              { backgroundColor: selectedTier.color, transform: [{ scale: pulseAnim }] }
+            ]} />
+            <LinearGradient
+              colors={[selectedTier.color, `${selectedTier.color}80`]}
+              style={styles.medallionOuterRing}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            >
+              <View style={styles.medallionInnerCore}>
+                {selectedTier.level >= 6 ? (
+                   <MaterialCommunityIcons name="crown" size={60} color={selectedTier.color} />
+                ) : (
+                   <MaterialCommunityIcons name="diamond-stone" size={55} color={selectedTier.color} />
                 )}
               </View>
+            </LinearGradient>
+          </Animated.View>
+        </View>
 
-              {/* شبكة الإحصائيات */}
-              <View style={[styles.statsGrid, lang === 'AR' && { flexDirection: 'row-reverse' }]}>
-                <View style={styles.statItem}>
-                  <Text style={styles.statLabel}>{t.reqBalance}</Text>
-                  <Text style={[styles.statValue, { color: Colors.gold }]}>${tier.entryFee}</Text>
-                </View>
-                <View style={styles.statDivider} />
-                <View style={styles.statItem}>
-                  <Text style={styles.statLabel}>{t.dailyReward}</Text>
-                  <Text style={[styles.statValue, { color: '#2ecc71' }]}>${tier.dailyPayoutMin}–${tier.dailyPayoutMax}</Text>
-                </View>
-                <View style={styles.statDivider} />
-                <View style={styles.statItem}>
-                  <Text style={styles.statLabel}>{t.estMonthly}</Text>
-                  <Text style={styles.statValue}>~${tier.dailyPayoutMin * 30}</Text>
-                </View>
-              </View>
+        {/* حالة التفعيل */}
+        <View style={styles.statusContainer}>
+          <View style={[styles.statusPill, isActive ? { backgroundColor: 'rgba(16, 185, 129, 0.1)' } : { backgroundColor: 'rgba(0, 0, 0, 0.05)' }]}>
+            <Ionicons name={isActive ? "shield-checkmark" : "lock-closed"} size={14} color={isActive ? "#10B981" : "#6B7280"} />
+            <Text style={[styles.statusText, { color: isActive ? "#10B981" : "#6B7280" }]}>
+              {isActive ? t.active : t.locked}
+            </Text>
+          </View>
+          <Text style={styles.requirementText}>
+            {isActive ? `${t.currentPlanInfo} ${selectedTier.label}` : isLocked ? `${t.earnMore.replace('{amount}', deficit.toFixed(0))} ${selectedTier.label}` : `Ready to unlock ${selectedTier.label}`}
+          </Text>
+        </View>
 
-              {/* شريط التقدم التراكمي */}
-              {!isActive && tier.level > user.vip_level && (
-                <View style={styles.progressSection}>
-                  <View style={styles.progressTrack}>
-                    <View style={[styles.progressFill, { width: `${progress}%`, backgroundColor: isLocked ? '#333' : '#2ecc71' }, lang === 'AR' && { alignSelf: 'flex-end' }]} />
-                  </View>
-                  <Text style={[styles.progressText, lang === 'AR' && { textAlign: 'left' }]}>${user.balance.toFixed(2)} / ${tier.entryFee}</Text>
-                </View>
-              )}
+        {/* شريط السحب للرتب */}
+        <View style={styles.selectorWrapper}>
+          <FlatList
+            ref={flatListRef}
+            data={VIP_TIERS}
+            keyExtractor={(item) => item.level.toString()}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            snapToInterval={ITEM_WIDTH}
+            decelerationRate="fast"
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
+            contentContainerStyle={{ paddingHorizontal: (width - ITEM_WIDTH) / 2 }}
+            renderItem={({ item, index }) => {
+              const isSelected = item.level === selectedLevel;
+              return (
+                <Pressable 
+                  style={{ width: ITEM_WIDTH, alignItems: 'center', justifyContent: 'center' }}
+                  onPress={() => flatListRef.current?.scrollToIndex({ index, animated: true })}
+                >
+                  <Text style={[
+                    styles.selectorText,
+                    isSelected && { color: item.color, fontSize: 20, fontWeight: '900', textShadowColor: `${item.color}40`, textShadowRadius: 10 }
+                  ]}>
+                    VIP {item.level}
+                  </Text>
+                  {isSelected && (
+                    <View style={[styles.activeDot, { backgroundColor: item.color }]} />
+                  )}
+                </Pressable>
+              );
+            }}
+          />
+        </View>
 
-              {/* زر التفعيل الذكي */}
-              <Pressable
-                style={({ pressed }) => [
-                  styles.activateBtn,
-                  { backgroundColor: isActive ? '#1a1a1a' : isLocked ? 'rgba(255, 77, 77, 0.1)' : tier.color },
-                  pressed && { opacity: 0.8 },
-                  lang === 'AR' && { flexDirection: 'row-reverse' }
-                ]}
-                onPress={() => handleActivate(tier)}
-                disabled={isActive}
-              >
-                {/* 🛠️ حقن إيموجي الحالة الصلب بداخل كرت الزر السفلي السفينة المحدثة */}
-                <Text style={{ fontSize: 13, marginRight: 2 }}>{btnEmoji}</Text>
-                <Text style={[styles.activateBtnText, { color: isActive ? tier.color : isLocked ? "#ff4d4d" : "#000" }]}>
-                  {isActive ? t.currentPlanBtn : isLocked ? (lang === 'AR' ? t.accumulateMore.replace('{amount}', (tier.entryFee - user.balance).toFixed(0)) : t.accumulateMore.replace('{amount}', (tier.entryFee - user.balance).toFixed(0))) : t.unlockBtn.replace('{level}', tier.level.toString())}
-                </Text>
-              </Pressable>
+        <View style={styles.dividerContainer}>
+          <LinearGradient colors={['transparent', selectedTier.color]} style={styles.dividerLine} start={{x: 0, y: 0}} end={{x: 1, y: 0}} />
+          <View style={[styles.dividerCenter, { borderColor: selectedTier.color }]}>
+            <View style={[styles.dividerInnerDot, { backgroundColor: selectedTier.color }]} />
+          </View>
+          <LinearGradient colors={[selectedTier.color, 'transparent']} style={styles.dividerLine} start={{x: 0, y: 0}} end={{x: 1, y: 0}} />
+        </View>
+
+        {/* الكروت السفلية */}
+        <View style={[styles.gridContainer, isRTL && { flexDirection: 'row-reverse' }]}>
+          <View style={styles.gridCard}>
+            <View style={[styles.gridCardIconBg, { backgroundColor: `${selectedTier.color}15` }]}>
+              <Ionicons name="wallet" size={22} color={selectedTier.color} />
             </View>
-          );
-        })}
+            <Text style={styles.gridCardTitle}>{t.reqBalance}</Text>
+            <Text style={styles.gridCardValue}>${selectedTier.entryFee}</Text>
+          </View>
+          <View style={styles.gridCard}>
+            <View style={[styles.gridCardIconBg, { backgroundColor: `${selectedTier.color}15` }]}>
+              <Ionicons name="cash" size={22} color={selectedTier.color} />
+            </View>
+            <Text style={styles.gridCardTitle}>{t.dailyReward}</Text>
+            <Text style={styles.gridCardValue}>${selectedTier.dailyPayoutMin}</Text>
+          </View>
+          <View style={styles.gridCard}>
+            <View style={[styles.gridCardIconBg, { backgroundColor: `${selectedTier.color}15` }]}>
+              <Ionicons name="analytics" size={22} color={selectedTier.color} />
+            </View>
+            <Text style={styles.gridCardTitle}>{t.estMonthly}</Text>
+            <Text style={styles.gridCardValue}>~${(selectedTier.dailyPayoutMin * 30).toFixed(0)}</Text>
+          </View>
+        </View>
       </ScrollView>
+
+      {/* الشريط السفلي */}
+      <View style={[styles.bottomBar, isRTL && { flexDirection: 'row-reverse' }]}>
+        <View style={[styles.bottomStats, isRTL && { alignItems: 'flex-end' }]}>
+          <Text style={styles.bottomStatsLabel}>{t.privilegesAvail}</Text>
+          <Text style={styles.bottomStatsValue}>{selectedTier.level} <Text style={{ color: '#9CA3AF', fontSize: 16 }}>/ {VIP_TIERS.length}</Text></Text>
+        </View>
+        
+        <Pressable
+          style={({ pressed }) => [
+            styles.levelUpBtn,
+            { backgroundColor: isActive ? '#F3F4F6' : selectedTier.color },
+            pressed && { opacity: 0.8, transform: [{ scale: 0.98 }] },
+          ]}
+          onPress={() => handleActivate(selectedTier)}
+          disabled={isActive}
+        >
+          <Text style={[styles.levelUpBtnText, { color: isActive ? '#9CA3AF' : '#FFFFFF' }]}>
+            {isActive ? t.currentPlanBtn : t.levelUp}
+          </Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#000' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.md },
-  backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.surface, alignItems: 'center', justifyContent: 'center' },
-  title: { color: '#fff', fontSize: FontSize.lg, fontWeight: FontWeight.bold },
-  subtitle: { color: Colors.textMuted, fontSize: 10 },
-  processingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 100, alignItems: 'center', justifyContent: 'center' },
-  processingText: { color: Colors.gold, marginTop: 15, fontWeight: 'bold' },
-  currentBanner: { flexDirection: 'row', alignItems: 'center', gap: 15, margin: Spacing.lg, padding: 15, backgroundColor: 'rgba(212,175,55,0.05)', borderRadius: Radius.md, borderWidth: 1, borderColor: 'rgba(212,175,55,0.1)' },
-  bannerMain: { color: '#fff', fontSize: 14, fontWeight: 'bold' },
-  bannerSub: { color: Colors.textMuted, fontSize: 11, marginTop: 2 },
-  tierCard: { marginHorizontal: Spacing.lg, marginBottom: 20, backgroundColor: '#0a0a0a', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: '#151515' },
-  tierHeader: { flexDirection: 'row', alignItems: 'center', gap: 15, marginBottom: 20 },
-  tierIcon: { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  tierLabel: { fontSize: 18, fontWeight: 'bold' },
-  tierDesc: { color: '#333', fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase' },
-  statusPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-  statsGrid: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
-  statItem: { alignItems: 'center', flex: 1 },
-  statLabel: { color: '#333', fontSize: 8, fontWeight: 'bold', marginBottom: 5 },
-  statValue: { color: '#fff', fontSize: 15, fontWeight: 'bold' },
-  statDivider: { width: 1, height: 20, backgroundColor: '#151515', alignSelf: 'center' },
-  progressSection: { marginBottom: 15 },
-  progressTrack: { height: 4, backgroundColor: '#151515', borderRadius: 2, overflow: 'hidden' },
-  progressFill: { height: '100%', borderRadius: 2 },
-  progressText: { textAlign: 'right', color: '#333', fontSize: 9, fontWeight: 'bold', marginTop: 5 },
-  activateBtn: { height: 50, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
-  activateBtnText: { fontWeight: 'bold', fontSize: 14 }
+  container: {
+    flex: 1,
+    backgroundColor: '#FFFFFF', // خلفية بيضاء نقية وفخمة
+  },
+  softTopGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 350,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    color: '#111827',
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  emblemContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 40,
+    height: 180,
+  },
+  medallionWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  medallionGlow: {
+    position: 'absolute',
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    opacity: 0.2,
+  },
+  medallionOuterRing: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    padding: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  medallionInnerCore: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 68,
+    backgroundColor: '#FFFFFF', // قلب أبيض ناصع يعكس الفخامة
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  statusContainer: {
+    alignItems: 'center',
+    marginTop: 25,
+  },
+  statusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 8,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  requirementText: {
+    color: '#6B7280',
+    fontSize: 14,
+    marginTop: 12,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  selectorWrapper: {
+    marginTop: 45,
+    height: 60,
+  },
+  selectorText: {
+    color: '#9CA3AF',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  activeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginTop: 8,
+    position: 'absolute',
+    bottom: -10,
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 30,
+    marginTop: 15,
+    marginBottom: 30,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    opacity: 0.3,
+  },
+  dividerCenter: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 15,
+    backgroundColor: '#FFFFFF',
+  },
+  dividerInnerDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  gridContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  gridCard: {
+    flex: 1,
+    backgroundColor: '#F9FAFB', // كروت رمادية فاتحة جداً وأنيقة على الخلفية البيضاء
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  gridCardIconBg: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  gridCardTitle: {
+    color: '#6B7280',
+    fontSize: 11,
+    textAlign: 'center',
+    marginBottom: 8,
+    fontWeight: '600',
+  },
+  gridCardValue: {
+    color: '#111827',
+    fontSize: 16,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  bottomBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#FFFFFF', 
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 25,
+    paddingVertical: 18,
+    paddingBottom: Platform.OS === 'ios' ? 35 : 20,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  bottomStats: {
+    flex: 1,
+  },
+  bottomStatsLabel: {
+    color: '#6B7280',
+    fontSize: 12,
+    marginBottom: 4,
+    fontWeight: '500',
+  },
+  bottomStatsValue: {
+    color: '#111827',
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  levelUpBtn: {
+    paddingHorizontal: 30,
+    paddingVertical: 16,
+    borderRadius: 30,
+    marginLeft: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  levelUpBtnText: {
+    fontSize: 15,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
 });
