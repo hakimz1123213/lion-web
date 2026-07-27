@@ -1,44 +1,44 @@
 {
   "expo": {
-    "name": "NoirWealth",
+    "name": "Lion",
     "slug": "noirwealth",
-    "version": "1.2.1",
+    "version": "1.0.0",
+    "jsEngine": "hermes",
     "orientation": "portrait",
     "icon": "./assets/images/logo.png",
-    "scheme": "noirwealth",
-    "userInterfaceStyle": "dark",
-    "newArchEnabled": false,
+    "scheme": "lion",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.noirwealth.app"
+      "bundleIdentifier": "com.lion.app",
+      "merchantIdentifier": "merchant.com.lion.app"
     },
     "android": {
-      "package": "com.noirwealth.app",
+      "package": "com.lion.app",
       "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/logo.png",
-        "backgroundColor": "#000000"
+        "backgroundColor": "#F4EDFF"
       },
-      "edgeToEdgeEnabled": true,
       "statusBar": {
-        "barStyle": "light-content",
-        "backgroundColor": "#000000"
+        "barStyle": "dark-content",
+        "backgroundColor": "#F4EDFF"
       },
       "navigationBar": {
-        "barStyle": "light-content",
-        "backgroundColor": "#000000",
-        "buttonColor": "#D4AF37"
-      }
+        "barStyle": "dark-content",
+        "backgroundColor": "#F4EDFF",
+        "buttonColor": "#8A2BE2"
+      },
+      "permissions": [
+        "android.permission.POST_NOTIFICATIONS",
+        "com.android.alarm.permission.SET_ALARM"
+      ]
     },
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/logo.png",
-      "build": {
-        "babel": {
-          "include": ["@expo/vector-icons"]
-        }
-      }
+      "favicon": "./assets/images/logo.png"
     },
     "plugins": [
       "expo-router",
@@ -46,13 +46,31 @@
         "expo-splash-screen",
         {
           "image": "./assets/images/logo.png",
-          "imageWidth": 200,
+          "imageWidth": 220,
           "resizeMode": "contain",
-          "backgroundColor": "#000000"
+          "backgroundColor": "#F4EDFF"
         }
       ],
       "expo-web-browser",
-      "expo-video"
+      "expo-video",
+      "@react-native-community/datetimepicker",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/logo.png",
+          "color": "#8A2BE2"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
+            "minSdkVersion": 24
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
@@ -60,14 +78,12 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "d1000ee3-d028-477d-9441-6b11319e6a04"
+        "projectId": "85ab4a9a-6dca-4f10-87bc-c31e4727e356"
       }
     },
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
+    "runtimeVersion": "1.0.0",
     "updates": {
-      "url": "https://u.expo.dev/d1000ee3-d028-477d-9441-6b11319e6a04"
+      "url": ""
     }
   }
 }
