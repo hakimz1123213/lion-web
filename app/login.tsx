@@ -10,7 +10,7 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, Link } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons, Ionicons, Feather } from '@expo/vector-icons';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
@@ -162,7 +162,7 @@ export default function LoginScreen() {
               <Text style={styles.rememberText}>{t.remember}</Text>
             </Pressable>
 
-            {/* 👈 التعديل تم هنا: ربط الزر بصفحة نسيت كلمة السر */}
+            {/* ربط الزر بصفحة نسيت كلمة السر */}
             <Pressable onPress={() => router.push('/forgot-password')}>
               <Text style={styles.forgotText}>{t.forgot}</Text>
             </Pressable>
@@ -187,9 +187,11 @@ export default function LoginScreen() {
           {/* الانتقال لصفحة التسجيل */}
           <View style={[styles.footerRow, isAR && { flexDirection: 'row-reverse' }]}>
             <Text style={styles.footerText}>{t.noAccount} </Text>
-            <Pressable onPress={() => router.push('/register')}>
-              <Text style={styles.signUpText}>{t.signUp}</Text>
-            </Pressable>
+            <Link href="/register" asChild>
+              <Pressable>
+                <Text style={styles.signUpText}>{t.signUp}</Text>
+              </Pressable>
+            </Link>
           </View>
 
         </Animated.View>
