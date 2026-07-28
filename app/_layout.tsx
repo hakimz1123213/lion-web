@@ -31,6 +31,10 @@ export default function RootLayout() {
   const [features, setFeatures] = useState<string[]>([]);
   const [checking, setChecking] = useState(true);
 
+  // ✅ حالات جديدة لإدارة المصادقة بشكل صحيح
+  const [user, setUser] = useState<any>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+
   // 👈 تعريف أدوات التنقل
   const router = useRouter();
   const segments = useSegments();
@@ -52,7 +56,7 @@ export default function RootLayout() {
   useEffect(() => {
     const checkUpdates = async () => {
       try {
-        const response = await fetch(`https://github.com/hakimz1123213/lion_update-./blob/main/update.json?t=${new Date().getTime()}`);
+        const response = await fetch(`https://raw.githubusercontent.com/hakimz1123213/lion_update-./main/update.json?t=${new Date().getTime()}`);
         const data = await response.json();
 
         if (data.latestVersion !== currentVersion) {
@@ -71,34 +75,38 @@ export default function RootLayout() {
     checkUpdates();
   }, []);
 
-  // 🔐 3. حارس المصادقة (Auth Guard) - يحفظ الجلسة ويمنع الرجوع لصفحة الدخول
-// 🔐 3. حارس المصادقة المحدث (يسمح بالصفحات الفرعية والـ Tabs معاً)
+  // 🔐 3. مراقب حالة تسجيل الدخول (يعمل مرة واحدة فقط للاتصال بفايربيس)
   useEffect(() => {
-    if (checking || !fontsLoaded) return;
-
     const auth = getAuth();
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      // تحديد صفحات المصادقة العامة التي لا يجب الوصول لها إذا كان المستخدم مسجلاً
-      const publicRoutes = ['login', 'register', 'forgot-password'];
-      const currentRoute = segments[0];
-      const isPublicRoute = publicRoutes.includes(currentRoute);
-
-      if (user) {
-        // إذا كان مسجلاً للدخول، وحاول فتح صفحة تسجيل الدخول أو التسجيل، انقله للـ tabs
-        if (isPublicRoute || !currentRoute) {
-          router.replace('/(tabs)');
-        }
-        // أما إذا كان ينتقل لأي صفحة أخرى (مثل admin, vip, profile, إلخ)، اتركه وشأنه بحرية تامة!
-      } else {
-        // إذا لم يكن مسجلاً للدخول، وحاول فتح أي صفحة غير عامة، اطرده لتسجيل الدخول
-        if (!isPublicRoute) {
-          router.replace('/login');
-        }
-      }
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setIsAuthReady(true);
     });
-
+    
+    // تنظيف الاتصال عند إغلاق التطبيق
     return unsubscribe;
-  }, [checking, fontsLoaded, segments]);
+  }, []); // 👈 قوسين فارغين ليعمل الاتصال مرة واحدة ولا ينقطع عند التنقل
+
+  // 🚦 4. حارس المصادقة المسؤول عن التوجيه (Routing)
+ useEffect(() => {
+  if (checking || !fontsLoaded || !isAuthReady) return;
+
+  const publicRoutes = ['login', 'register', 'forgot-password', 'index', undefined, ''];
+  const currentRoute = segments[0];
+  const isPublicRoute = publicRoutes.includes(currentRoute);
+
+  /* ------ قم بتعطيل شرط التوجيه التلقائي مؤقتاً لمعرفة مصدر الخلل ------
+  if (user) {
+    if (isPublicRoute) {
+      router.replace('/(tabs)');
+    }
+  } else {
+    if (!isPublicRoute) {
+      router.replace('/'); 
+    }
+  }
+  -------------------------------------------------------------- */
+}, [user, isAuthReady, checking, fontsLoaded, segments]);
 
   return (
     <AuthProvider>
