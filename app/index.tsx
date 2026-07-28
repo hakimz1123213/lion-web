@@ -60,7 +60,7 @@ export default function WelcomeScreen() {
 
             {/* العنوان الرئيسي بخط عريض وواضح */}
             <Animated.Text entering={FadeInDown.delay(500).springify().damping(14)} style={styles.title}>
-              {isAR ? "ادخر واستثمر\nمع Acorns" : "Save and invest\nwith Acorns"}
+              {isAR ? "ادخر واستثمر\nمع Lion" : "Save and invest\nwith Lion"}
             </Animated.Text>
             
             {/* نص فرعي لإضافة لمسة احترافية */}
