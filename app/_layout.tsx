@@ -88,25 +88,27 @@ export default function RootLayout() {
   }, []); // 👈 قوسين فارغين ليعمل الاتصال مرة واحدة ولا ينقطع عند التنقل
 
   // 🚦 4. حارس المصادقة المسؤول عن التوجيه (Routing)
- useEffect(() => {
-  if (checking || !fontsLoaded || !isAuthReady) return;
+// 🚦 4. حارس المصادقة المسؤول عن التوجيه الصحيح
+  useEffect(() => {
+    if (checking || !fontsLoaded || !isAuthReady) return;
 
-  const publicRoutes = ['login', 'register', 'forgot-password', 'index', undefined, ''];
-  const currentRoute = segments[0];
-  const isPublicRoute = publicRoutes.includes(currentRoute);
+    // تحديد المسارات العامة التي لا تحتاج تسجيل دخول
+    const publicRoutes = ['index', 'login', 'register', 'forgot-password'];
+    const currentRoute = segments[0];
+    const isPublicRoute = publicRoutes.includes(currentRoute) || !currentRoute;
 
-  /* ------ قم بتعطيل شرط التوجيه التلقائي مؤقتاً لمعرفة مصدر الخلل ------
-  if (user) {
-    if (isPublicRoute) {
-      router.replace('/(tabs)');
+    if (user) {
+      // إذا كان المستخدم مسجلاً وموجوداً في شاشة عامة (مثل تسجيل الدخول)، انقله مباشرة للـ Tabs
+      if (isPublicRoute) {
+        router.replace('/(tabs)');
+      }
+    } else {
+      // إذا لم يكن مسجلاً وحاول الدخول لصفحة محمية، أعده لشاشة البداية الرئيسية
+      if (!isPublicRoute) {
+        router.replace('/');
+      }
     }
-  } else {
-    if (!isPublicRoute) {
-      router.replace('/'); 
-    }
-  }
-  -------------------------------------------------------------- */
-}, [user, isAuthReady, checking, fontsLoaded, segments]);
+  }, [user, isAuthReady, checking, fontsLoaded, segments]);
 
   return (
     <AuthProvider>
