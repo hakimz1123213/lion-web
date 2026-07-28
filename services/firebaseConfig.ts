@@ -6,12 +6,12 @@ import { getDatabase } from "firebase/database";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCF0lF91EoI9_Ja8t4DzKsr2aKinGxZH08",
-  authDomain: "noir-879ad.firebaseapp.com",
-  databaseURL: "https://noir-879ad-default-rtdb.firebaseio.com", 
-  storageBucket: "noir-879ad.firebasestorage.app",
-  messagingSenderId: "1000104358881",
-  appId: "1:1000104358881:android:3d5e506ad8a6fe07f258a0"
+  apiKey: "AIzaSyAqdqCX2pkv1sQ1dZlpl-09v651mcd_KX4",
+  authDomain: "lion-e7e25-default-rtdb.firebaseapp.com",
+  databaseURL: "https://lion-e7e25-default-rtdb.firebaseio.com", 
+  storageBucket: "lion-e7e25.firebasestorage.app",
+  messagingSenderId: "411435734882",
+  appId: "1:411435734882:android:04022aa8474b764e17be3b"
 };
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
