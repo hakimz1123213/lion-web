@@ -43,17 +43,19 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
 
   const player = useVideoPlayer(videoUrl, (p) => {
     p.loop = false;
-    // 1. لا نكتم الصوت (لأنه لن يشتغل تلقائياً أصلاً)
-    p.muted = false; 
+    
+    // 1. التعديل الأول: اجعله صامتاً في البداية! 
+    // هذا يرضي سياسات المتصفحات ويجعلها تحمل الفيديو دون حظره
+    p.muted = true; 
     p.volume = 1.0;
-    // 2. نضمن أن الفيديو يبدأ متوقفاً (Paused) لكي لا يحظره المتصفح
     p.pause(); 
   });
 
   const handlePlayAdWithSound = () => {
     if (player) {
-      // 3. عندما يضغط المستخدم بيده على الزر، نشغل الفيديو. 
-      // المتصفح سيسمح بالصوت فوراً لأن التشغيل جاء بطلب (نقرة) من المستخدم.
+      // 2. التعديل الثاني: هنا وبفضل نقرة المستخدم، نلغي الكتم ونشغل الفيديو. 
+      // المتصفح سيسمح بالصوت 100% لأنها استجابة لـ User Action
+      player.muted = false;
       player.play();
       setIsPlaying(true);
     }
