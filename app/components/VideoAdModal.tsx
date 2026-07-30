@@ -17,7 +17,7 @@ const adTranslations: Record<string, Record<string, string>> = {
     waitForReward: "REWARD UNLOCK: {time}S",
     taskApproved: "SYSTEM: TASK VERIFIED",
     watchWithSound: "ENABLE HIGH-QUALITY AUDIO",
-    bypassGesture: "Tap to initiate sound matrix",
+    bypassGesture: "Click play / unmute below",
     rewardReady: "CLAIM READY",
     clickConfirm: "Your reward is ready to be credited.",
     claimBtn: "CLAIM REWARD NOW ⚡",
@@ -27,7 +27,7 @@ const adTranslations: Record<string, Record<string, string>> = {
     waitForReward: "متبقي للمكافأة: {time} ثانية",
     taskApproved: "تم اعتماد القيمة بنجاح 🎉",
     watchWithSound: "تفعيل الصوت المباشر 🔊",
-    bypassGesture: "اضغط للبدء وتشغيل نظام الصوت",
+    bypassGesture: "اضغط على زر التشغيل أو الصوت أدناه",
     rewardReady: "المكافأة جاهزة للجمع 💰",
     clickConfirm: "تأكيد إيداع الأرباح المباشرة في محفظتك.",
     claimBtn: "تأكيد واستلام الأرباح ⚡",
@@ -43,20 +43,24 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
 
   const player = useVideoPlayer(videoUrl, (p) => {
     p.loop = false;
-    p.muted = true; // 👈 يجب أن يبدأ صامتاً لتجنب حظر المتصفح الأولي
+    // التعديل الأول: ابدأ الفيديو صامتاً لتخطي حظر المتصفحات
+    p.muted = true; 
     p.volume = 1.0;
   });
 
   const handlePlayAdWithSound = () => {
     if (player) {
-      player.muted = false; // فك الكتم
-      player.play(); // تشغيل الفيديو
+      // التعديل الثاني: قم بتشغيل الفيديو أولاً، ثم قم بإلغاء الكتم
+      player.play();
+      player.muted = false; 
       setIsPlaying(true);
     }
   };
 
   useEffect(() => {
-    let timer: any;
+    // تم التعديل هنا 👇
+    let timer: ReturnType<typeof setInterval>;
+    
     if (isPlaying && timeLeft > 0) {
       timer = setInterval(() => {
         setTimeLeft((prev) => prev - 1);
@@ -107,16 +111,15 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
 
           <VideoView 
             player={player} 
-            style={[styles.videoPlayer, !isPlaying && { opacity: 0 }]} 
+            style={styles.videoPlayer} 
             contentFit="cover"
-            nativeControls={false} 
+            nativeControls={Platform.OS === 'web' ? true : false} 
           />
 
           {!isPlaying && (
             <Pressable 
               style={styles.unmuteOverlay} 
-              // 👈 السر هنا: onPressIn ينفذ الأمر في متصفح الويب فور لمس الماوس/الشاشة بدون التأخير القاتل لـ onPress
-              onPressIn={handlePlayAdWithSound} 
+              onPressIn={handlePlayAdWithSound}
               onPress={handlePlayAdWithSound}
             >
               <View style={styles.glowPulseCircle}>
@@ -363,6 +366,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   primaryPillBtn: {
+    // hover: { opacity: 0.9 }, // Note: hover is a web-only pseudo-class, React Native uses activeOpacity on TouchableOpacity
     backgroundColor: '#8B5CF6',
     paddingVertical: 14,
     paddingHorizontal: 35,
