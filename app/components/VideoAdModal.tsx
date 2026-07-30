@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, View, Text, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
+import { Modal, View, Text, StyleSheet, TouchableOpacity, Pressable, Platform } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { MaterialIcons, Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/useAuth';
@@ -43,16 +43,14 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
 
   const player = useVideoPlayer(videoUrl, (p) => {
     p.loop = false;
-    // 🔥 الحل الجذري هنا: نضبطه على false من البداية لكي يتعرف عليه المتصفح كفيديو بصوت
-    p.muted = false; 
+    p.muted = true; // 👈 يجب أن يبدأ صامتاً لتجنب حظر المتصفح الأولي
     p.volume = 1.0;
-    // ⚠️ لا نضع p.play() هنا أبداً، ننتظر ضغطة المستخدم
   });
 
   const handlePlayAdWithSound = () => {
     if (player) {
-      // 🚀 التشغيل المباشر: بما أن المستخدم ضغط بيده، المتصفح سيسمح بتشغيل الصوت فوراً
-      player.play();
+      player.muted = false; // فك الكتم
+      player.play(); // تشغيل الفيديو
       setIsPlaying(true);
     }
   };
@@ -115,7 +113,12 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
           />
 
           {!isPlaying && (
-            <Pressable style={styles.unmuteOverlay} onPress={handlePlayAdWithSound}>
+            <Pressable 
+              style={styles.unmuteOverlay} 
+              // 👈 السر هنا: onPressIn ينفذ الأمر في متصفح الويب فور لمس الماوس/الشاشة بدون التأخير القاتل لـ onPress
+              onPressIn={handlePlayAdWithSound} 
+              onPress={handlePlayAdWithSound}
+            >
               <View style={styles.glowPulseCircle}>
                 <Ionicons name="volume-high" size={38} color="#FFFFFF" />
               </View>

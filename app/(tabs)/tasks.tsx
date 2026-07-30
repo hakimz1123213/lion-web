@@ -106,8 +106,9 @@ export default function TasksScreen() {
   const currentTier = getVIPTier ? getVIPTier(user?.vip_level || 0) : null;
   const rewardAmount = currentTier ? currentTier.dailyPayoutMin.toFixed(2) : "0.00";
 
-  const promoPlayer = useVideoPlayer("https://files.x.moe/oskka8.mp4", (p) => {
+const promoPlayer = useVideoPlayer("https://files.x.moe/oskka8.mp4", (p) => {
     p.loop = true;
+    p.muted = true; // 👈 هذا السطر مصيري! بدونه سيقوم المتصفح بحظر الصوت عن كامل الموقع
     if (user?.vip_level === 0) p.play();
   });
 
