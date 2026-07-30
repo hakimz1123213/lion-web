@@ -17,13 +17,14 @@ import * as Clipboard from 'expo-clipboard';
 import { useAuth } from '@/hooks/useAuth';
 import { useAlert } from '@/template';
 import { VIP_TIERS, ADMIN_USDT_ADDRESS } from '@/constants/config';
-// 🟢 تم استبدال firebase/functions بـ firebase/database
 import { ref, get, push, set } from 'firebase/database';
-import { db } from '@/services/firebaseConfig'; // تأكد من مسار الـ db الخاص بك
+import { db } from '@/services/firebaseConfig'; 
+
+// 🟢 1. قم باستيراد دالة التلغرام (تأكد من مسار الملف الصحيح لديك)
+import { sendTelegramAdminAlert } from '@/services/telegramService'; 
 
 const { width } = Dimensions.get('window');
 
-// 🎨 الألوان المطابقة للصورة
 const THEME = {
   bg: '#F8F9FA',
   surface: '#FFFFFF',
@@ -36,7 +37,6 @@ const THEME = {
   inputBg: '#F9FAFB',
 };
 
-// 🌍 الترجمة (حسب لغة المستخدم)
 const depositTranslations: Record<string, Record<string, string>> = {
   EN: {
     title: "Deposit USDT",
@@ -91,7 +91,6 @@ export default function DepositScreen() {
   const t = depositTranslations[lang] || depositTranslations['EN'];
   const isAR = lang === 'AR';
 
-  // تصفية الباقات المطلوبة فقط
   const targetAmounts = [70, 150, 300, 500, 800, 1400, 2400, 4100];
   const filteredTiers = VIP_TIERS.filter(tier => targetAmounts.includes(tier.entryFee));
   const displayTiers = filteredTiers.length > 0 ? filteredTiers : [
@@ -105,7 +104,6 @@ export default function DepositScreen() {
     { level: 8, label: 'VIP 8', entryFee: 4100 },
   ];
 
-  // 🔢 التعامل مع لوحة الأرقام
   const handleKeyPress = (val: string) => {
     if (val === 'back') {
       setAmount(prev => (prev.length <= 1 ? '0' : prev.slice(0, -1)));
@@ -116,14 +114,12 @@ export default function DepositScreen() {
     }
   };
 
-  // 📋 نسخ العنوان
   const handleCopy = async () => {
     await Clipboard.setStringAsync(ADMIN_USDT_ADDRESS);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // 🚀 الإرسال المباشر للفايربيس (Client-Side)
   const handleSubmit = async () => {
     const parsed = parseFloat(amount);
     if (isNaN(parsed) || parsed <= 0) return showAlert('Error', 'Invalid amount');
@@ -131,7 +127,6 @@ export default function DepositScreen() {
     try {
       setIsSubmitting(true);
 
-      // 1. التحقق من الحماية ضد السبام (Anti-Spam)
       const historyRef = ref(db, `users/${user.uid}/depositRequestsHistory`);
       const historySnap = await get(historyRef);
       let timestampsList: number[] = [];
@@ -141,20 +136,17 @@ export default function DepositScreen() {
         timestampsList = Array.isArray(rawData) ? rawData : Object.values(rawData);
       }
 
-      // تصفية الطلبات في آخر 24 ساعة
       const activeRequestsInLast24h = timestampsList.filter(
         (ts) => (Date.now() - ts) / (1000 * 60 * 60) < 24
       );
 
-      // رفض الطلب إذا تجاوز 3 طلبات
       if (activeRequestsInLast24h.length >= 3) {
         setIsSubmitting(false);
         return showAlert('Error', t.spamError);
       }
 
-      // 2. إنشاء المعاملة في جدول transactions
       const txsRef = ref(db, 'transactions');
-      const newTxRef = push(txsRef); // إنشاء مفتاح جديد
+      const newTxRef = push(txsRef);
       const txIdKey = newTxRef.key;
 
       await set(newTxRef, {
@@ -168,11 +160,17 @@ export default function DepositScreen() {
         createdAt: Date.now(),
       });
 
-      // 3. تحديث سجل طلبات المستخدم
       activeRequestsInLast24h.push(Date.now());
       await set(historyRef, activeRequestsInLast24h);
 
-      // 4. إظهار رسالة النجاح والعودة
+      // 🟢 2. استدعاء دالة التلغرام بعد نجاح حفظ المعاملة في فايربيس
+      await sendTelegramAdminAlert(
+        user.username || 'Unknown',
+        'Deposit',
+        parsed,
+        `رقم المعاملة (TxID): ${txIdKey}` // تفاصيل إضافية للرسالة
+      );
+
       showAlert(t.success, t.successMsg, [{ text: 'OK', onPress: () => router.back() }]);
 
     } catch (err: any) {
@@ -185,7 +183,6 @@ export default function DepositScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* ─── Header ─── */}
       <View style={[styles.header, isAR && { flexDirection: 'row-reverse' }]}>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
           <Feather name={isAR ? "chevron-right" : "chevron-left"} size={28} color={THEME.textMain} />
@@ -196,12 +193,10 @@ export default function DepositScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         
-        {/* ─── Amount Display ─── */}
         <View style={styles.amountContainer}>
           <Text style={styles.amountText}>${amount}</Text>
         </View>
 
-        {/* ─── VIP Presets ─── */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.presetsWrapper} contentContainerStyle={styles.presetsContainer}>
           {displayTiers.map((tier) => {
             const isActive = amount === tier.entryFee.toString();
@@ -219,7 +214,6 @@ export default function DepositScreen() {
           })}
         </ScrollView>
 
-        {/* ─── Deposit Selection Row ─── */}
         <Pressable style={[styles.depositRowCard, isAR && { flexDirection: 'row-reverse' }]}>
           <View style={[styles.depositRowLeft, isAR && { flexDirection: 'row-reverse' }]}>
             <Image 
@@ -234,7 +228,6 @@ export default function DepositScreen() {
           <Feather name={isAR ? "chevron-left" : "chevron-right"} size={20} color="#9CA3AF" />
         </Pressable>
 
-        {/* ─── Flat Numeric Keypad ─── */}
         <View style={styles.keypadCard}>
           {[
             ['1', '2', '3'], 
@@ -260,7 +253,6 @@ export default function DepositScreen() {
           ))}
         </View>
 
-        {/* ─── Unified Address, QR Card ─── */}
         <View style={styles.card}>
           <Text style={[styles.cardTitle, isAR && { textAlign: 'right' }]}>{t.addressTitle}</Text>
           
@@ -275,7 +267,6 @@ export default function DepositScreen() {
             </Text>
           </View>
 
-          {/* QR & Copy Row */}
           <Text style={[styles.sectionTitle, { marginTop: 24 }, isAR && { textAlign: 'right' }]}>{t.qrTitle}</Text>
           <View style={[styles.qrRow, isAR && { flexDirection: 'row-reverse' }]}>
             <View style={styles.qrBox}>
@@ -292,7 +283,6 @@ export default function DepositScreen() {
           </View>
         </View>
 
-        {/* ─── زر إرسال الطلب الأساسي ─── */}
         <Pressable 
           style={[styles.submitBtn, (isSubmitting || amount === '0') && styles.submitBtnDisabled]}
           onPress={handleSubmit}
@@ -310,7 +300,6 @@ export default function DepositScreen() {
   );
 }
 
-// ─── STYLES ──────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: THEME.bg },
   scrollContent: { paddingHorizontal: 16, paddingBottom: 60 },
