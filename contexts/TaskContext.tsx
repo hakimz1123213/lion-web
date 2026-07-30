@@ -214,7 +214,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
           const currentBal = parseFloat(userData.balance?.toString() || '0');
 
           userData.balance = currentBal + rewardEarned;
-          taskState.lastCompletionTime = secureTimeRef.current; // استخدام توقيت العميل أو التوقيت المحمي
+          taskState.lastCompletionTime = Date.now(); // استخدام توقيت العميل أو التوقيت المحمي
           isCompleted = true;
         } else if (currentCounter === 1) {
           taskState.lastCompletionTime = null;
