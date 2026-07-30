@@ -11,7 +11,6 @@ interface VideoAdModalProps {
   onClose: () => void;
 }
 
-// 🌍 قاموس النصوص 
 const adTranslations: Record<string, Record<string, string>> = {
   EN: {
     statusBadge: "CYBER STREAM LIVE",
@@ -35,7 +34,6 @@ const adTranslations: Record<string, Record<string, string>> = {
   }
 };
 
-// 🚀 المكون الداخلي: محرك التشغيل المستقل
 function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: string, onComplete: () => void, onClose: () => void, lang: string }) {
   const [timeLeft, setTimeLeft] = useState(15);
   const [isFinished, setIsFinished] = useState(false);
@@ -45,17 +43,15 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
 
   const player = useVideoPlayer(videoUrl, (p) => {
     p.loop = false;
-    p.muted = true; // ضروري جداً أن يبدأ صامتاً لتجاوز حظر المتصفح الأولي
+    // 🔥 الحل الجذري هنا: نضبطه على false من البداية لكي يتعرف عليه المتصفح كفيديو بصوت
+    p.muted = false; 
     p.volume = 1.0;
+    // ⚠️ لا نضع p.play() هنا أبداً، ننتظر ضغطة المستخدم
   });
 
   const handlePlayAdWithSound = () => {
     if (player) {
-      // 👈 التعديل الجذري: فك الكتم فوراً وبشكل متزامن مع نقرة المستخدم (بدون setTimeout)
-      player.muted = false;
-      player.volume = 1.0;
-      
-      // تشغيل الفيديو بعد التأكد من فك الكتم
+      // 🚀 التشغيل المباشر: بما أن المستخدم ضغط بيده، المتصفح سيسمح بتشغيل الصوت فوراً
       player.play();
       setIsPlaying(true);
     }
@@ -79,7 +75,6 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
   return (
     <View style={styles.cyberCard}>
       
-      {/* 🛑 1. زر الإغلاق العائم في الأعلى */}
       <TouchableOpacity 
         style={styles.floatingCloseBtn} 
         onPress={() => { if (player) player.pause(); onClose(); }}
@@ -88,7 +83,6 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
         <Ionicons name="close" size={22} color="#FFFFFF" />
       </TouchableOpacity>
 
-      {/* 📡 2. شريط النظام العلوي (HUD Header) */}
       <View style={styles.hudHeader}>
         <View style={styles.liveIndicator}>
           <View style={styles.liveDot} />
@@ -106,10 +100,8 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
         </View>
       </View>
 
-      {/* 📺 3. شاشة العرض الرقمية الإطار المضيء المستقبلي */}
       {!isFinished ? (
         <View style={styles.cyberVideoFrame}>
-          {/* زوايا ديكورية لمظهر النيون المستقبلي */}
           <View style={[styles.cornerAccents, styles.topLeft]} />
           <View style={[styles.cornerAccents, styles.topRight]} />
           <View style={[styles.cornerAccents, styles.bottomLeft]} />
@@ -122,7 +114,6 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
             nativeControls={false} 
           />
 
-          {/* overlay كسر الحظر وتفعيل الصوت */}
           {!isPlaying && (
             <Pressable style={styles.unmuteOverlay} onPress={handlePlayAdWithSound}>
               <View style={styles.glowPulseCircle}>
@@ -134,7 +125,6 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
           )}
         </View>
       ) : (
-        /* 🏆 4. كارت النجاح الهولوجرام الفاخر */
         <View style={styles.successCyberBox}>
           <View style={styles.successIconOuter}>
             <Ionicons name="checkmark-sharp" size={50} color="#FFFFFF" />
@@ -144,7 +134,6 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
         </View>
       )}
 
-      {/* 🔘 5. زر التأكيد الرئيسي باللون الأرجواني والأبيض */}
       <View style={styles.bottomActionArea}>
         {isFinished && (
           <TouchableOpacity 
@@ -162,7 +151,6 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
   );
 }
 
-// 🚀 المكون الأساسي
 export default function VideoAdModal({ visible, videoUrl, onComplete, onClose }: VideoAdModalProps) {
   const { user } = useAuth();
   // @ts-ignore
@@ -184,7 +172,6 @@ export default function VideoAdModal({ visible, videoUrl, onComplete, onClose }:
   );
 }
 
-// 🎨 الستايل
 const styles = StyleSheet.create({
   modalBackdrop: { 
     flex: 1, 
