@@ -41,18 +41,19 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
 
   const t = adTranslations[lang] || adTranslations['EN'];
 
-  const player = useVideoPlayer(videoUrl, (p) => {
+ const player = useVideoPlayer(videoUrl, (p) => {
     p.loop = false;
-    p.muted = false; 
+    // ⚠️ هذا هو سر الحل: يجب أن يبدأ الفيديو "مكتوماً" ليرضى المتصفح عن التحميل
+    p.muted = true; 
     p.volume = 1.0;
     p.pause(); 
   });
   const handlePlayAdWithSound = (e?: any) => {
-    // لمنع تكرار الضغطة إذا تم استدعاؤها مرتين
     if (e && e.preventDefault) e.preventDefault(); 
     
     if (player) {
-      player.muted = false;
+      // ✅ هنا فقط نقوم بإلغاء الكتم عند ضغطة المستخدم
+      player.muted = false; 
       player.volume = 1.0;
       player.play();
       setIsPlaying(true);
