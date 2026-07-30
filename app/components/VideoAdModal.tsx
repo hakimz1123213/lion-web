@@ -41,27 +41,26 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
 
   const t = adTranslations[lang] || adTranslations['EN'];
 
- const player = useVideoPlayer(videoUrl, (p) => {
+  const player = useVideoPlayer(videoUrl, (p) => {
     p.loop = false;
-    // ⚠️ هذا هو سر الحل: يجب أن يبدأ الفيديو "مكتوماً" ليرضى المتصفح عن التحميل
+    // التعديل الأول: ابدأ الفيديو صامتاً لتخطي حظر المتصفحات
     p.muted = true; 
     p.volume = 1.0;
-    p.pause(); 
   });
-  const handlePlayAdWithSound = (e?: any) => {
-    if (e && e.preventDefault) e.preventDefault(); 
-    
+
+  const handlePlayAdWithSound = () => {
     if (player) {
-      // ✅ هنا فقط نقوم بإلغاء الكتم عند ضغطة المستخدم
-      player.muted = false; 
-      player.volume = 1.0;
+      // التعديل الثاني: قم بتشغيل الفيديو أولاً، ثم قم بإلغاء الكتم
       player.play();
+      player.muted = false; 
       setIsPlaying(true);
     }
   };
 
   useEffect(() => {
-    let timer: any;
+    // تم التعديل هنا 👇
+    let timer: ReturnType<typeof setInterval>;
+    
     if (isPlaying && timeLeft > 0) {
       timer = setInterval(() => {
         setTimeLeft((prev) => prev - 1);
@@ -114,21 +113,17 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
             player={player} 
             style={styles.videoPlayer} 
             contentFit="cover"
-            // 4. هنا نلغي شريط التحكم (الخط السفلي) نهائياً في جميع الأجهزة والويب
-            nativeControls={false} 
+            nativeControls={Platform.OS === 'web' ? true : false} 
           />
 
-     {!isPlaying && (
+          {!isPlaying && (
             <Pressable 
               style={styles.unmuteOverlay} 
-              // 1. للجوال (أندرويد وآيفون) نستخدم onPress
-              onPress={Platform.OS !== 'web' ? handlePlayAdWithSound : undefined}
-              // 2. للويب (المتصفحات) نستخدم onClick لفك حظر الصوت إجبارياً
-              // @ts-ignore
-              onClick={Platform.OS === 'web' ? handlePlayAdWithSound : undefined}
+              onPressIn={handlePlayAdWithSound}
+              onPress={handlePlayAdWithSound}
             >
               <View style={styles.glowPulseCircle}>
-                <Ionicons name="play" size={38} color="#FFFFFF" />
+                <Ionicons name="volume-high" size={38} color="#FFFFFF" />
               </View>
               <Text style={styles.overlayTitle}>{t.watchWithSound}</Text>
               <Text style={styles.overlaySub}>{t.bypassGesture}</Text>
