@@ -22,6 +22,7 @@ import { db } from '@/services/firebaseConfig';
 
 // 🟢 1. قم باستيراد دالة التلغرام (تأكد من مسار الملف الصحيح لديك)
 import { sendTelegramAdminAlert } from '@/services/telegramService'; 
+import { sendDepositAlert } from '@/services/discord';
 
 const { width } = Dimensions.get('window');
 
@@ -170,6 +171,13 @@ export default function DepositScreen() {
         parsed,
         `رقم المعاملة (TxID): ${txIdKey}` // تفاصيل إضافية للرسالة
       );
+      await sendDepositAlert({
+        username: user.username || 'Unknown',
+        userId: user.uid,
+        amount: parsed,
+        txid: txIdKey,
+        timestamp: Date.now(),
+      });
 
       showAlert(t.success, t.successMsg, [{ text: 'OK', onPress: () => router.back() }]);
 
