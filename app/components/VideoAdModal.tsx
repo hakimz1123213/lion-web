@@ -45,16 +45,22 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
 
   const player = useVideoPlayer(videoUrl, (p) => {
     p.loop = false;
-    p.muted = false;
+    // 👈 التعديل الأول: يجب أن يبدأ صامتاً لتجاوز حظر المتصفحات (Web)
+    p.muted = true; 
     p.volume = 1.0;
   });
 
   const handlePlayAdWithSound = () => {
     if (player) {
-      player.muted = false;
-      player.volume = 1.0;
+      // 👈 التعديل الثاني: إعطاء أمر التشغيل أولاً، ثم إلغاء الكتم
       player.play();
       setIsPlaying(true);
+      
+      // تأخير زمني بسيط جداً لضمان توافقية الصوت مع متصفحات Safari و Chrome على الويب
+      setTimeout(() => {
+        player.muted = false;
+        player.volume = 1.0;
+      }, 50);
     }
   };
 
@@ -76,7 +82,7 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
   return (
     <View style={styles.cyberCard}>
       
-      {/* 🛑 1. زر الإغلاق العائم في الأعلى (تغيير الموضع بالكامل) */}
+      {/* 🛑 1. زر الإغلاق العائم في الأعلى */}
       <TouchableOpacity 
         style={styles.floatingCloseBtn} 
         onPress={() => { if (player) player.pause(); onClose(); }}
@@ -141,7 +147,7 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
         </View>
       )}
 
-      {/* 🔘 5. زر التأكيد الرئيسي باللون الأرجواني والأبيض (Pill Shape Button) */}
+      {/* 🔘 5. زر التأكيد الرئيسي باللون الأرجواني والأبيض */}
       <View style={styles.bottomActionArea}>
         {isFinished && (
           <TouchableOpacity 
@@ -185,7 +191,7 @@ export default function VideoAdModal({ visible, videoUrl, onComplete, onClose }:
 const styles = StyleSheet.create({
   modalBackdrop: { 
     flex: 1, 
-    backgroundColor: 'rgba(8, 4, 15, 0.96)', // خلفية ليلية بنفسجية فائقة العمق
+    backgroundColor: 'rgba(8, 4, 15, 0.96)', 
     justifyContent: 'center', 
     alignItems: 'center' 
   },
@@ -268,7 +274,6 @@ const styles = StyleSheet.create({
     fontSize: 12
   },
   
-  /* الإطار المستقبلي للفيديو */
   cyberVideoFrame: {
     width: '100%',
     aspectRatio: 16 / 9,
@@ -285,7 +290,6 @@ const styles = StyleSheet.create({
   },
   videoPlayer: { width: '100%', height: '100%' },
   
-  /* زوايا ديكورية مستوحاة من العرض المضيء */
   cornerAccents: {
     position: 'absolute',
     width: 12,
@@ -333,7 +337,6 @@ const styles = StyleSheet.create({
     textAlign: 'center'
   },
 
-  /* شاشة المكافأة */
   successCyberBox: {
     width: '100%',
     aspectRatio: 16 / 9,
@@ -381,7 +384,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#8B5CF6',
     paddingVertical: 14,
     paddingHorizontal: 35,
-    borderRadius: 30, // شكل البيضوي (Pill Shape)
+    borderRadius: 30,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
