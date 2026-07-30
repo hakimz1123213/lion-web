@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, useRef, ReactNode } from 'react';
-// 🟢 الاعتماد الكامل على Realtime Database بدلاً من Functions
-import { ref, get, onValue, update, push, serverTimestamp } from "firebase/database";
+// 🟢 الاعتماد على Realtime Database مع إضافة runTransaction لمنع الثغرات
+import { ref, onValue, update, push, serverTimestamp, runTransaction } from "firebase/database";
 import { db } from '../services/firebaseConfig'; 
 import { AuthContext } from './AuthContext';
 import { WalletContext } from './WalletContext';
@@ -8,17 +8,8 @@ import { sendPushNotification } from '../services/pushNotificationService';
 import { TASK_TOTAL } from '@/constants/config';
 import { Alert } from 'react-native';
 
-// 💰 جدول أرباح المهام اليومية (تم نقله للعميل)
 const DAILY_VIP_REWARDS: Record<number, number> = {
-  0: 0,     // VIP 0
-  1: 2.2,   // VIP 1
-  2: 4.2,   // VIP 2
-  3: 8.5,   // VIP 3
-  4: 12.4,  // VIP 4
-  5: 23.3,  // VIP 5
-  6: 33.33, // VIP 6
-  7: 56.5,  // VIP 7
-  8: 96.5   // VIP 8
+  0: 0, 1: 2.2, 2: 4.2, 3: 8.5, 4: 12.4, 5: 23.3, 6: 33.33, 7: 56.5, 8: 96.5 
 };
 
 interface TaskContextType {
@@ -36,23 +27,21 @@ interface TaskContextType {
 
 export const TaskContext = createContext<TaskContextType | undefined>(undefined);
 
-// 🕒 دوال مساعدة لحساب أوقات التجديد (12:00 منتصف النهار)
-const getNextResetTime = (currentTimestamp: number) => {
+// 🕒 استخدام UTC لمنع مشاكل اختلاف التوقيت بين الدول (حل مشكلة الـ 15 ساعة)
+const getNextResetTimeUTC = (currentTimestamp: number) => {
   const date = new Date(currentTimestamp);
-  date.setHours(12, 0, 0, 0); 
-  
+  date.setUTCHours(12, 0, 0, 0); 
   if (currentTimestamp >= date.getTime()) {
-    date.setDate(date.getDate() + 1); 
+    date.setUTCDate(date.getUTCDate() + 1); 
   }
   return date.getTime();
 };
 
-const getLastResetTime = (currentTimestamp: number) => {
+const getLastResetTimeUTC = (currentTimestamp: number) => {
   const date = new Date(currentTimestamp);
-  date.setHours(12, 0, 0, 0);
-  
+  date.setUTCHours(12, 0, 0, 0);
   if (currentTimestamp < date.getTime()) {
-    date.setDate(date.getDate() - 1); 
+    date.setUTCDate(date.getUTCDate() - 1); 
   }
   return date.getTime();
 };
@@ -68,7 +57,6 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   const [timeRemaining, setTimeRemaining] = useState("00:00:00");
   const [canReset, setCanReset] = useState(false);
   
-  const lastUserId = useRef<string | null>(null);
   const secureTimeRef = useRef<number>(Date.now());
   const lastLocalTimeRef = useRef<number>(Date.now());
   const offsetRef = useRef<number>(0);
@@ -82,18 +70,12 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     return () => unsub();
   }, []);
 
-  // 🛡️ نظام الحماية السحابية للتوقيت
   const syncTrueTime = async (isJumpDetected = false) => {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000); 
-
-      const res = await fetch('https://worldtimeapi.org/api/timezone/Etc/UTC', {
-        signal: controller.signal 
-      });
-      
+      const res = await fetch('https://worldtimeapi.org/api/timezone/Etc/UTC', { signal: controller.signal });
       clearTimeout(timeoutId); 
-
       if (res.ok) {
         const data = await res.json();
         secureTimeRef.current = new Date(data.utc_datetime).getTime();
@@ -102,9 +84,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       }
     } catch (e) {
       if (!isJumpDetected) {
-        const safeOffset = typeof offsetRef.current === 'number' && !isNaN(offsetRef.current) 
-                           ? offsetRef.current 
-                           : 0;
+        const safeOffset = typeof offsetRef.current === 'number' && !isNaN(offsetRef.current) ? offsetRef.current : 0;
         secureTimeRef.current = Date.now() + safeOffset;
       }
     } finally {
@@ -112,28 +92,34 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // 🔄 استخدام onValue للتزامن اللحظي بين الموقع والتطبيق
   useEffect(() => {
     if (!auth?.user) {
       setDailyCounter(0);
       setLastCompletionTime(null);
       setIsLoading(false);
-      lastUserId.current = null;
       return;
     }
 
-    if (lastUserId.current !== auth.user.uid) {
-      lastUserId.current = auth.user.uid;
-      loadCloudTaskState();
-    }
+    const taskRef = ref(db, `users/${auth.user.uid}/taskState`);
+    const unsubscribeTasks = onValue(taskRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const state = snapshot.val();
+        setDailyCounter(state.dailyCounter || 0);
+        setLastCompletionTime(state.lastCompletionTime || null);
+      } else {
+        resetTasks();
+      }
+      setIsLoading(false);
+    });
 
-    // 🛡️ رادار كشف التلاعب بالساعة
     const timer = setInterval(() => {
       const now = Date.now();
       const delta = now - lastLocalTimeRef.current;
       lastLocalTimeRef.current = now;
 
       if (Math.abs(delta) > 15000) {
-         console.warn("🛡️ Security Alert: Clock manipulation detected! Resyncing...");
+         console.warn("🛡️ Security Alert: Clock manipulation detected!");
          syncTrueTime(true).then(() => updateCooldownStatus());
       } else {
          secureTimeRef.current += delta; 
@@ -141,23 +127,12 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       }
     }, 1000);
 
-    return () => clearInterval(timer);
-  }, [auth?.user?.uid, lastCompletionTime, dailyCounter]);
-
-  const loadCloudTaskState = async () => {
-    if (!auth?.user) return;
-    const taskRef = ref(db, `users/${auth.user.uid}/taskState`);
-    const snapshot = await get(taskRef);
-    
-    if (snapshot.exists()) {
-      const state = snapshot.val();
-      setDailyCounter(state.dailyCounter || 0);
-      setLastCompletionTime(state.lastCompletionTime || null);
-    } else {
-      resetTasks();
-    }
-    setIsLoading(false);
-  };
+    return () => {
+      clearInterval(timer);
+      unsubscribeTasks();
+    };
+  }, [auth?.user?.uid]); 
+  // قمنا بإزالة المتغيرات الأخرى من المصفوفة لمنع التحديث اللانهائي
 
   const updateCooldownStatus = () => {
     if (dailyCounter < TASK_TOTAL || !lastCompletionTime) {
@@ -167,7 +142,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     }
 
     const now = secureTimeRef.current;
-    const lastReset = getLastResetTime(now);
+    const lastReset = getLastResetTimeUTC(now);
 
     if (lastCompletionTime < lastReset) {
       setTimeRemaining("00:00:00");
@@ -175,7 +150,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       resetTasks(); 
     } else {
       setCanReset(false);
-      const nextReset = getNextResetTime(now);
+      const nextReset = getNextResetTimeUTC(now);
       const remaining = nextReset - now;
 
       if (remaining <= 0) {
@@ -203,83 +178,84 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     setWatchingIndex(index);
   };
 
-  // 🚀 إتمام الفيديو والتحديث المباشر في قاعدة البيانات (بدون Functions)
+  // 🚀 التحديث الأهم: استخدام runTransaction من العميل لمنع الثغرة تماماً
   const completeVideo = async () => {
     if (watchingIndex === null || !auth?.user) return;
     
-    const previousCounter = dailyCounter;
-    const newCounter = dailyCounter + 1;
+    setWatchingIndex(null); // إغلاق مشغل الفيديو فوراً
     const userId = auth.user.uid;
-    
-    // 1️⃣ التحديث الفوري للواجهة
-    setDailyCounter(newCounter);
-    setWatchingIndex(null);
+    const userRef = ref(db, `users/${userId}`);
 
     try {
-      // 2️⃣ جلب بيانات المستخدم لضمان دقة الرصيد ومستوى الـ VIP
-      const userRef = ref(db, `users/${userId}`);
-      const userSnap = await get(userRef);
-      
-      if (!userSnap.exists()) throw new Error("User not found.");
-      
-      const userData = userSnap.val();
-      const updates: Record<string, any> = {};
       let isCompleted = false;
-      let reward = 0;
+      let rewardEarned = 0;
+      let userVipLevel = 0;
+      let userName = 'Unknown';
 
-      if (newCounter >= TASK_TOTAL) {
-        // 🎯 وصول للمهمة الأخيرة (10)
-        const vipLevel = userData.vip_level || 0;
-        reward = DAILY_VIP_REWARDS[vipLevel] || 0;
-        const currentBal = parseFloat(userData.balance?.toString() || '0');
+      // 🛡️ استخدام Transaction لضمان القراءة والكتابة في نفس اللحظة (يمنع النصب والتكرار)
+      const transactionResult = await runTransaction(userRef, (userData) => {
+        if (!userData) return userData;
 
-        // تحديث الرصيد والعداد
-        updates[`users/${userId}/balance`] = currentBal + reward;
-        updates[`users/${userId}/taskState/dailyCounter`] = TASK_TOTAL;
-        updates[`users/${userId}/taskState/lastCompletionTime`] = serverTimestamp();
+        let taskState = userData.taskState || { dailyCounter: 0, lastCompletionTime: null };
+        let currentCounter = taskState.dailyCounter || 0;
 
-        // تسجيل المعاملة
-        const txRef = push(ref(db, 'transactions'));
-        updates[`transactions/${txRef.key}`] = {
-          id: txRef.key,
-          userId: userId,
-          username: userData.username || 'Unknown',
-          type: 'Reward',
-          amount: reward,
-          status: 'Completed',
-          note: `Daily reward VIP ${vipLevel}`,
-          createdAt: serverTimestamp(),
-        };
-        
-        isCompleted = true;
-      } else {
-        // 🔄 مجرد زيادة عادية للعداد
-        updates[`users/${userId}/taskState/dailyCounter`] = newCounter;
-        if (newCounter === 1) {
-          updates[`users/${userId}/taskState/lastCompletionTime`] = null; // تنظيف وقت الأمس
+        // إذا كان المستخدم قد أنهى المهام بالفعل، نرفض العملية
+        if (currentCounter >= TASK_TOTAL) {
+          return undefined; // يلغي الـ transaction
         }
-      }
 
-      // 3️⃣ إرسال الضربة المجمعة لقاعدة البيانات
-      await update(ref(db), updates);
+        currentCounter += 1;
+        taskState.dailyCounter = currentCounter;
 
-      // 4️⃣ الإشعارات وإنهاء العملية
-      if (isCompleted) {
-        setLastCompletionTime(secureTimeRef.current);
+        if (currentCounter === TASK_TOTAL) {
+          userVipLevel = userData.vip_level || 0;
+          rewardEarned = DAILY_VIP_REWARDS[userVipLevel] || 0;
+          userName = userData.username || 'Unknown';
+          const currentBal = parseFloat(userData.balance?.toString() || '0');
+
+          userData.balance = currentBal + rewardEarned;
+          taskState.lastCompletionTime = Date.now(); // استخدام توقيت العميل أو التوقيت المحمي
+          isCompleted = true;
+        } else if (currentCounter === 1) {
+          taskState.lastCompletionTime = null;
+        }
+
+        userData.taskState = taskState;
+        return userData; // حفظ التغييرات
+      });
+
+      // إذا نجحت العملية (Transaction) وكان العداد وصل 10، نسجلها في الـ Transactions
+      if (transactionResult.committed && isCompleted) {
+        const txRef = push(ref(db, 'transactions'));
+        await update(ref(db), {
+          [`transactions/${txRef.key}`]: {
+            id: txRef.key,
+            userId: userId,
+            username: userName,
+            type: 'Reward',
+            amount: rewardEarned,
+            status: 'Completed',
+            note: `Daily reward VIP ${userVipLevel}`,
+            createdAt: serverTimestamp(),
+          }
+        });
+
+        // إرسال الإشعار
         const pushToken = (auth.user as any)?.expoPushToken;
-
         if (pushToken) {
           await sendPushNotification(
             pushToken,
             '🎁 أرباح المهام جاهزة!',
-            `عمل ممتاز! تم إضافة $${reward} إلى رصيدك بنجاح.`
+            `عمل ممتاز! تم إضافة $${rewardEarned} إلى رصيدك بنجاح.`
           );
         }
+      } else if (!transactionResult.committed) {
+         // إذا فشل الـ Transaction فهذا يعني أن هناك طلبات متزامنة أو المهام مكتملة
+         console.log("Transaction aborted. Task already completed or concurrent request.");
       }
+
     } catch (error: any) {
       console.error("Task Error:", error);
-      // التراجع عن التحديث في حالة الخطأ
-      setDailyCounter(previousCounter);
       Alert.alert("خطأ", error.message || "حدث خطأ في الشبكة. يرجى المحاولة مرة أخرى.");
     }
   };
