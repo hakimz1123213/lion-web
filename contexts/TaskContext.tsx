@@ -1,13 +1,25 @@
 import React, { createContext, useState, useContext, useEffect, useRef, ReactNode } from 'react';
+// 🟢 الاعتماد الكامل على Realtime Database بدلاً من Functions
+import { ref, get, onValue, update, push, serverTimestamp } from "firebase/database";
 import { db } from '../services/firebaseConfig'; 
-// 🛡️ إزالة تحديثات قاعدة البيانات وترك القراءة فقط
-import { ref, get, onValue } from "firebase/database";
-import { getFunctions, httpsCallable } from 'firebase/functions'; // 🚀 استيراد الدوال السحابية
 import { AuthContext } from './AuthContext';
 import { WalletContext } from './WalletContext';
 import { sendPushNotification } from '../services/pushNotificationService';
 import { TASK_TOTAL } from '@/constants/config';
-import { Alert } from 'react-native'; // للإنذارات في حال الخطأ
+import { Alert } from 'react-native';
+
+// 💰 جدول أرباح المهام اليومية (تم نقله للعميل)
+const DAILY_VIP_REWARDS: Record<number, number> = {
+  0: 0,     // VIP 0
+  1: 2.2,   // VIP 1
+  2: 4.2,   // VIP 2
+  3: 8.5,   // VIP 3
+  4: 12.4,  // VIP 4
+  5: 23.3,  // VIP 5
+  6: 33.33, // VIP 6
+  7: 56.5,  // VIP 7
+  8: 96.5   // VIP 8
+};
 
 interface TaskContextType {
   dailyCounter: number;
@@ -24,13 +36,13 @@ interface TaskContextType {
 
 export const TaskContext = createContext<TaskContextType | undefined>(undefined);
 
-// 🕒 دوال مساعدة لحساب أوقات التجديد (12:00 منتصف النهار) بناءً على التوقيت الآمن
+// 🕒 دوال مساعدة لحساب أوقات التجديد (12:00 منتصف النهار)
 const getNextResetTime = (currentTimestamp: number) => {
   const date = new Date(currentTimestamp);
-  date.setHours(12, 0, 0, 0); // 12:00 PM
+  date.setHours(12, 0, 0, 0); 
   
   if (currentTimestamp >= date.getTime()) {
-    date.setDate(date.getDate() + 1); // إذا تجاوزنا 12 ظهراً، التجديد القادم غداً
+    date.setDate(date.getDate() + 1); 
   }
   return date.getTime();
 };
@@ -40,7 +52,7 @@ const getLastResetTime = (currentTimestamp: number) => {
   date.setHours(12, 0, 0, 0);
   
   if (currentTimestamp < date.getTime()) {
-    date.setDate(date.getDate() - 1); // إذا كنا قبل 12 ظهراً، التجديد الأخير كان البارحة
+    date.setDate(date.getDate() - 1); 
   }
   return date.getTime();
 };
@@ -70,7 +82,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     return () => unsub();
   }, []);
 
-  // 🛡️ نظام الحماية السحابية للتوقيت (ممنوع التلاعب)
+  // 🛡️ نظام الحماية السحابية للتوقيت
   const syncTrueTime = async (isJumpDetected = false) => {
     try {
       const controller = new AbortController();
@@ -114,7 +126,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       loadCloudTaskState();
     }
 
-    // 🛡️ رادار كشف التلاعب بالساعة كل ثانية
+    // 🛡️ رادار كشف التلاعب بالساعة
     const timer = setInterval(() => {
       const now = Date.now();
       const delta = now - lastLocalTimeRef.current;
@@ -147,7 +159,6 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     setIsLoading(false);
   };
 
-  // 🔄 التعديل الجديد: التحديث بناءً على الساعة 12:00 منتصف النهار باستخدام الوقت الآمن
   const updateCooldownStatus = () => {
     if (dailyCounter < TASK_TOTAL || !lastCompletionTime) {
       setTimeRemaining("00:00:00");
@@ -155,16 +166,14 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const now = secureTimeRef.current; // التوقيت المحمي من السيرفر
+    const now = secureTimeRef.current;
     const lastReset = getLastResetTime(now);
 
     if (lastCompletionTime < lastReset) {
-      // إذا كانت آخر مهمة منجزة قبل موعد التجديد الأخير، نصفر المهام
       setTimeRemaining("00:00:00");
       setCanReset(true);
       resetTasks(); 
     } else {
-      // المهام منجزة في الدورة الحالية، نحسب الوقت حتى موعد التجديد القادم
       setCanReset(false);
       const nextReset = getNextResetTime(now);
       const remaining = nextReset - now;
@@ -182,7 +191,6 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // 🛡️ التعديل الأول: تصفير محلي فقط، الباكيند هو من سيصفر البيانات الحقيقية
   const resetTasks = () => {
     setDailyCounter(0);
     setLastCompletionTime(null);
@@ -195,44 +203,84 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     setWatchingIndex(index);
   };
 
-  // 🚀 التعديل الأهم: إرسال الطلب للسيرفر فقط!
+  // 🚀 إتمام الفيديو والتحديث المباشر في قاعدة البيانات (بدون Functions)
   const completeVideo = async () => {
     if (watchingIndex === null || !auth?.user) return;
     
     const previousCounter = dailyCounter;
     const newCounter = dailyCounter + 1;
+    const userId = auth.user.uid;
     
-    // 1️⃣ التحديث الفوري للواجهة (Optimistic Update)
+    // 1️⃣ التحديث الفوري للواجهة
     setDailyCounter(newCounter);
     setWatchingIndex(null);
 
     try {
-      const functions = getFunctions();
-      const processVideoTaskCall = httpsCallable(functions, 'processVideoTask');
+      // 2️⃣ جلب بيانات المستخدم لضمان دقة الرصيد ومستوى الـ VIP
+      const userRef = ref(db, `users/${userId}`);
+      const userSnap = await get(userRef);
       
-      // 2️⃣ استدعاء الدالة السحابية بالخفاء
-      const result: any = await processVideoTaskCall({ userId: auth.user.uid });
+      if (!userSnap.exists()) throw new Error("User not found.");
+      
+      const userData = userSnap.val();
+      const updates: Record<string, any> = {};
+      let isCompleted = false;
+      let reward = 0;
 
-      // 3️⃣ إذا أرجع السيرفر أن المهمة 10 اكتملت، نعرض الإشعار ونقفل العداد
-      if (result.data.isCompleted) {
-        setLastCompletionTime(secureTimeRef.current); // تسجيل وقت الانتهاء من التوقيت المحمي
+      if (newCounter >= TASK_TOTAL) {
+        // 🎯 وصول للمهمة الأخيرة (10)
+        const vipLevel = userData.vip_level || 0;
+        reward = DAILY_VIP_REWARDS[vipLevel] || 0;
+        const currentBal = parseFloat(userData.balance?.toString() || '0');
+
+        // تحديث الرصيد والعداد
+        updates[`users/${userId}/balance`] = currentBal + reward;
+        updates[`users/${userId}/taskState/dailyCounter`] = TASK_TOTAL;
+        updates[`users/${userId}/taskState/lastCompletionTime`] = serverTimestamp();
+
+        // تسجيل المعاملة
+        const txRef = push(ref(db, 'transactions'));
+        updates[`transactions/${txRef.key}`] = {
+          id: txRef.key,
+          userId: userId,
+          username: userData.username || 'Unknown',
+          type: 'Reward',
+          amount: reward,
+          status: 'Completed',
+          note: `Daily reward VIP ${vipLevel}`,
+          createdAt: serverTimestamp(),
+        };
         
-        // 🚀 لقط التوكين بمرونة لتفادي خطأ TypeScript
+        isCompleted = true;
+      } else {
+        // 🔄 مجرد زيادة عادية للعداد
+        updates[`users/${userId}/taskState/dailyCounter`] = newCounter;
+        if (newCounter === 1) {
+          updates[`users/${userId}/taskState/lastCompletionTime`] = null; // تنظيف وقت الأمس
+        }
+      }
+
+      // 3️⃣ إرسال الضربة المجمعة لقاعدة البيانات
+      await update(ref(db), updates);
+
+      // 4️⃣ الإشعارات وإنهاء العملية
+      if (isCompleted) {
+        setLastCompletionTime(secureTimeRef.current);
         const pushToken = (auth.user as any)?.expoPushToken;
 
         if (pushToken) {
           await sendPushNotification(
             pushToken,
             '🎁 أرباح المهام جاهزة!',
-            `عمل ممتاز! تم إضافة $${result.data.reward} إلى رصيدك بنجاح.`
+            `عمل ممتاز! تم إضافة $${reward} إلى رصيدك بنجاح.`
           );
         }
       }
     } catch (error: any) {
       console.error("Task Error:", error);
-      // 🛡️ خطة الطوارئ: تراجع عن التحديث لو انقطع الإنترنت أو السيرفر رفض الطلب
+      // التراجع عن التحديث في حالة الخطأ
       setDailyCounter(previousCounter);
-      Alert.alert("Error", error.message || "Network unstable. Please check your internet and try again.");
+      Alert.alert("خطأ", error.message || "حدث خطأ في الشبكة. يرجى المحاولة مرة أخرى.");
     }
   };
 
