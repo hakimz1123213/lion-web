@@ -43,19 +43,17 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
 
   const player = useVideoPlayer(videoUrl, (p) => {
     p.loop = false;
-    
-    // 1. التعديل الأول: اجعله صامتاً في البداية! 
-    // هذا يرضي سياسات المتصفحات ويجعلها تحمل الفيديو دون حظره
-    p.muted = true; 
+    p.muted = false; 
     p.volume = 1.0;
     p.pause(); 
   });
-
-  const handlePlayAdWithSound = () => {
+  const handlePlayAdWithSound = (e?: any) => {
+    // لمنع تكرار الضغطة إذا تم استدعاؤها مرتين
+    if (e && e.preventDefault) e.preventDefault(); 
+    
     if (player) {
-      // 2. التعديل الثاني: هنا وبفضل نقرة المستخدم، نلغي الكتم ونشغل الفيديو. 
-      // المتصفح سيسمح بالصوت 100% لأنها استجابة لـ User Action
       player.muted = false;
+      player.volume = 1.0;
       player.play();
       setIsPlaying(true);
     }
@@ -119,10 +117,14 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
             nativeControls={false} 
           />
 
-          {!isPlaying && (
+     {!isPlaying && (
             <Pressable 
               style={styles.unmuteOverlay} 
-              onPress={handlePlayAdWithSound}
+              // 1. للجوال (أندرويد وآيفون) نستخدم onPress
+              onPress={Platform.OS !== 'web' ? handlePlayAdWithSound : undefined}
+              // 2. للويب (المتصفحات) نستخدم onClick لفك حظر الصوت إجبارياً
+              // @ts-ignore
+              onClick={Platform.OS === 'web' ? handlePlayAdWithSound : undefined}
             >
               <View style={styles.glowPulseCircle}>
                 <Ionicons name="play" size={38} color="#FFFFFF" />
