@@ -43,24 +43,24 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
 
   const player = useVideoPlayer(videoUrl, (p) => {
     p.loop = false;
-    // التعديل الأول: ابدأ الفيديو صامتاً لتخطي حظر المتصفحات
-    p.muted = true; 
+    // 1. لا نكتم الصوت (لأنه لن يشتغل تلقائياً أصلاً)
+    p.muted = false; 
     p.volume = 1.0;
+    // 2. نضمن أن الفيديو يبدأ متوقفاً (Paused) لكي لا يحظره المتصفح
+    p.pause(); 
   });
 
   const handlePlayAdWithSound = () => {
     if (player) {
-      // التعديل الثاني: قم بتشغيل الفيديو أولاً، ثم قم بإلغاء الكتم
+      // 3. عندما يضغط المستخدم بيده على الزر، نشغل الفيديو. 
+      // المتصفح سيسمح بالصوت فوراً لأن التشغيل جاء بطلب (نقرة) من المستخدم.
       player.play();
-      player.muted = false; 
       setIsPlaying(true);
     }
   };
 
   useEffect(() => {
-    // تم التعديل هنا 👇
-    let timer: ReturnType<typeof setInterval>;
-    
+    let timer: any;
     if (isPlaying && timeLeft > 0) {
       timer = setInterval(() => {
         setTimeLeft((prev) => prev - 1);
@@ -113,17 +113,17 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
             player={player} 
             style={styles.videoPlayer} 
             contentFit="cover"
-            nativeControls={Platform.OS === 'web' ? true : false} 
+            // 4. هنا نلغي شريط التحكم (الخط السفلي) نهائياً في جميع الأجهزة والويب
+            nativeControls={false} 
           />
 
           {!isPlaying && (
             <Pressable 
               style={styles.unmuteOverlay} 
-              onPressIn={handlePlayAdWithSound}
               onPress={handlePlayAdWithSound}
             >
               <View style={styles.glowPulseCircle}>
-                <Ionicons name="volume-high" size={38} color="#FFFFFF" />
+                <Ionicons name="play" size={38} color="#FFFFFF" />
               </View>
               <Text style={styles.overlayTitle}>{t.watchWithSound}</Text>
               <Text style={styles.overlaySub}>{t.bypassGesture}</Text>
