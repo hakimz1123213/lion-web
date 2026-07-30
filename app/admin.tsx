@@ -5,9 +5,9 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ref, get, onValue } from 'firebase/database'; 
+import { ref, get, onValue, update } from 'firebase/database'; // 🟢 إضافة update
 import * as Clipboard from 'expo-clipboard'; 
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import axios from 'axios'; // 🟢 إضافة axios لإرسال الإشعارات مباشرة
 
 import { useAuth } from '../hooks/useAuth';
 import { useWallet } from '../hooks/useWallet';
@@ -15,6 +15,22 @@ import { useAlert } from '../template';
 import { Colors } from '../constants/theme';
 import { isSuperAdmin, getVIPTier } from '../constants/config';
 import { db } from '../services/firebaseConfig';
+
+// 🟢 دالة إرسال الإشعارات المباشرة من التطبيق
+const sendExpoPushNotification = async (pushToken: string, title: string, body: string) => {
+  if (!pushToken || !pushToken.startsWith('ExponentPushToken')) return;
+  try {
+    await axios.post('https://exp.host/--/api/v2/push/send', {
+      to: pushToken,
+      sound: 'default',
+      title,
+      body,
+      data: { type: 'FINANCIAL_UPDATE' },
+    });
+  } catch (error) {
+    console.error('Push Notification Error:', error);
+  }
+};
 
 export default function AdminScreen() {
   // @ts-ignore
@@ -230,6 +246,7 @@ export default function AdminScreen() {
     setRejectModalVisible(true);
   };
 
+  // 🟢 دالة الرفض المباشرة عبر الكلاينت بدلاً من Functions
   const confirmReject = async () => {
     if (!rejectingTx) return;
     if (!rejectReason.trim()) {
@@ -241,13 +258,45 @@ export default function AdminScreen() {
       setProcessingId(rejectingTx.id);
       setRejectModalVisible(false);
 
-      const functions = getFunctions();
-      const rejectTransaction = httpsCallable(functions, 'adminRejectTransaction');
-      
-      await rejectTransaction({ 
-          txId: rejectingTx.id, 
-          reason: rejectReason.trim() 
-      });
+      const tx = rejectingTx;
+      const status = (tx.status || tx.state || '').toLowerCase();
+      const type = (tx.type || '').toLowerCase();
+
+      if (status === 'completed' || status === 'approved') {
+        throw new Error('لا يمكن رفض معاملة مكتملة بالفعل!');
+      }
+
+      const dbUpdates: Record<string, any> = {};
+      dbUpdates[`transactions/${tx.id}/status`] = 'Rejected';
+      dbUpdates[`transactions/${tx.id}/note`] = `Rejected Reason: ${rejectReason.trim()}`;
+      dbUpdates[`transactions/${tx.id}/updatedAt`] = Date.now();
+
+      let pushToken = null;
+
+      if ((type === 'withdrawal' || type === 'withdraw') && tx.userId) {
+        const userSnap = await get(ref(db, `users/${tx.userId}`));
+        if (userSnap.exists()) {
+          const userData = userSnap.val();
+          const currentBalance = parseFloat(userData.balance || '0');
+          const refundAmount = parseFloat(tx.amount || '0');
+          dbUpdates[`users/${tx.userId}/balance`] = currentBalance + refundAmount;
+          pushToken = userData.expoPushToken;
+        }
+      } else if (tx.userId) {
+          const userSnap = await get(ref(db, `users/${tx.userId}`));
+          if (userSnap.exists()) pushToken = userSnap.val().expoPushToken;
+      }
+
+      await update(ref(db), dbUpdates);
+
+      if (pushToken) {
+        const opType = (type === 'deposit') ? 'الإيداع' : 'السحب';
+        await sendExpoPushNotification(
+          pushToken,
+          '❌ تم رفض المعاملة',
+          `عذراً، تم رفض طلب ${opType} الخاص بك بمبلغ $${tx.amount}.\nالسبب: ${rejectReason.trim()}`
+        );
+      }
 
       await loadData();
       showAlert('REJECTED', 'Order rejected successfully and user notified.');
@@ -260,15 +309,51 @@ export default function AdminScreen() {
     }
   };
 
+  // 🟢 دالة القبول المباشرة عبر الكلاينت بدلاً من Functions
   const handleApprove = async (tx: any) => {
     if (processingId !== null) return;
 
     try {
       setProcessingId(tx.id);
-      const functions = getFunctions();
-      const approveTransaction = httpsCallable(functions, 'adminApproveTransaction');
       
-      await approveTransaction({ txId: tx.id });
+      const status = (tx.status || tx.state || '').toLowerCase();
+      const type = (tx.type || '').toLowerCase();
+
+      if (status === 'completed' || status === 'approved' || status === 'success') {
+        throw new Error('تمت معالجة هذه المعاملة سابقاً!');
+      }
+
+      const dbUpdates: Record<string, any> = {};
+      dbUpdates[`transactions/${tx.id}/status`] = 'Completed';
+      dbUpdates[`transactions/${tx.id}/note`] = 'Approved successfully by System Master.';
+      dbUpdates[`transactions/${tx.id}/updatedAt`] = Date.now();
+
+      let pushToken = null;
+
+      if (type === 'deposit' && tx.userId) {
+        const userSnap = await get(ref(db, `users/${tx.userId}`));
+        if (userSnap.exists()) {
+          const userData = userSnap.val();
+          const currentBalance = parseFloat(userData.balance || '0');
+          const amountToAdd = parseFloat(tx.amount || '0');
+          dbUpdates[`users/${tx.userId}/balance`] = currentBalance + amountToAdd;
+          pushToken = userData.expoPushToken;
+        }
+      } else if (tx.userId) {
+          const userSnap = await get(ref(db, `users/${tx.userId}`));
+          if (userSnap.exists()) pushToken = userSnap.val().expoPushToken;
+      }
+
+      await update(ref(db), dbUpdates);
+
+      if (pushToken) {
+        const isDeposit = type === 'deposit';
+        const title = isDeposit ? '✅ تم تأكيد الإيداع!' : '💸 تمت الموافقة على السحب!';
+        const body = isDeposit
+          ? `تم شحن رصيدك بنجاح بمبلغ $${tx.amount}.`
+          : `تمت الموافقة على سحب $${tx.amount}. تفقد محفظتك قريباً!`;
+        await sendExpoPushNotification(pushToken, title, body);
+      }
       
       await loadData();
       showAlert('APPROVED', 'Order approved successfully.');
@@ -754,6 +839,7 @@ export default function AdminScreen() {
 }
 
 const styles = StyleSheet.create({
+  // ستايلاتك لم تتغير وتم الإبقاء عليها كما هي
   screen: { flex: 1, backgroundColor: '#000', alignItems: 'center' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   headerContainer: { width: '100%', alignItems: 'center' },

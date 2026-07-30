@@ -17,7 +17,9 @@ import * as Clipboard from 'expo-clipboard';
 import { useAuth } from '@/hooks/useAuth';
 import { useAlert } from '@/template';
 import { VIP_TIERS, ADMIN_USDT_ADDRESS } from '@/constants/config';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+// 🟢 تم استبدال firebase/functions بـ firebase/database
+import { ref, get, push, set } from 'firebase/database';
+import { db } from '@/services/firebaseConfig'; // تأكد من مسار الـ db الخاص بك
 
 const { width } = Dimensions.get('window');
 
@@ -25,7 +27,7 @@ const { width } = Dimensions.get('window');
 const THEME = {
   bg: '#F8F9FA',
   surface: '#FFFFFF',
-  primary: '#7C3AED', // اللون البنفسجي
+  primary: '#7C3AED',
   textMain: '#111827',
   textSecondary: '#6B7280',
   success: '#10B981',
@@ -51,6 +53,7 @@ const depositTranslations: Record<string, Record<string, string>> = {
     successMsg: "Request submitted successfully.",
     depositLabel: "Deposit",
     currency: "USDT",
+    spamError: "AntiSpam: You have reached the maximum limit of 3 requests today.",
   },
   AR: {
     title: "إيداع USDT",
@@ -67,6 +70,7 @@ const depositTranslations: Record<string, Record<string, string>> = {
     successMsg: "تم إرسال الطلب بنجاح.",
     depositLabel: "إيداع",
     currency: "USDT",
+    spamError: "لقد وصلت للحد الأقصى للطلبات (3) اليوم.",
   }
 };
 
@@ -87,7 +91,7 @@ export default function DepositScreen() {
   const t = depositTranslations[lang] || depositTranslations['EN'];
   const isAR = lang === 'AR';
 
-  // تصفية الباقات المطلوبة فقط (150, 300, 800, 4100)
+  // تصفية الباقات المطلوبة فقط
   const targetAmounts = [70, 150, 300, 500, 800, 1400, 2400, 4100];
   const filteredTiers = VIP_TIERS.filter(tier => targetAmounts.includes(tier.entryFee));
   const displayTiers = filteredTiers.length > 0 ? filteredTiers : [
@@ -119,7 +123,7 @@ export default function DepositScreen() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // 🚀 الإرسال
+  // 🚀 الإرسال المباشر للفايربيس (Client-Side)
   const handleSubmit = async () => {
     const parsed = parseFloat(amount);
     if (isNaN(parsed) || parsed <= 0) return showAlert('Error', 'Invalid amount');
@@ -127,18 +131,52 @@ export default function DepositScreen() {
     try {
       setIsSubmitting(true);
 
-      // استدعاء الـ Cloud Function مباشرة
-      const functions = getFunctions();
-      const submitDepositReq = httpsCallable(functions, 'submitDeposit');
-      await submitDepositReq({
+      // 1. التحقق من الحماية ضد السبام (Anti-Spam)
+      const historyRef = ref(db, `users/${user.uid}/depositRequestsHistory`);
+      const historySnap = await get(historyRef);
+      let timestampsList: number[] = [];
+
+      if (historySnap.exists()) {
+        const rawData = historySnap.val();
+        timestampsList = Array.isArray(rawData) ? rawData : Object.values(rawData);
+      }
+
+      // تصفية الطلبات في آخر 24 ساعة
+      const activeRequestsInLast24h = timestampsList.filter(
+        (ts) => (Date.now() - ts) / (1000 * 60 * 60) < 24
+      );
+
+      // رفض الطلب إذا تجاوز 3 طلبات
+      if (activeRequestsInLast24h.length >= 3) {
+        setIsSubmitting(false);
+        return showAlert('Error', t.spamError);
+      }
+
+      // 2. إنشاء المعاملة في جدول transactions
+      const txsRef = ref(db, 'transactions');
+      const newTxRef = push(txsRef); // إنشاء مفتاح جديد
+      const txIdKey = newTxRef.key;
+
+      await set(newTxRef, {
+        id: txIdKey,
         userId: user.uid,
+        username: user.username || 'Unknown',
+        type: 'Deposit',
         amount: parsed,
-        username: user.username
+        status: 'Pending',
+        note: `User initiated a deposit query of $${parsed} USDT`,
+        createdAt: Date.now(),
       });
 
+      // 3. تحديث سجل طلبات المستخدم
+      activeRequestsInLast24h.push(Date.now());
+      await set(historyRef, activeRequestsInLast24h);
+
+      // 4. إظهار رسالة النجاح والعودة
       showAlert(t.success, t.successMsg, [{ text: 'OK', onPress: () => router.back() }]);
 
     } catch (err: any) {
+      console.error("Deposit Error:", err);
       showAlert('Error', err.message || 'Failed to submit request');
     } finally {
       setIsSubmitting(false);
@@ -163,7 +201,7 @@ export default function DepositScreen() {
           <Text style={styles.amountText}>${amount}</Text>
         </View>
 
-        {/* ─── VIP Presets (Filtered: 150, 300, 800, 4100) ─── */}
+        {/* ─── VIP Presets ─── */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.presetsWrapper} contentContainerStyle={styles.presetsContainer}>
           {displayTiers.map((tier) => {
             const isActive = amount === tier.entryFee.toString();
@@ -276,85 +314,41 @@ export default function DepositScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: THEME.bg },
   scrollContent: { paddingHorizontal: 16, paddingBottom: 60 },
-  
-  // Header
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12 },
   headerTitle: { fontSize: 18, fontWeight: '800', color: THEME.textMain },
   backBtn: { padding: 4 },
-
-  // Amount
   amountContainer: { alignItems: 'center', marginVertical: 24 },
   amountText: { fontSize: 48, fontWeight: '900', color: THEME.textMain, letterSpacing: -1 },
-
-  // VIP Presets
   presetsWrapper: { flexGrow: 0, marginBottom: 24 },
   presetsContainer: { gap: 10, paddingHorizontal: 4 },
   presetPill: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: THEME.surface },
   presetPillActive: { borderColor: THEME.primary, backgroundColor: THEME.primary + '10' },
   presetText: { fontSize: 13, fontWeight: '600', color: THEME.textSecondary },
   presetTextActive: { color: THEME.primary, fontWeight: '700' },
-
-  // Deposit Selection Row Styles
- // Deposit Selection Row Styles
-  depositRowCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between', // تم التصحيح هنا
-    backgroundColor: THEME.inputBg,
-    borderRadius: 16,
-    padding: 12,
-    marginBottom: 24,
-  },
-  depositRowLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  depositIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-  },
-  depositTitleText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: THEME.textMain,
-  },
-  depositSubtitleText: {
-    fontSize: 13,
-    color: THEME.textSecondary,
-    marginTop: 2,
-  },
-
-  // Keypad
+  depositRowCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: THEME.inputBg, borderRadius: 16, padding: 12, marginBottom: 24 },
+  depositRowLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  depositIcon: { width: 44, height: 44, borderRadius: 22 },
+  depositTitleText: { fontSize: 15, fontWeight: '700', color: THEME.textMain },
+  depositSubtitleText: { fontSize: 13, color: THEME.textSecondary, marginTop: 2 },
   keypadCard: { backgroundColor: THEME.surface, borderRadius: 24, paddingVertical: 16, marginBottom: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 2 },
   keypadRow: { flexDirection: 'row', justifyContent: 'space-between' },
   keypadBtn: { flex: 1, height: 65, justifyContent: 'center', alignItems: 'center' },
   keypadText: { fontSize: 24, fontWeight: '700', color: THEME.textMain },
-
-  // Unified Card
   card: { backgroundColor: THEME.surface, borderRadius: 24, padding: 20, marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 2 },
   cardTitle: { fontSize: 16, fontWeight: '700', color: THEME.textMain, marginBottom: 12 },
   sectionTitle: { fontSize: 15, fontWeight: '700', color: THEME.textMain, marginBottom: 12 },
-  
   networkRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: THEME.success },
   networkText: { fontSize: 13, color: THEME.textSecondary, fontWeight: '500' },
-
   addressBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: THEME.inputBg, borderRadius: 12, padding: 12 },
   addressText: { flex: 1, fontSize: 13, color: THEME.textMain, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
-
-  // QR Row
   qrRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   qrBox: { padding: 12, borderRadius: 16, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' },
   qrImage: { width: 90, height: 90 },
   qrCopyBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 24, borderWidth: 1, borderColor: '#D1D5DB', backgroundColor: THEME.surface },
   qrCopyBtnText: { fontSize: 13, fontWeight: '600', color: '#374151' },
-
   warningRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 24 },
   warningText: { flex: 1, fontSize: 12, color: THEME.warning, fontWeight: '500' },
-
-  // Submit Button
   submitBtn: { backgroundColor: THEME.primary, height: 56, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginTop: 10 },
   submitBtnDisabled: { opacity: 0.5 },
   submitBtnText: { color: '#FFF', fontSize: 16, fontWeight: '700' },

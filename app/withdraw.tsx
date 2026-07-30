@@ -19,8 +19,9 @@ import { useAlert } from '@/template';
 import { WITHDRAWAL_MIN, VIP_TIERS } from '@/constants/config'; 
 import { sendWithdrawalAlert } from '@/services/discord';
 
-// 🔥 استيراد مكتبات الدوال السحابية للاتصال المباشر بالفانكشن 🔥
-import { getFunctions, httpsCallable } from 'firebase/functions';
+// 🟢 استيراد قاعدة البيانات مباشرة بدلاً من الدوال السحابية
+import { ref, get, update, push, set } from 'firebase/database';
+import { db } from '@/services/firebaseConfig'; // تأكد من مسار الـ db الصحيح لديك
 
 // 🎨 ألوان الثيم 
 const THEME = {
@@ -105,7 +106,6 @@ export default function WithdrawScreen() {
   const [amount, setAmount] = useState('');
   const [walletAddress, setWalletAddress] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
 
   if (!user) return null;
 
@@ -136,22 +136,54 @@ export default function WithdrawScreen() {
 
     setIsSubmitting(true);
     try {
-      const functions = getFunctions();
-      const submitWithdrawReq = httpsCallable(functions, 'submitWithdraw');
+      const userRef = ref(db, `users/${user.uid}`);
+      
+      // جلب أحدث بيانات المستخدم من قاعدة البيانات للتأكد من الرصيد الحالي
+      const userSnap = await get(userRef);
+      if (!userSnap.exists()) {
+        throw new Error('User account not found.');
+      }
+      
+      const userData = userSnap.val();
+      const currentBalance = userData.balance || 0;
+      const vipLevel = userData.vip_level || user.vip_level || 0;
 
-      await submitWithdrawReq({
-        userId: user.uid, 
+      const VIP_FEES: Record<number, number> = { 0:0, 1:70, 2:150, 3:300, 4:500, 5:800, 6:1400, 7:2400, 8:4100 };
+      const currentLockedCapital = VIP_FEES[vipLevel] || 0;
+      const currentMaxWithdrawable = Math.max(0, currentBalance - currentLockedCapital);
+
+      if (parsed > currentMaxWithdrawable) {
+        throw new Error('المبلغ يتجاوز الأرباح المسموح بسحبها.');
+      }
+
+      const cleanAddress = walletAddress.trim();
+
+      // 1️⃣ خصم المبلغ من رصيد المستخدم مباشرة
+      await update(userRef, {
+        balance: currentBalance - parsed
+      });
+
+      // 2️⃣ تسجيل المعاملة في جدول transactions
+      const txsRef = push(ref(db, 'transactions'));
+      await set(txsRef, {
+        id: txsRef.key,
+        userId: user.uid,
+        username: user.username || 'Unknown',
+        type: 'Withdrawal',
         amount: parsed,
-        walletAddress: walletAddress.trim(),
-        username: user.username,
+        walletAddress: cleanAddress,
+        address: cleanAddress,
+        status: 'Pending',
+        createdAt: Date.now(),
       });
 
+      // 3️⃣ إرسال التنبيهات (Discord & Telegram)
       await sendWithdrawalAlert({
-        username: user.username, amount: parsed, address: walletAddress.trim(),
-        userId: user.uid, vipLevel: user.vip_level, balance: user.balance - parsed, timestamp: Date.now(),
+        username: user.username, amount: parsed, address: cleanAddress,
+        userId: user.uid, vipLevel: vipLevel, balance: currentBalance - parsed, timestamp: Date.now(),
       });
 
-      sendTelegramAdminAlert(user.username, 'Withdrawal', parsed, `Address: ${walletAddress.trim()}`);
+      sendTelegramAdminAlert(user.username, 'Withdrawal', parsed, `Address: ${cleanAddress}`);
 
       showAlert(t.reqSentTitle, `${t.reqSentDesc1} $${parsed.toFixed(2)} ${t.reqSentDesc2}`, [{ text: t.backBtnText, onPress: () => router.back() }]);
     } catch (e: any) {
@@ -197,7 +229,6 @@ export default function WithdrawScreen() {
               • {t.totalBalance}
             </Text>
 
-            {/* 🔥 زر السحب داخل الكارت مطابق للصورة الثانية image_10679e.png 🔥 */}
             <Pressable
               style={({ pressed }) => [
                 styles.submitBtn,
@@ -296,28 +327,23 @@ export default function WithdrawScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: THEME.bg },
   scrollContent: { paddingHorizontal: 16, paddingBottom: 60, paddingTop: 10 },
-  
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12 },
   headerTitle: { fontSize: 18, fontWeight: '800', color: THEME.textMain },
   backBtn: { padding: 4 },
-
   customAmountRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center', marginBottom: 8 },
   currencySymbol: { fontSize: 22, fontWeight: '800', color: THEME.textMain, marginTop: 6, marginRight: 2 },
   amountText: { fontSize: 48, fontWeight: '900', color: THEME.textMain, letterSpacing: -1 },
   decimalText: { fontSize: 24, fontWeight: '800', color: THEME.textMain, marginTop: 22 },
-  
   cardSubtitle: { color: THEME.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 12, textAlign: 'center' },
   totalEarnedHint: { fontSize: 13, color: THEME.textSecondary, fontWeight: '600', marginBottom: 20, textAlign: 'center' },
   greenText: { color: THEME.success, fontWeight: '700' },
-  
-  // 🔥 تعديلات زر السحب الجديد بناءً على الصورة الثانية 🔥
   submitBtn: { 
     backgroundColor: THEME.primary, 
-    height: 52, // ارتفاع مناسب
-    borderRadius: 26, // شكل بيضاوي (Pill-shape) كما في الصورة
+    height: 52, 
+    borderRadius: 26, 
     justifyContent: 'center', 
     alignItems: 'center', 
-    marginBottom: 20, // مسافة أسفل الزر قبل الصندوق الرمادي
+    marginBottom: 20, 
     shadowColor: THEME.primary, 
     shadowOffset: { width: 0, height: 4 }, 
     shadowOpacity: 0.15, 
@@ -326,19 +352,15 @@ const styles = StyleSheet.create({
   },
   submitBtnDisabled: { opacity: 0.6 },
   submitBtnText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
-
   grayStatsBox: { flexDirection: 'row', backgroundColor: THEME.inputBg, borderRadius: 16, width: '100%', paddingVertical: 18, alignItems: 'center', justifyContent: 'center' },
   statSide: { flex: 1, alignItems: 'center' },
   statLabel: { color: '#888', fontSize: 9, fontWeight: '700', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
   statValue: { color: THEME.textMain, fontSize: 15, fontWeight: '800' },
   statDivider: { width: 1, height: 35, backgroundColor: THEME.border },
-
   depositRowCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: THEME.inputBg, borderRadius: 16, padding: 12 },
   depositSubtitleText: { fontSize: 13, color: THEME.textSecondary, marginTop: 2, lineHeight: 20 },
-
   card: { backgroundColor: THEME.surface, borderRadius: 24, padding: 24, marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 2 },
   sectionTitle: { fontSize: 13, fontWeight: '700', color: THEME.textSecondary, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
-  
   addressBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: THEME.inputBg, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: THEME.border },
   inputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: THEME.inputBg, borderRadius: 16, borderWidth: 1, borderColor: THEME.border, paddingHorizontal: 16 },
   inputPrefix: { color: THEME.textSecondary, fontSize: 20, fontWeight: '800', marginRight: 8 },
@@ -346,7 +368,6 @@ const styles = StyleSheet.create({
   maxBtn: { backgroundColor: THEME.surface, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, borderWidth: 1, borderColor: THEME.border, marginLeft: 10 },
   maxBtnText: { color: THEME.textMain, fontWeight: '700', fontSize: 11 },
   limitText: { color: THEME.textSecondary, fontSize: 11, marginTop: 8, fontWeight: '500', paddingHorizontal: 4 },
-
   warningRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 12, paddingHorizontal: 4 },
   warningText: { flex: 1, fontSize: 12, color: THEME.warning, fontWeight: '600', lineHeight: 18 },
 });
