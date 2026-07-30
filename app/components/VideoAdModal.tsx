@@ -11,7 +11,7 @@ interface VideoAdModalProps {
   onClose: () => void;
 }
 
-// 🌍 قاموس النصوص بهوية مستقبليّة جيدة
+// 🌍 قاموس النصوص 
 const adTranslations: Record<string, Record<string, string>> = {
   EN: {
     statusBadge: "CYBER STREAM LIVE",
@@ -28,7 +28,7 @@ const adTranslations: Record<string, Record<string, string>> = {
     waitForReward: "متبقي للمكافأة: {time} ثانية",
     taskApproved: "تم اعتماد القيمة بنجاح 🎉",
     watchWithSound: "تفعيل الصوت المباشر 🔊",
-    bypassGesture: "اضغط للتجاوز وتشغيل نظام الصوت",
+    bypassGesture: "اضغط للبدء وتشغيل نظام الصوت",
     rewardReady: "المكافأة جاهزة للجمع 💰",
     clickConfirm: "تأكيد إيداع الأرباح المباشرة في محفظتك.",
     claimBtn: "تأكيد واستلام الأرباح ⚡",
@@ -45,22 +45,19 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
 
   const player = useVideoPlayer(videoUrl, (p) => {
     p.loop = false;
-    // 👈 التعديل الأول: يجب أن يبدأ صامتاً لتجاوز حظر المتصفحات (Web)
-    p.muted = true; 
+    p.muted = true; // ضروري جداً أن يبدأ صامتاً لتجاوز حظر المتصفح الأولي
     p.volume = 1.0;
   });
 
   const handlePlayAdWithSound = () => {
     if (player) {
-      // 👈 التعديل الثاني: إعطاء أمر التشغيل أولاً، ثم إلغاء الكتم
+      // 👈 التعديل الجذري: فك الكتم فوراً وبشكل متزامن مع نقرة المستخدم (بدون setTimeout)
+      player.muted = false;
+      player.volume = 1.0;
+      
+      // تشغيل الفيديو بعد التأكد من فك الكتم
       player.play();
       setIsPlaying(true);
-      
-      // تأخير زمني بسيط جداً لضمان توافقية الصوت مع متصفحات Safari و Chrome على الويب
-      setTimeout(() => {
-        player.muted = false;
-        player.volume = 1.0;
-      }, 50);
     }
   };
 
@@ -187,7 +184,7 @@ export default function VideoAdModal({ visible, videoUrl, onComplete, onClose }:
   );
 }
 
-// 🎨 الستايل الأرجواني والأبيض المضيء المستقبلي (Ultra Cyber Style)
+// 🎨 الستايل
 const styles = StyleSheet.create({
   modalBackdrop: { 
     flex: 1, 
@@ -273,7 +270,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 12
   },
-  
   cyberVideoFrame: {
     width: '100%',
     aspectRatio: 16 / 9,
@@ -289,7 +285,6 @@ const styles = StyleSheet.create({
     shadowRadius: 15,
   },
   videoPlayer: { width: '100%', height: '100%' },
-  
   cornerAccents: {
     position: 'absolute',
     width: 12,
@@ -301,7 +296,6 @@ const styles = StyleSheet.create({
   topRight: { top: 6, right: 6, borderTopWidth: 2, borderRightWidth: 2 },
   bottomLeft: { bottom: 6, left: 6, borderBottomWidth: 2, borderLeftWidth: 2 },
   bottomRight: { bottom: 6, right: 6, borderBottomWidth: 2, borderRightWidth: 2 },
-
   unmuteOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(18, 10, 33, 0.85)',
@@ -336,7 +330,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textAlign: 'center'
   },
-
   successCyberBox: {
     width: '100%',
     aspectRatio: 16 / 9,
@@ -372,7 +365,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textAlign: 'center'
   },
-
   bottomActionArea: {
     marginTop: 18,
     width: '100%',
