@@ -1,11 +1,10 @@
 import React, { createContext, useState, useContext, useEffect, useRef, ReactNode } from 'react';
 import { db } from '../services/firebaseConfig'; 
-import { ref, onValue, runTransaction, push, serverTimestamp } from "firebase/database";
+import { ref, onValue, runTransaction, serverTimestamp, push, set } from "firebase/database"; 
 import { AuthContext } from './AuthContext';
 import { WalletContext } from './WalletContext';
 import { sendPushNotification } from '../services/pushNotificationService';
 import { TASK_TOTAL } from '@/constants/config';
-import { Alert } from 'react-native';
 
 interface TaskContextType {
   dailyCounter: number;
@@ -15,6 +14,7 @@ interface TaskContextType {
   isLoading: boolean;
   timeRemaining: string;     
   canReset: boolean;         
+  isWindowOpen: boolean; 
   startWatchingVideo: (index: number) => void;
   completeVideo: () => void;
   cancelVideo: () => void;
@@ -22,38 +22,46 @@ interface TaskContextType {
 
 export const TaskContext = createContext<TaskContextType | undefined>(undefined);
 
-// جدول المكافآت بحسب مستوى الـ VIP
+// 💰 إعدادات أرباح الـ VIP
 const DAILY_VIP_REWARDS: Record<number, number> = {
-  0: 0, 
-  1: 2.2, 
-  2: 4.2, 
-  3: 8.5, 
-  4: 12.4, 
-  5: 23.3, 
-  6: 33.33, 
-  7: 56.5, 
-  8: 96.5
+  0: 0, 1: 2.2, 2: 4.2, 3: 8.5, 4: 12.4, 5: 23.3, 6: 33.33, 7: 56.5, 8: 96.5
 };
 
-// 🕒 حساب توقيت إعادة التصفير اليومي (12:00 PM UTC)
-const getNextResetTimeUTC = (currentTimestamp: number) => {
-  const date = new Date(currentTimestamp);
-  date.setUTCHours(12, 0, 0, 0);
-  
-  if (currentTimestamp >= date.getTime()) {
-    date.setUTCDate(date.getUTCDate() + 1); 
-  }
-  return date.getTime();
+// 🕒 فحص هل النافذة الزمنية مفتوحة حالياً (من 12:00 ظهراً إلى 23:59)
+const checkIsWindowOpen = (timestamp: number): boolean => {
+  const date = new Date(timestamp);
+  const hours = date.getUTCHours(); 
+  return hours >= 12 && hours < 24; 
 };
 
-const getLastResetTimeUTC = (currentTimestamp: number) => {
-  const date = new Date(currentTimestamp);
-  date.setUTCHours(12, 0, 0, 0);
+// 🕒 الحصول على وقت بداية الدورة اليومية الحالية (12:00 ظهراً)
+const getCycleStartTimeUTC = (timestamp: number): number => {
+  const date = new Date(timestamp);
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth();
+  const day = date.getUTCDate();
   
-  if (currentTimestamp < date.getTime()) {
-    date.setUTCDate(date.getUTCDate() - 1); 
+  const today12PM = Date.UTC(year, month, day, 12, 0, 0, 0);
+  if (timestamp >= today12PM) {
+    return today12PM;
+  } else {
+    return today12PM - (24 * 60 * 60 * 1000); 
   }
-  return date.getTime();
+};
+
+// 🕒 الحصول على موعد الفتح القادم (12:00 ظهراً القادمة)
+const getNextOpenTimeUTC = (timestamp: number): number => {
+  const date = new Date(timestamp);
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth();
+  const day = date.getUTCDate();
+  
+  const today12PM = Date.UTC(year, month, day, 12, 0, 0, 0);
+  if (timestamp < today12PM) {
+    return today12PM;
+  } else {
+    return today12PM + (24 * 60 * 60 * 1000);
+  }
 };
 
 export function TaskProvider({ children }: { children: ReactNode }) {
@@ -66,6 +74,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [timeRemaining, setTimeRemaining] = useState("00:00:00");
   const [canReset, setCanReset] = useState(false);
+  const [isWindowOpen, setIsWindowOpen] = useState(false);
   
   const secureTimeRef = useRef<number>(Date.now());
   const lastLocalTimeRef = useRef<number>(Date.now());
@@ -110,7 +119,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // 2️⃣ الاستماع المباشر لحالة المهام من قاعدة البيانات
+  // 2️⃣ الاستماع المباشر لقاعدة البيانات
   useEffect(() => {
     if (!auth?.user) {
       setDailyCounter(0);
@@ -134,7 +143,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     return () => unsubscribeTasks();
   }, [auth?.user?.uid]);
 
-  // 3️⃣ مؤقت كشف التلاعب وتحديث العداد التنازلي
+  // 3️⃣ مؤقت كشف التلاعب وحساب حالة الوقت والعداد التنازلي
   useEffect(() => {
     if (!auth?.user) return;
 
@@ -156,35 +165,45 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   }, [dailyCounter, lastCompletionTime]);
 
   const updateCooldownStatus = () => {
-    if (dailyCounter < TASK_TOTAL || !lastCompletionTime) {
-      setTimeRemaining("00:00:00");
-      setCanReset(false);
-      return;
+    const now = secureTimeRef.current; 
+    const windowOpen = checkIsWindowOpen(now);
+    setIsWindowOpen(windowOpen);
+
+    const currentCycleStart = getCycleStartTimeUTC(now);
+
+    // تصفير محلي
+    if (lastCompletionTime && lastCompletionTime < currentCycleStart) {
+      setDailyCounter(0);
+      setLastCompletionTime(null);
     }
 
-    const now = secureTimeRef.current; 
-    const lastReset = getLastResetTimeUTC(now);
-
-    if (lastCompletionTime < lastReset) {
-      setTimeRemaining("00:00:00");
-      setCanReset(true);
-      resetTasks(); 
-    } else {
+    if (!windowOpen) {
       setCanReset(false);
-      const nextReset = getNextResetTimeUTC(now);
-      const remaining = nextReset - now;
-
-      if (remaining <= 0) {
-        setTimeRemaining("00:00:00");
-        setCanReset(true);
-        resetTasks();
+      const nextOpen = getNextOpenTimeUTC(now);
+      const remaining = nextOpen - now;
+      formatTimeRemaining(remaining);
+    } else {
+      if (dailyCounter >= TASK_TOTAL) {
+        setCanReset(false);
+        const nextOpen = getNextOpenTimeUTC(now);
+        const remaining = nextOpen - now;
+        formatTimeRemaining(remaining);
       } else {
-        const h = Math.floor(remaining / 3600000).toString().padStart(2, '0');
-        const m = Math.floor((remaining % 3600000) / 60000).toString().padStart(2, '0');
-        const s = Math.floor((remaining % 60000) / 1000).toString().padStart(2, '0');
-        setTimeRemaining(`${h}:${m}:${s}`);
+        setTimeRemaining("00:00:00");
+        setCanReset(false);
       }
     }
+  };
+
+  const formatTimeRemaining = (remainingMs: number) => {
+    if (remainingMs <= 0) {
+      setTimeRemaining("00:00:00");
+      return;
+    }
+    const h = Math.floor(remainingMs / 3600000).toString().padStart(2, '0');
+    const m = Math.floor((remainingMs % 3600000) / 60000).toString().padStart(2, '0');
+    const s = Math.floor((remainingMs % 60000) / 1000).toString().padStart(2, '0');
+    setTimeRemaining(`${h}:${m}:${s}`);
   };
 
   const resetTasks = () => {
@@ -192,108 +211,110 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     setLastCompletionTime(null);
   };
 
-  const tasksDoneToday = dailyCounter >= TASK_TOTAL && !canReset;
+  const tasksDoneToday = (dailyCounter >= TASK_TOTAL || !isWindowOpen);
 
   const startWatchingVideo = (index: number) => {
-    if (index !== dailyCounter || tasksDoneToday) return;
+    const now = secureTimeRef.current;
+    if (!checkIsWindowOpen(now)) {
+      window.alert("مغلق الآن\nالمشاهدة متاحة فقط من الساعة 12:00 ظهراً إلى 12:00 ليلاً.");
+      return;
+    }
+    if (index !== dailyCounter || dailyCounter >= TASK_TOTAL) return;
     setWatchingIndex(index);
   };
 
-  // 4️⃣ إكمال المشاهدة والمعالجة المباشرة في قاعدة البيانات (Client-Side Transaction)
+  // 🚀 دمج الـ Backend هنا باستخدام Firebase Client Transaction
   const completeVideo = async () => {
     if (watchingIndex === null || !auth?.user) return;
     
-    const userId = auth.user.uid;
+    const currentUserId = auth.user.uid;
     setWatchingIndex(null);
 
-    const userRef = ref(db, `users/${userId}`);
+    const now = secureTimeRef.current;
+    if (!checkIsWindowOpen(now)) {
+      window.alert("الخدمة مغلقة حالياً. المشاهدة متاحة فقط من الساعة 12:00 ظهراً إلى 12:00 ليلاً.");
+      return;
+    }
 
     try {
-      let rewardEarned = 0;
-      let vipLevelEarned = 0;
-      let isTaskCompleted = false;
-      let username = 'Unknown';
+      const userRef = ref(db, `users/${currentUserId}`);
+      let transactionResultVal: any = null;
 
-      // 🚀 استخدام Transaction من جانب العميل لمنع التعارضات والتكرار
-      const transactionResult = await runTransaction(userRef, (userData) => {
+      // استخدام Transaction لضمان عدم تكرار الضغطات والتلاعب بالرصيد
+      const result = await runTransaction(userRef, (userData) => {
         if (!userData) return userData;
 
         let taskState = userData.taskState || { dailyCounter: 0, lastCompletionTime: null };
         let currentCounter = taskState.dailyCounter || 0;
         const lastTime = taskState.lastCompletionTime;
-        const now = Date.now();
 
-        // تصفير آلي عند دخول يوم جديد
-        if (lastTime) {
-          const nextReset = getNextResetTimeUTC(lastTime);
-          if (now >= nextReset) {
-            currentCounter = 0;
-          }
+        // التحقق من التصفير
+        const currentCycleStart = getCycleStartTimeUTC(secureTimeRef.current);
+        if (lastTime && lastTime < currentCycleStart) {
+          currentCounter = 0; 
         }
 
-        // إلغاء العملية إذا اكتملت جميع المهام
         if (currentCounter >= TASK_TOTAL) {
-          return; 
+          return; // إجهاض الطلب إذا أكمل المهام
         }
 
         currentCounter += 1;
         taskState.dailyCounter = currentCounter;
+        taskState.lastCompletionTime = serverTimestamp(); // وقت السيرفر الفعلي
 
-        // عند الوصول للحد الأقصى للمهام (المهمة الأخيرة)
-        if (currentCounter >= TASK_TOTAL) {
+        // 🎁 إذا أكمل 10 فيديوهات، أضف الرصيد
+        if (currentCounter === TASK_TOTAL) {
           const vipLevel = userData.vip_level || 0;
           const reward = DAILY_VIP_REWARDS[vipLevel] || 0;
           const currentBal = parseFloat(userData.balance?.toString() || '0');
 
           userData.balance = currentBal + reward;
-          taskState.lastCompletionTime = now;
           
-          rewardEarned = reward;
-          vipLevelEarned = vipLevel;
-          username = userData.username || 'Unknown';
-          isTaskCompleted = true;
-        } else if (currentCounter === 1) {
-          taskState.lastCompletionTime = null;
+          transactionResultVal = { reward, vipLevel, username: userData.username };
         }
 
         userData.taskState = taskState;
         return userData; 
       });
 
-      if (!transactionResult.committed) {
-        Alert.alert("تنبيه", "إما أنك أكملت المهام اليومية بالفعل أو أن هناك طلب قيد المعالجة.");
-        return;
+      if (!result.committed) {
+        throw new Error("إما أن الخدمة مغلقة، أو أكملت المهام اليومية، أو هناك طلب قيد المعالجة.");
       }
 
-      // تسجيل المعاملة في جدول المعاملات وتلقي إشعار عند إكمال المهمة الأخيرة
-      if (isTaskCompleted) {
-        const txListRef = ref(db, 'transactions');
-        const newTxRef = push(txListRef);
+      const finalData = result.snapshot.val();
+      const finalCounter = finalData.taskState.dailyCounter;
 
-        await push(txListRef, {
-          id: newTxRef.key,
-          userId: userId,
-          username: username,
+      // 🎯 تسجيل المعاملة في قاعدة البيانات إذا كانت المهمة العاشرة
+      if (finalCounter === TASK_TOTAL && transactionResultVal) {
+        const txRef = push(ref(db, 'transactions'));
+        await set(txRef, {
+          id: txRef.key,
+          userId: currentUserId,
+          username: transactionResultVal.username || 'Unknown',
           type: 'Reward',
-          amount: rewardEarned,
+          amount: transactionResultVal.reward,
           status: 'Completed',
-          note: `Daily reward VIP ${vipLevelEarned}`,
+          note: `Daily reward VIP ${transactionResultVal.vipLevel}`,
           createdAt: serverTimestamp(),
         });
 
+        // إذا كنت تستخدم Push Notification للويب/التطبيق، يمكنك تركه:
         const pushToken = (auth.user as any)?.expoPushToken;
         if (pushToken) {
           await sendPushNotification(
             pushToken,
             '🎁 أرباح المهام جاهزة!',
-            `عمل ممتاز! تم إضافة $${rewardEarned} إلى رصيدك بنجاح.`
+            `عمل ممتاز! تم إضافة $${transactionResultVal.reward} إلى رصيدك بنجاح.`
           );
         }
+        
+        // تنبيه نجاح للمستخدم
+        window.alert(`عمل ممتاز! تم إضافة $${transactionResultVal.reward} إلى رصيدك بنجاح.`);
       }
 
     } catch (error: any) {
       console.error("Task Error:", error);
-      Alert.alert("خطأ", error.message || "حدث خطأ أثناء معالجة المهمة، يرجى المحاولة لاحقاً.");
+      window.alert(error.message || "حدث خطأ في الاتصال، يرجى المحاولة لاحقاً.");
     }
   };
 
@@ -309,6 +330,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
         isLoading,
         timeRemaining,
         canReset,
+        isWindowOpen,
         startWatchingVideo,
         completeVideo,
         cancelVideo,
