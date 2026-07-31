@@ -43,22 +43,23 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
 
   const player = useVideoPlayer(videoUrl, (p) => {
     p.loop = false;
-    // التعديل الأول: ابدأ الفيديو صامتاً لتخطي حظر المتصفحات
+    // ابدأ الفيديو صامتاً لتخطي حظر المتصفحات
     p.muted = true; 
     p.volume = 1.0;
   });
 
   const handlePlayAdWithSound = () => {
     if (player) {
-      // التعديل الثاني: قم بتشغيل الفيديو أولاً، ثم قم بإلغاء الكتم
-      player.play();
+      // التعديل هنا: فك الكتم وتأكيد الصوت أولاً لتجنب الـ Race Condition مع المتصفح
       player.muted = false; 
+      player.volume = 1.0;
+      // إعطاء أمر التشغيل ثانياً
+      player.play();
       setIsPlaying(true);
     }
   };
 
   useEffect(() => {
-    // تم التعديل هنا 👇
     let timer: ReturnType<typeof setInterval>;
     
     if (isPlaying && timeLeft > 0) {
@@ -113,13 +114,14 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
             player={player} 
             style={styles.videoPlayer} 
             contentFit="cover"
-            nativeControls={Platform.OS === 'web' ? true : false} 
+            // التعديل هنا: إخفاء شريط التحكم كلياً لسد ثغرة إيقاف الفيديو من قبل المستخدم
+            nativeControls={false} 
           />
 
           {!isPlaying && (
             <Pressable 
               style={styles.unmuteOverlay} 
-              onPressIn={handlePlayAdWithSound}
+              // التعديل هنا: تم الاكتفاء بـ onPress فقط لمنع حظر الصوت بسبب تداخل الأوامر
               onPress={handlePlayAdWithSound}
             >
               <View style={styles.glowPulseCircle}>
@@ -366,7 +368,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   primaryPillBtn: {
-    // hover: { opacity: 0.9 }, // Note: hover is a web-only pseudo-class, React Native uses activeOpacity on TouchableOpacity
     backgroundColor: '#8B5CF6',
     paddingVertical: 14,
     paddingHorizontal: 35,
