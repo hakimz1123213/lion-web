@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Modal, View, Text, StyleSheet, TouchableOpacity, Pressable, Platform } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { MaterialIcons, Ionicons, FontAwesome5 } from '@expo/vector-icons';
@@ -40,35 +40,63 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
   const [isPlaying, setIsPlaying] = useState(false);
 
   const t = adTranslations[lang] || adTranslations['EN'];
+  const isWeb = Platform.OS === 'web';
 
-const player = useVideoPlayer(videoUrl, (p) => {
+  // مرجع لعنصر الفيديو الأصلي (HTML5) — نستعملوه فـ الويب فقط.
+  // expo-video عندها قيود موثقة فـ التعامل مع الصوت على الويب تحديدا،
+  // فبالنسبة للويب كنستعملو عنصر <video> مباشرة بدون أي طبقة وسيطة.
+  const webVideoRef = useRef<any>(null);
+
+  const player = useVideoPlayer(videoUrl, (p) => {
     p.loop = false;
+    p.muted = true;
     p.volume = 1.0;
-    // لا تقم بوضع p.muted = true هنا؛ دع المتصفح يقرر عند الضغط
   });
 
-  // التعديل الثاني: عند الضغط، شغل الفيديو فقط
   const handlePlayAdWithSound = () => {
-    if (player) {
-      // فك الكتم فوراً وبشكل مباشر
-      player.muted = false;
-      player.volume = 1.0;
-      
-      // تشغيل الفيديو
-      player.play();
-      setIsPlaying(true);
+    try {
+      if (isWeb && webVideoRef.current) {
+        const videoEl = webVideoRef.current;
+        // 👇 نفك الكتم ونضبط الصوت *قبل* الأمر بالتشغيل — هذا الترتيب هو الأضمن
+        // خصوصا فـ Safari/آيفون، لي ما يرجعش الصوت إذا فكيت الكتم بعد ما الفيديو يكون بدا
+        videoEl.muted = false;
+        videoEl.volume = 1.0;
+        const playPromise = videoEl.play();
+        if (playPromise && typeof playPromise.catch === 'function') {
+          playPromise.catch((err: any) => {
+            console.warn('[VideoAdModal:web] المتصفح رفض تشغيل الصوت:', err);
+          });
+        }
+      } else if (player) {
+        player.muted = false;
+        player.volume = 1.0;
+        const playResult: any = player.play();
+        if (playResult && typeof playResult.catch === 'function') {
+          playResult.catch((err: any) => {
+            console.warn('[VideoAdModal:native] المتصفح/النظام رفض تشغيل الصوت:', err);
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('[VideoAdModal] خطأ أثناء محاولة تفعيل الصوت:', err);
     }
+    setIsPlaying(true);
   };
+
   useEffect(() => {
     let timer: ReturnType<typeof setInterval>;
-    
+
     if (isPlaying && timeLeft > 0) {
       timer = setInterval(() => {
         setTimeLeft((prev) => prev - 1);
       }, 1000);
     } else if (timeLeft === 0) {
       setIsFinished(true);
-      if (player) player.pause();
+      if (isWeb && webVideoRef.current) {
+        webVideoRef.current.pause();
+      } else if (player) {
+        player.pause();
+      }
     }
     return () => {
       if (timer) clearInterval(timer);
@@ -80,7 +108,11 @@ const player = useVideoPlayer(videoUrl, (p) => {
       
       <TouchableOpacity 
         style={styles.floatingCloseBtn} 
-        onPress={() => { if (player) player.pause(); onClose(); }}
+        onPress={() => { 
+          if (isWeb && webVideoRef.current) webVideoRef.current.pause();
+          else if (player) player.pause();
+          onClose(); 
+        }}
         activeOpacity={0.7}
       >
         <Ionicons name="close" size={22} color="#FFFFFF" />
@@ -110,18 +142,30 @@ const player = useVideoPlayer(videoUrl, (p) => {
           <View style={[styles.cornerAccents, styles.bottomLeft]} />
           <View style={[styles.cornerAccents, styles.bottomRight]} />
 
-          <VideoView 
-            player={player} 
-            style={styles.videoPlayer} 
-            contentFit="cover"
-            // التعديل هنا: إخفاء شريط التحكم كلياً لسد ثغرة إيقاف الفيديو من قبل المستخدم
-            nativeControls={false} 
-          />
+          {isWeb ? (
+            // عنصر <video> الأصلي للمتصفح — يتفادى قيود الصوت المعروفة فـ expo-video على الويب
+            React.createElement('video', {
+              ref: webVideoRef,
+              src: videoUrl,
+              style: { width: '100%', height: '100%', objectFit: 'cover' },
+              playsInline: true,
+              muted: true,
+              preload: 'auto',
+              controls: true,
+              onError: (e: any) => console.warn('[VideoAdModal:web] خطأ فـ تحميل الفيديو:', e),
+            } as any)
+          ) : (
+            <VideoView 
+              player={player} 
+              style={styles.videoPlayer} 
+              contentFit="cover"
+              nativeControls={false} 
+            />
+          )}
 
           {!isPlaying && (
             <Pressable 
               style={styles.unmuteOverlay} 
-              // التعديل هنا: تم الاكتفاء بـ onPress فقط لمنع حظر الصوت بسبب تداخل الأوامر
               onPress={handlePlayAdWithSound}
             >
               <View style={styles.glowPulseCircle}>
@@ -368,6 +412,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   primaryPillBtn: {
+    // hover: { opacity: 0.9 }, // Note: hover is a web-only pseudo-class, React Native uses activeOpacity on TouchableOpacity
     backgroundColor: '#8B5CF6',
     paddingVertical: 14,
     paddingHorizontal: 35,
