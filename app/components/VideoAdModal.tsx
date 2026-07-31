@@ -42,9 +42,6 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
   const t = adTranslations[lang] || adTranslations['EN'];
   const isWeb = Platform.OS === 'web';
 
-  // مرجع لعنصر الفيديو الأصلي (HTML5) — نستعملوه فـ الويب فقط.
-  // expo-video عندها قيود موثقة فـ التعامل مع الصوت على الويب تحديدا،
-  // فبالنسبة للويب كنستعملو عنصر <video> مباشرة بدون أي طبقة وسيطة.
   const webVideoRef = useRef<any>(null);
 
   const player = useVideoPlayer(videoUrl, (p) => {
@@ -57,8 +54,6 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
     try {
       if (isWeb && webVideoRef.current) {
         const videoEl = webVideoRef.current;
-        // 👇 نفك الكتم ونضبط الصوت *قبل* الأمر بالتشغيل — هذا الترتيب هو الأضمن
-        // خصوصا فـ Safari/آيفون، لي ما يرجعش الصوت إذا فكيت الكتم بعد ما الفيديو يكون بدا
         videoEl.muted = false;
         videoEl.volume = 1.0;
         const playPromise = videoEl.play();
@@ -143,7 +138,6 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
           <View style={[styles.cornerAccents, styles.bottomRight]} />
 
           {isWeb ? (
-            // عنصر <video> الأصلي للمتصفح — يتفادى قيود الصوت المعروفة فـ expo-video على الويب
             React.createElement('video', {
               ref: webVideoRef,
               src: videoUrl,
@@ -151,7 +145,7 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
               playsInline: true,
               muted: true,
               preload: 'auto',
-              controls: true,
+              controls: false, // 👈 التعديل هنا: تم تغييرها إلى false لإخفاء الشريط
               onError: (e: any) => console.warn('[VideoAdModal:web] خطأ فـ تحميل الفيديو:', e),
             } as any)
           ) : (
@@ -412,7 +406,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   primaryPillBtn: {
-    // hover: { opacity: 0.9 }, // Note: hover is a web-only pseudo-class, React Native uses activeOpacity on TouchableOpacity
     backgroundColor: '#8B5CF6',
     paddingVertical: 14,
     paddingHorizontal: 35,
