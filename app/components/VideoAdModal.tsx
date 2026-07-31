@@ -41,24 +41,24 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
 
   const t = adTranslations[lang] || adTranslations['EN'];
 
-  const player = useVideoPlayer(videoUrl, (p) => {
+const player = useVideoPlayer(videoUrl, (p) => {
     p.loop = false;
-    // ابدأ الفيديو صامتاً لتخطي حظر المتصفحات
-    p.muted = true; 
     p.volume = 1.0;
+    // لا تقم بوضع p.muted = true هنا؛ دع المتصفح يقرر عند الضغط
   });
 
+  // التعديل الثاني: عند الضغط، شغل الفيديو فقط
   const handlePlayAdWithSound = () => {
     if (player) {
-      // التعديل هنا: فك الكتم وتأكيد الصوت أولاً لتجنب الـ Race Condition مع المتصفح
-      player.muted = false; 
+      // فك الكتم فوراً وبشكل مباشر
+      player.muted = false;
       player.volume = 1.0;
-      // إعطاء أمر التشغيل ثانياً
+      
+      // تشغيل الفيديو
       player.play();
       setIsPlaying(true);
     }
   };
-
   useEffect(() => {
     let timer: ReturnType<typeof setInterval>;
     
