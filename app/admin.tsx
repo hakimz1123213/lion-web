@@ -5,9 +5,9 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ref, get, onValue, update } from 'firebase/database'; // 🟢 إضافة update
+import { ref, onValue } from 'firebase/database'; // إزالة get حيث لم نعد بحاجة إليه
 import * as Clipboard from 'expo-clipboard'; 
-import axios from 'axios'; // 🟢 إضافة axios لإرسال الإشعارات مباشرة
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 import { useAuth } from '../hooks/useAuth';
 import { useWallet } from '../hooks/useWallet';
@@ -16,21 +16,13 @@ import { Colors } from '../constants/theme';
 import { isSuperAdmin, getVIPTier } from '../constants/config';
 import { db } from '../services/firebaseConfig';
 
-// 🟢 دالة إرسال الإشعارات المباشرة من التطبيق
-const sendExpoPushNotification = async (pushToken: string, title: string, body: string) => {
-  if (!pushToken || !pushToken.startsWith('ExponentPushToken')) return;
-  try {
-    await axios.post('https://exp.host/--/api/v2/push/send', {
-      to: pushToken,
-      sound: 'default',
-      title,
-      body,
-      data: { type: 'FINANCIAL_UPDATE' },
-    });
-  } catch (error) {
-    console.error('Push Notification Error:', error);
-  }
-};
+// --- Theme Constants for Purple/White Style ---
+const PURPLE_MAIN = '#6200EE';
+const PURPLE_LIGHT = '#F4EFFF';
+const BG_WHITE = '#FFFFFF';
+const BORDER_COLOR = '#E0D4F5';
+const TEXT_DARK = '#1A0B2E';
+const TEXT_MUTED = '#6B5E81';
 
 export default function AdminScreen() {
   // @ts-ignore
@@ -123,6 +115,7 @@ export default function AdminScreen() {
     try {
       setIsRefreshing(true);
       
+      // 1. جلب المستخدمين
       const rawUsers = await getAllUsers();
       let usersArray: any[] = [];
       if (rawUsers) {
@@ -137,18 +130,7 @@ export default function AdminScreen() {
       }
       setAllUsers(usersArray);
 
-      const financeSnap = await get(ref(db, 'platform_finances/totals'));
-      let pureDepositsVolume = 0;
-      let pureHakimEarned = 0;
-      let pureManagerEarned = 0;
-
-      if (financeSnap.exists()) {
-        const financeData = financeSnap.val();
-        pureDepositsVolume = parseFloat(financeData.total_deposits_volume?.toString() || '0');
-        pureHakimEarned = parseFloat(financeData.hakim_total_earned?.toString() || '0');
-        pureManagerEarned = parseFloat(financeData.manager_total_earned?.toString() || '0');
-      }
-
+      // 2. جلب كل العمليات من Firebase عبر Wallet Hook
       const rawTxs = await getAllTransactions();
       let txsArray: any[] = [];
       if (rawTxs) {
@@ -162,14 +144,31 @@ export default function AdminScreen() {
         }
       }
 
+      // --- التعديل هنا: حساب الأرقام محلياً بدلاً من جلبها من العقدة المخصصة ---
+      
+      // أ. حساب إجمالي الإيداعات الناجحة (أرباح المنصة)
+      const pureDepositsVolume = txsArray
+        .filter(t => {
+          const type = (t?.type || t?.txType || '').trim().toLowerCase();
+          const status = (t?.status || t?.state || '').trim().toLowerCase();
+          return type === 'deposit' && (status === 'completed' || status === 'approved' || status === 'success');
+        })
+        .reduce((sum, t) => sum + (parseFloat(t.amount || t.value || 0) || 0), 0);
+
+      // ب. حساب النسب المئوية للشركاء
+      const pureManagerEarned = pureDepositsVolume * 0.80; // Latcha 80%
+      const pureHakimEarned = pureDepositsVolume * 0.20;   // Hakim 20%
+
+      // ج. حساب السحوبات الناجحة
       const withdrawals = txsArray
         .filter(t => {
           const type = (t?.type || t?.txType || '').trim().toLowerCase();
           const status = (t?.status || t?.state || '').trim().toLowerCase();
-          return type === 'withdrawal' && (status === 'completed' || status === 'approved' || status === 'success');
+          return (type === 'withdrawal' || type === 'withdraw') && (status === 'completed' || status === 'approved' || status === 'success');
         })
         .reduce((sum, t) => sum + (parseFloat(t.amount || t.value || 0) || 0), 0);
 
+      // 3. تحديث الإحصائيات
       setStats({
         totalDeposits: pureDepositsVolume, 
         totalWithdrawals: withdrawals,
@@ -197,20 +196,29 @@ export default function AdminScreen() {
       Alert.alert("Execution Denied", "Target User validation tokens expired.");
       return;
     }
-    const confirmed = window.confirm(`[CRITICAL WARNING]\nAre you sure you want to completely WIPE OUT ${targetUser.username}'s account identity? This data removal command is absolute!`);
-    if (confirmed) {
-      setTimeout(async () => {
-        try {
-          // @ts-ignore
-          await adminDeleteUser(targetUser.uid, targetUser.referralCode || '');
-          setEditingUser(null); 
-          await loadData(); 
-          showAlert('WIPED', 'Account document node has been completely cleared.');
-        } catch (err: any) {
-          Alert.alert("Wiping Interrupted", err.message);
+    
+    Alert.alert(
+      "CRITICAL WARNING",
+      `Are you sure you want to completely WIPE OUT ${targetUser.username}'s account identity? This data removal command is absolute!`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "WIPE OUT",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              // @ts-ignore
+              await adminDeleteUser(targetUser.uid, targetUser.referralCode || '');
+              setEditingUser(null); 
+              await loadData(); 
+              showAlert('WIPED', 'Account document node has been completely cleared.');
+            } catch (err: any) {
+              Alert.alert("Wiping Interrupted", err.message);
+            }
+          }
         }
-      }, 300);
-    }
+      ]
+    );
   };
 
   const filteredUsers = allUsers.filter(u => {
@@ -221,13 +229,15 @@ export default function AdminScreen() {
 
     const safeUsername = String(u.username || '').toLowerCase();
     const safeEmail = String(u.email || '').toLowerCase();
+    const safeRefCode = String(u.referralCode || '').toLowerCase(); 
     const safeQuery = searchQuery.toLowerCase().trim();
 
-    const matchesSearch = safeUsername.includes(safeQuery) || safeEmail.includes(safeQuery);
+    const matchesSearch = safeUsername.includes(safeQuery) || safeEmail.includes(safeQuery) || safeRefCode.includes(safeQuery);
     
     if (showVipOnly) {
       return matchesSearch && (parseInt(u.vip_level?.toString()) || 0) > 0;
     }
+
     return matchesSearch;
   }).sort((a, b) => {
     const getSafeTime = (dateValue: any) => {
@@ -246,7 +256,6 @@ export default function AdminScreen() {
     setRejectModalVisible(true);
   };
 
-  // 🟢 دالة الرفض المباشرة عبر الكلاينت بدلاً من Functions
   const confirmReject = async () => {
     if (!rejectingTx) return;
     if (!rejectReason.trim()) {
@@ -258,45 +267,13 @@ export default function AdminScreen() {
       setProcessingId(rejectingTx.id);
       setRejectModalVisible(false);
 
-      const tx = rejectingTx;
-      const status = (tx.status || tx.state || '').toLowerCase();
-      const type = (tx.type || '').toLowerCase();
-
-      if (status === 'completed' || status === 'approved') {
-        throw new Error('لا يمكن رفض معاملة مكتملة بالفعل!');
-      }
-
-      const dbUpdates: Record<string, any> = {};
-      dbUpdates[`transactions/${tx.id}/status`] = 'Rejected';
-      dbUpdates[`transactions/${tx.id}/note`] = `Rejected Reason: ${rejectReason.trim()}`;
-      dbUpdates[`transactions/${tx.id}/updatedAt`] = Date.now();
-
-      let pushToken = null;
-
-      if ((type === 'withdrawal' || type === 'withdraw') && tx.userId) {
-        const userSnap = await get(ref(db, `users/${tx.userId}`));
-        if (userSnap.exists()) {
-          const userData = userSnap.val();
-          const currentBalance = parseFloat(userData.balance || '0');
-          const refundAmount = parseFloat(tx.amount || '0');
-          dbUpdates[`users/${tx.userId}/balance`] = currentBalance + refundAmount;
-          pushToken = userData.expoPushToken;
-        }
-      } else if (tx.userId) {
-          const userSnap = await get(ref(db, `users/${tx.userId}`));
-          if (userSnap.exists()) pushToken = userSnap.val().expoPushToken;
-      }
-
-      await update(ref(db), dbUpdates);
-
-      if (pushToken) {
-        const opType = (type === 'deposit') ? 'الإيداع' : 'السحب';
-        await sendExpoPushNotification(
-          pushToken,
-          '❌ تم رفض المعاملة',
-          `عذراً، تم رفض طلب ${opType} الخاص بك بمبلغ $${tx.amount}.\nالسبب: ${rejectReason.trim()}`
-        );
-      }
+      const functions = getFunctions();
+      const rejectTransaction = httpsCallable(functions, 'adminRejectTransaction');
+      
+      await rejectTransaction({ 
+          txId: rejectingTx.id, 
+          reason: rejectReason.trim() 
+      });
 
       await loadData();
       showAlert('REJECTED', 'Order rejected successfully and user notified.');
@@ -309,51 +286,15 @@ export default function AdminScreen() {
     }
   };
 
-  // 🟢 دالة القبول المباشرة عبر الكلاينت بدلاً من Functions
   const handleApprove = async (tx: any) => {
     if (processingId !== null) return;
 
     try {
       setProcessingId(tx.id);
+      const functions = getFunctions();
+      const approveTransaction = httpsCallable(functions, 'adminApproveTransaction');
       
-      const status = (tx.status || tx.state || '').toLowerCase();
-      const type = (tx.type || '').toLowerCase();
-
-      if (status === 'completed' || status === 'approved' || status === 'success') {
-        throw new Error('تمت معالجة هذه المعاملة سابقاً!');
-      }
-
-      const dbUpdates: Record<string, any> = {};
-      dbUpdates[`transactions/${tx.id}/status`] = 'Completed';
-      dbUpdates[`transactions/${tx.id}/note`] = 'Approved successfully by System Master.';
-      dbUpdates[`transactions/${tx.id}/updatedAt`] = Date.now();
-
-      let pushToken = null;
-
-      if (type === 'deposit' && tx.userId) {
-        const userSnap = await get(ref(db, `users/${tx.userId}`));
-        if (userSnap.exists()) {
-          const userData = userSnap.val();
-          const currentBalance = parseFloat(userData.balance || '0');
-          const amountToAdd = parseFloat(tx.amount || '0');
-          dbUpdates[`users/${tx.userId}/balance`] = currentBalance + amountToAdd;
-          pushToken = userData.expoPushToken;
-        }
-      } else if (tx.userId) {
-          const userSnap = await get(ref(db, `users/${tx.userId}`));
-          if (userSnap.exists()) pushToken = userSnap.val().expoPushToken;
-      }
-
-      await update(ref(db), dbUpdates);
-
-      if (pushToken) {
-        const isDeposit = type === 'deposit';
-        const title = isDeposit ? '✅ تم تأكيد الإيداع!' : '💸 تمت الموافقة على السحب!';
-        const body = isDeposit
-          ? `تم شحن رصيدك بنجاح بمبلغ $${tx.amount}.`
-          : `تمت الموافقة على سحب $${tx.amount}. تفقد محفظتك قريباً!`;
-        await sendExpoPushNotification(pushToken, title, body);
-      }
+      await approveTransaction({ txId: tx.id });
       
       await loadData();
       showAlert('APPROVED', 'Order approved successfully.');
@@ -368,22 +309,24 @@ export default function AdminScreen() {
     const s = (status || '').toLowerCase();
     if (s === 'completed' || s === 'approved' || s === 'success') return Colors.success || '#2ecc71';
     if (s === 'rejected' || s === 'failed') return Colors.danger || '#e74c3c';
-    return '#FFD700'; 
+    return '#FFB300'; 
   };
 
-  const sponsorCode = editingUser?.referredBy ? String(editingUser.referredBy).trim().toUpperCase() : "";
+const sponsorCode = editingUser?.referredBy ? String(editingUser.referredBy).trim().toUpperCase() : "";
   let sponsorUser: any = null;
   if (sponsorCode !== "" && !sponsorCode.includes("NONE")) {
     sponsorUser = allUsers.find(u => {
       const uRefCode = u.referralCode ? String(u.referralCode).trim().toUpperCase() : "";
       const uUsername = u.username ? String(u.username).trim().toUpperCase() : "";
       const uUid = u.uid ? String(u.uid).trim().toUpperCase() : "";
-      if (sponsorCode.startsWith("NOIR-")) return uRefCode !== "" && sponsorCode === uRefCode;
-      return sponsorCode === uUsername || sponsorCode === uUid;
+      
+      return (uRefCode !== "" && sponsorCode === uRefCode) || 
+             sponsorCode === uUsername || 
+             sponsorCode === uUid;
     });
   }
 
-  const sponsorEarnedFromThisUser = sponsorUser && editingUser ? historyTxs
+const sponsorEarnedFromThisUser = sponsorUser && editingUser ? historyTxs
     .filter(t => 
        t.userId === sponsorUser.uid && 
        t.type === 'Referral Bonus' && 
@@ -392,14 +335,18 @@ export default function AdminScreen() {
     )
     .reduce((sum, t) => sum + (parseFloat(t.amount || 0) || 0), 0) : 0;
 
-  const referredUsersList = editingUser ? allUsers.filter(u => {
+const referredUsersList = editingUser ? allUsers.filter(u => {
     if (!u.referredBy) return false;
-    const checkVal = String(u.referredBy).trim().toUpperCase();
-    const targetRefCode = editingUser.referralCode ? String(editingUser.referralCode).trim().toUpperCase() : "";
-    const targetUsername = editingUser.username ? String(editingUser.username).trim().toUpperCase() : "";
-    const targetUid = editingUser.uid ? String(editingUser.uid).trim().toUpperCase() : "";
-    if (checkVal.startsWith("NOIR-")) return targetRefCode !== "" && checkVal === targetRefCode;
-    return checkVal === targetUsername || checkVal === targetUid;
+    
+    const checkVal = String(u.referredBy).trim().toLowerCase();
+    const targetRefCode = editingUser.referralCode ? String(editingUser.referralCode).trim().toLowerCase() : "";
+    const targetUsername = editingUser.username ? String(editingUser.username).trim().toLowerCase() : "";
+    const targetUid = editingUser.uid ? String(editingUser.uid).trim().toLowerCase() : "";
+    
+    // مقارنة شاملة بحروف صغيرة لتجنب أي مشاكل في الـ Case
+    return (targetRefCode !== "" && checkVal === targetRefCode) || 
+           (targetUsername !== "" && checkVal === targetUsername) || 
+           (targetUid !== "" && checkVal === targetUid);
   }) : [];
 
   const totalNetworkEarned = editingUser ? historyTxs
@@ -415,7 +362,7 @@ export default function AdminScreen() {
         <View style={styles.header}>
           <View>
             <Text style={styles.hSub}>MASTER COMMAND</Text>
-            <Text style={styles.hTitle}>NoirWealth <Text style={{color: Colors.gold}}>Master</Text></Text>
+            <Text style={styles.hTitle}>Lion App <Text style={{color: PURPLE_MAIN}}>Master</Text></Text>
           </View>
           <Pressable onPress={loadData} style={styles.refreshBtn} disabled={processingId !== null}>
             <Text style={{ fontSize: 24 }}>🔄</Text>
@@ -432,7 +379,7 @@ export default function AdminScreen() {
               onPress={() => { setActiveTab(t as any); if (t !== 'users') setShowVipOnly(false); }} 
               style={[styles.tab, activeTab === t && styles.tabActive, { position: 'relative' }]}
             >
-              <Text style={[styles.tabLabel, activeTab === t && { color: '#000' }]}>{t.toUpperCase()}</Text>
+              <Text style={[styles.tabLabel, activeTab === t && { color: '#fff' }]}>{t.toUpperCase()}</Text>
               {t === 'requests' && pendingTxs.length > 0 && (
                 <View style={styles.adminNotifBadge}>
                   <Text style={styles.adminNotifText}>{pendingTxs.length}</Text>
@@ -445,13 +392,13 @@ export default function AdminScreen() {
 
       <View style={{ flex: 1, width: '100%' }}>
         {isLoading && !isRefreshing ? (
-          <View style={styles.center}><ActivityIndicator size="large" color={Colors.gold} /></View>
+          <View style={styles.center}><ActivityIndicator size="large" color={PURPLE_MAIN} /></View>
         ) : (
           <View style={{ flex: 1, alignItems: 'center', width: '100%' }}>
             <View style={{ flex: 1, width: '100%', maxWidth: 850 }}>
               
               {activeTab === 'overview' && (
-                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent} refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={loadData} tintColor={Colors.gold} />}>
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent} refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={loadData} tintColor={PURPLE_MAIN} />}>
                   <View style={styles.mainProfitCard}>
                     <View style={styles.glassEffect} />
                     <View style={styles.cardContent}>
@@ -460,7 +407,7 @@ export default function AdminScreen() {
                       <View style={styles.splitGrid}>
                         <View style={styles.splitBox}>
                           <Text style={styles.splitTitle}>LATCHA SHARE (80%)</Text>
-                          <Text style={[styles.splitValue, {color: Colors.gold}]}>${stats.latchaShare.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</Text>
+                          <Text style={[styles.splitValue, {color: PURPLE_MAIN}]}>${stats.latchaShare.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</Text>
                         </View>
                         <View style={styles.splitDivider} />
                         <View style={styles.splitBox}>
@@ -492,7 +439,7 @@ export default function AdminScreen() {
                     {[
                       { label: 'Total Volume (Pure Deposits)', val: stats.totalDeposits, color: Colors.success, icon: '📈' },
                       { label: 'Total Withdrawals', val: stats.totalWithdrawals, color: Colors.danger, icon: '📉' },
-                      { label: 'System Capital', val: allUsers.reduce((sum, u) => sum + (parseFloat(u.balance?.toString()) || 0), 0), color: Colors.gold, icon: '🏦' }
+                      { label: 'System Capital', val: allUsers.reduce((sum, u) => sum + (parseFloat(u.balance?.toString()) || 0), 0), color: PURPLE_MAIN, icon: '🏦' }
                     ].map((item, i) => (
                       <View key={i} style={[styles.fRow, i === 2 && { borderBottomWidth: 0 }]}>
                         <Text style={{ fontSize: 14, marginRight: 4 }}>{item.icon}</Text>
@@ -504,106 +451,104 @@ export default function AdminScreen() {
                 </ScrollView>
               )}
 
-            {activeTab === 'requests' && (
-  <FlatList
-    data={pendingTxs}
-    keyExtractor={(item) => item.id}
-    contentContainerStyle={styles.listPadding}
-    renderItem={({ item }) => {
-      const isCurrentProcessing = processingId === item.id;
-      const normalizedType = (item.type || '').toLowerCase();
-      const isWithdrawal = normalizedType === 'withdrawal' || normalizedType === 'withdraw';
-      const isDeposit = normalizedType === 'deposit';
-      const targetAddress = item.walletAddress || item.address || '';
+              {activeTab === 'requests' && (
+                <FlatList
+                  data={pendingTxs}
+                  keyExtractor={(item) => item.id}
+                  contentContainerStyle={styles.listPadding}
+                  renderItem={({ item }) => {
+                    const isCurrentProcessing = processingId === item.id;
+                    const normalizedType = (item.type || '').toLowerCase();
+                    const isWithdrawal = normalizedType === 'withdrawal' || normalizedType === 'withdraw';
+                    const isDeposit = normalizedType === 'deposit';
+                    const targetAddress = item.walletAddress || item.address || '';
 
-      return (
-        <View style={styles.luxuryReqCard}>
-          <View style={styles.reqTop}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.reqName}>{item.username || 'Unknown User'}</Text>
-              <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center', marginTop: 4 }}>
-                <View style={[styles.reqBadge, { marginTop: 0, backgroundColor: isDeposit ? '#00FF0015' : '#FF000015' }]}>
-                  <Text style={{ color: isDeposit ? '#00FF00' : '#FF0000', fontSize: 10, fontWeight: 'bold' }}>
-                    {(item.type || 'Deposit').toUpperCase()}
-                  </Text>
-                </View>
-                <Text style={{ color: '#444', fontSize: 11 }}>ID: {item.userId ? item.userId.substring(0,6) : 'N/A'}</Text>
-              </View>
-            </View>
-            <Text style={styles.reqAmount}>${(item.amount || item.value || 0).toLocaleString()}</Text>
-          </View>
+                    return (
+                      <View style={styles.luxuryReqCard}>
+                        <View style={styles.reqTop}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.reqName}>{item.username || 'Unknown User'}</Text>
+                            <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center', marginTop: 4 }}>
+                              <View style={[styles.reqBadge, { marginTop: 0, backgroundColor: isDeposit ? '#E8F5E9' : '#FFEBEE' }]}>
+                                <Text style={{ color: isDeposit ? '#2E7D32' : '#C62828', fontSize: 10, fontWeight: 'bold' }}>
+                                  {(item.type || 'Deposit').toUpperCase()}
+                                </Text>
+                              </View>
+                              <Text style={{ color: TEXT_MUTED, fontSize: 11 }}>ID: {item.userId ? item.userId.substring(0,6) : 'N/A'}</Text>
+                            </View>
+                          </View>
+                          <Text style={styles.reqAmount}>${(item.amount || item.value || 0).toLocaleString()}</Text>
+                        </View>
 
-          {/* حالة الإيداع: عرض الـ Hash */}
-          {isDeposit && (
-            <View style={styles.txidIntelBlock}>
-              <Text style={styles.txidBlockLabel}>TRANSACTION HASH :</Text>
-              <View style={styles.txidRow}>
-                <Text style={styles.txidTextString} numberOfLines={1} selectable>{item.txid || '⚠️ Missing Hash Code'}</Text>
-                {item.txid && (
-                  <Pressable style={styles.txidMiniCopyBtn} onPress={async () => { await Clipboard.setStringAsync(item.txid); showAlert('Copied!', 'TXID Hash copied to admin clipboard.'); }}>
-                    <Text style={{ fontSize: 11 }}>📋</Text>
-                    <Text style={{ color: Colors.gold, fontSize: 10, fontWeight: 'bold' }}>Copy</Text>
-                  </Pressable>
-                )}
-              </View>
-            </View>
-          )}
+                        {isDeposit && (
+                          <View style={styles.txidIntelBlock}>
+                            <Text style={styles.txidBlockLabel}>TRANSACTION HASH :</Text>
+                            <View style={styles.txidRow}>
+                              <Text style={styles.txidTextString} numberOfLines={1} selectable>{item.txid || '⚠️ Missing Hash Code'}</Text>
+                              {item.txid && (
+                                <Pressable style={styles.txidMiniCopyBtn} onPress={async () => { await Clipboard.setStringAsync(item.txid); showAlert('Copied!', 'TXID Hash copied to admin clipboard.'); }}>
+                                  <Text style={{ fontSize: 11 }}>📋</Text>
+                                  <Text style={{ color: PURPLE_MAIN, fontSize: 10, fontWeight: 'bold' }}>Copy</Text>
+                                </Pressable>
+                              )}
+                            </View>
+                          </View>
+                        )}
 
-          {/* حالة السحب: عرض العنوان + زر النسخ */}
-          {isWithdrawal && (
-            <View style={styles.txidIntelBlock}>
-              <Text style={styles.txidBlockLabel}>USDT BEP20 DESTINATION ADDRESS :</Text>
-              <View style={styles.txidRow}>
-                <Text style={styles.txidTextString} numberOfLines={1} selectable>
-                  {targetAddress || '⚠️ Missing Address'}
-                </Text>
-                {targetAddress ? (
-                  <Pressable 
-                    style={styles.txidMiniCopyBtn} 
-                    onPress={async () => { 
-                      await Clipboard.setStringAsync(targetAddress); 
-                      showAlert('Copied!', 'Wallet Address copied to admin clipboard.'); 
-                    }}
-                  >
-                    <Text style={{ fontSize: 11 }}>📋</Text>
-                    <Text style={{ color: Colors.gold, fontSize: 10, fontWeight: 'bold' }}>Copy</Text>
-                  </Pressable>
-                ) : null}
-              </View>
-            </View>
-          )}
-          
-          <View style={styles.reqActions}>
-            <Pressable style={[styles.miniBtnRej, processingId !== null && { opacity: 0.4 }]} onPress={() => openRejectPrompt(item)} disabled={processingId !== null}>
-              <Text style={{ fontSize: 12, marginRight: 2 }}>❌</Text>
-              <Text style={styles.miniBtnText}>REJECT</Text>
-            </Pressable>
-            
-            <Pressable style={[styles.miniBtnApp, processingId !== null && { opacity: 0.6 }]} onPress={() => handleApprove(item)} disabled={processingId !== null}>
-              {isCurrentProcessing ? (
-                <ActivityIndicator size="small" color="#000" />
-              ) : (
-                <><Text style={{ fontSize: 12, marginRight: 2 }}>✅</Text><Text style={[styles.miniBtnText, { color: '#000' }]}>APPROVE</Text></>
+                        {isWithdrawal && (
+                          <View style={styles.txidIntelBlock}>
+                            <Text style={styles.txidBlockLabel}>USDT BEP20 DESTINATION ADDRESS :</Text>
+                            <View style={styles.txidRow}>
+                              <Text style={styles.txidTextString} numberOfLines={1} selectable>
+                                {targetAddress || '⚠️ Missing Address'}
+                              </Text>
+                              {targetAddress ? (
+                                <Pressable 
+                                  style={styles.txidMiniCopyBtn} 
+                                  onPress={async () => { 
+                                    await Clipboard.setStringAsync(targetAddress); 
+                                    showAlert('Copied!', 'Wallet Address copied to admin clipboard.'); 
+                                  }}
+                                >
+                                  <Text style={{ fontSize: 11 }}>📋</Text>
+                                  <Text style={{ color: PURPLE_MAIN, fontSize: 10, fontWeight: 'bold' }}>Copy</Text>
+                                </Pressable>
+                              ) : null}
+                            </View>
+                          </View>
+                        )}
+                        
+                        <View style={styles.reqActions}>
+                          <Pressable style={[styles.miniBtnRej, processingId !== null && { opacity: 0.4 }]} onPress={() => openRejectPrompt(item)} disabled={processingId !== null}>
+                            <Text style={{ fontSize: 12, marginRight: 2 }}>❌</Text>
+                            <Text style={styles.miniBtnTextRej}>REJECT</Text>
+                          </Pressable>
+                          
+                          <Pressable style={[styles.miniBtnApp, processingId !== null && { opacity: 0.6 }]} onPress={() => handleApprove(item)} disabled={processingId !== null}>
+                            {isCurrentProcessing ? (
+                              <ActivityIndicator size="small" color="#fff" />
+                            ) : (
+                              <><Text style={{ fontSize: 12, marginRight: 2 }}>✅</Text><Text style={styles.miniBtnTextApp}>APPROVE</Text></>
+                            )}
+                          </Pressable>
+                        </View>
+                      </View>
+                    );
+                  }}
+                  ListEmptyComponent={<Text style={styles.emptyText}>No pending operations.</Text>}
+                />
               )}
-            </Pressable>
-          </View>
-        </View>
-      );
-    }}
-    ListEmptyComponent={<Text style={styles.emptyText}>No pending operations.</Text>}
-  />
-)}
 
               {activeTab === 'users' && (
                 <View style={{ flex: 1, width: '100%' }}>
                   <View style={styles.searchContainer}>
                     <Text style={{ fontSize: 14, marginRight: 6 }}>🔍</Text>
-                    <TextInput style={styles.searchInput} placeholder="Search user identity..." placeholderTextColor="#444" value={searchQuery} onChangeText={setSearchQuery} editable={processingId === null} />
+                    <TextInput style={styles.searchInput} placeholder="Search user identity..." placeholderTextColor={TEXT_MUTED} value={searchQuery} onChangeText={setSearchQuery} editable={processingId === null} />
                   </View>
                   {showVipOnly && (
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 25, marginBottom: 15, alignItems: 'center' }}>
-                      <Text style={{ color: '#00EAFF', fontSize: 12, fontWeight: 'bold' }}>💎 Showing VIP Holders Only ({filteredUsers.length})</Text>
-                      <Pressable onPress={() => setShowVipOnly(false)} disabled={processingId !== null}><Text style={{ color: Colors.gold, fontSize: 12, fontWeight: 'bold', textDecorationLine: 'underline' }}>Clear Filter</Text></Pressable>
+                      <Text style={{ color: '#00B8D4', fontSize: 12, fontWeight: 'bold' }}>💎 Showing VIP Holders Only ({filteredUsers.length})</Text>
+                      <Pressable onPress={() => setShowVipOnly(false)} disabled={processingId !== null}><Text style={{ color: PURPLE_MAIN, fontSize: 12, fontWeight: 'bold', textDecorationLine: 'underline' }}>Clear Filter</Text></Pressable>
                     </View>
                   )}
                   <FlatList
@@ -613,10 +558,10 @@ export default function AdminScreen() {
                     ListEmptyComponent={
                       <View style={{ alignItems: 'center', marginTop: 80 }}>
                         <Text style={{ fontSize: 50 }}>📭</Text>
-                        <Text style={{ color: '#fff', fontSize: 18, marginTop: 15, fontWeight: 'bold' }}>
+                        <Text style={{ color: TEXT_DARK, fontSize: 18, marginTop: 15, fontWeight: 'bold' }}>
                           {allUsers.length === 0 ? "قاعدة البيانات مارجعت حتى مستخدم!" : "مكاش مستخدم بهاد الاسم!"}
                         </Text>
-                        <Text style={{ color: Colors.gold, fontSize: 14, marginTop: 8 }}>
+                        <Text style={{ color: PURPLE_MAIN, fontSize: 14, marginTop: 8 }}>
                           (إجمالي المستخدمين في الذاكرة: {allUsers.length})
                         </Text>
                       </View>
@@ -646,9 +591,9 @@ export default function AdminScreen() {
                                <Text style={styles.uBalanceTag}>${(parseFloat(item.balance?.toString()) || 0).toFixed(2)}</Text>
                             </View>
                             <View style={styles.uNetworkIntelRow}>
-                              <View style={styles.uNetworkStatItem}><Text style={{ fontSize: 11 }}>👥</Text><Text style={styles.uNetworkStatText}>Refs: <Text style={{color: '#fff', fontWeight: 'bold'}}>{totalReferredCount}</Text></Text></View>
+                              <View style={styles.uNetworkStatItem}><Text style={{ fontSize: 11 }}>👥</Text><Text style={styles.uNetworkStatText}>Refs: <Text style={{color: TEXT_DARK, fontWeight: 'bold'}}>{totalReferredCount}</Text></Text></View>
                               <View style={styles.uNetworkStatDivider} />
-                              <View style={styles.uNetworkStatItem}><Text style={{ fontSize: 11 }}>🎁</Text><Text style={styles.uNetworkStatText}>Earned: <Text style={{color: Colors.gold, fontWeight: 'bold'}}>${networkEarnings.toFixed(2)}</Text></Text></View>
+                              <View style={styles.uNetworkStatItem}><Text style={{ fontSize: 11 }}>🎁</Text><Text style={styles.uNetworkStatText}>Earned: <Text style={{color: PURPLE_MAIN, fontWeight: 'bold'}}>${networkEarnings.toFixed(2)}</Text></Text></View>
                             </View>
                           </View>
                           <Pressable style={styles.uEditBtn} disabled={processingId !== null} onPress={() => { setEditingUser(item); setNewBalance(item.balance?.toString() || '0'); setNewVip(item.vip_level || 0); }}><Text style={{ fontSize: 14 }}>⚙️</Text></Pressable>
@@ -663,17 +608,17 @@ export default function AdminScreen() {
                 <View style={{ flex: 1, width: '100%', overflow: 'hidden' }}>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.historyFilterScroll} contentContainerStyle={styles.historyFilterBar}>
                     {['ALL', 'Deposit', 'Withdrawal', 'Reward', 'Referral Bonus', 'VIP Upgrade'].map((f) => (
-                      <Pressable key={f} onPress={() => handleHistoryFilter(f)} style={[styles.historyFilterTab, historyFilter === f && { backgroundColor: Colors.gold }]}>
-                        <Text style={[styles.historyFilterLabel, historyFilter === f && { color: '#000' }]}>{f.toUpperCase()}</Text>
+                      <Pressable key={f} onPress={() => handleHistoryFilter(f)} style={[styles.historyFilterTab, historyFilter === f && { backgroundColor: PURPLE_MAIN, borderColor: PURPLE_MAIN }]}>
+                        <Text style={[styles.historyFilterLabel, historyFilter === f && { color: '#fff' }]}>{f.toUpperCase()}</Text>
                       </Pressable>
                     ))}
                   </ScrollView>
                   <View style={[styles.searchContainer, { marginTop: 0, marginBottom: 15 }]}>
                     <Text style={{ fontSize: 14, marginRight: 6 }}>🔍</Text>
-                    <TextInput style={styles.searchInput} placeholder="Search history by username or user ID..." placeholderTextColor="#444" value={historySearchQuery} onChangeText={setHistorySearchQuery} editable={processingId === null} />
+                    <TextInput style={styles.searchInput} placeholder="Search history by username or user ID..." placeholderTextColor={TEXT_MUTED} value={historySearchQuery} onChangeText={setHistorySearchQuery} editable={processingId === null} />
                   </View>
                   <View style={styles.historySummaryCard}>
-                    <Text style={styles.hSumTitle}>FILTERED LOGS: <Text style={{color: Colors.gold}}>{filteredHistory.length}</Text></Text>
+                    <Text style={styles.hSumTitle}>FILTERED LOGS: <Text style={{color: PURPLE_MAIN}}>{filteredHistory.length}</Text></Text>
                     <Text style={styles.hSumValue}>Total Value: ${filteredHistory.reduce((sum, t) => sum + (parseFloat(t.amount || 0) || 0), 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</Text>
                   </View>
                   <FlatList
@@ -717,7 +662,7 @@ export default function AdminScreen() {
             <TextInput
               style={styles.rejectInput}
               placeholder="Type rejection reason here (e.g., Invalid TXID, Wrong Network...)"
-              placeholderTextColor="#666"
+              placeholderTextColor={TEXT_MUTED}
               value={rejectReason}
               onChangeText={setRejectReason}
               multiline
@@ -725,7 +670,7 @@ export default function AdminScreen() {
             
             <View style={styles.rejectActions}>
               <Pressable style={styles.rejectCancelBtn} onPress={() => { setRejectModalVisible(false); setRejectReason(''); }}>
-                <Text style={{ color: '#fff', fontWeight: 'bold' }}>Cancel</Text>
+                <Text style={{ color: TEXT_DARK, fontWeight: 'bold' }}>Cancel</Text>
               </Pressable>
               <Pressable style={styles.rejectConfirmBtn} onPress={confirmReject}>
                 {processingId !== null ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: '#fff', fontWeight: 'bold' }}>Confirm Reject</Text>}
@@ -750,7 +695,7 @@ export default function AdminScreen() {
               </View>
 
               <View style={{ alignItems: 'center', marginBottom: 20 }}>
-                <View style={{ width: 64, height: 64, borderRadius: 32, borderWidth: 2, borderColor: Colors.gold, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000', overflow: 'hidden' }}>
+                <View style={{ width: 64, height: 64, borderRadius: 32, borderWidth: 2, borderColor: PURPLE_MAIN, justifyContent: 'center', alignItems: 'center', backgroundColor: BG_WHITE, overflow: 'hidden' }}>
                   {editingUser?.profileImage ? (<Image source={{ uri: editingUser.profileImage }} style={{ width: '100%', height: '100%' }} />) : (<Text style={{ fontSize: 24 }}>👤</Text>)}
                 </View>
               </View>
@@ -758,15 +703,15 @@ export default function AdminScreen() {
               <View style={styles.networkBox}>
                 <View style={styles.networkBoxHeader}><Text style={styles.networkBoxTitle}>🤝 REFERRED BY (SPONSOR INFO)</Text></View>
                 {sponsorUser ? (
-                  <View style={[styles.refUserRow, { borderColor: Colors.gold }]}>
+                  <View style={[styles.refUserRow, { borderColor: PURPLE_MAIN }]}>
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.refUserName, sponsorUser.isFullyVerified && { color: Colors.success }]}>{sponsorUser.username} {sponsorUser.isFullyVerified && '✔'}</Text>
                       <Text style={styles.refUserEmail}>{sponsorUser.email}</Text>
                       <Text style={[styles.refUserVip, { marginTop: 4 }]}>VIP {sponsorUser.vip_level || 0} • Bal: ${(parseFloat(sponsorUser.balance?.toString()) || 0).toFixed(2)}</Text>
                     </View>
                     <View style={{ alignItems: 'flex-end', justifyContent: 'center' }}>
-                      <Text style={{ color: '#888', fontSize: 9, fontWeight: 'bold', marginBottom: 4 }}>REWARD TAKEN</Text>
-                      <Text style={{ color: Colors.gold, fontSize: 16, fontWeight: 'bold' }}>+${sponsorEarnedFromThisUser.toFixed(2)}</Text>
+                      <Text style={{ color: TEXT_MUTED, fontSize: 9, fontWeight: 'bold', marginBottom: 4 }}>REWARD TAKEN</Text>
+                      <Text style={{ color: PURPLE_MAIN, fontSize: 16, fontWeight: 'bold' }}>+${sponsorEarnedFromThisUser.toFixed(2)}</Text>
                     </View>
                   </View>
                 ) : (<Text style={styles.emptyNetworkText}>Direct Registration (No Sponsor)</Text>)}
@@ -796,19 +741,19 @@ export default function AdminScreen() {
                 <View style={styles.intelRow}><Text style={styles.intelLabel}>Email ID:</Text><Text style={styles.intelVal}>{editingUser?.email}</Text></View>
                 <View style={styles.intelRow}><Text style={styles.intelLabel}>Phone Contact:</Text><Text style={styles.intelVal}>{editingUser?.phone || 'Not Linked'}</Text></View>
                 <View style={styles.intelRow}><Text style={styles.intelLabel}>Joined Date:</Text><Text style={styles.intelVal}>{editingUser?.createdAt ? new Date(editingUser.createdAt).toLocaleDateString() : 'N/A'}</Text></View>
-                <View style={styles.intelRow}><Text style={styles.intelLabel}>Referred By:</Text><Text style={[styles.intelVal, {color: Colors.gold}]}>{editingUser?.referredBy || 'Direct Registration'}</Text></View>
+                <View style={styles.intelRow}><Text style={styles.intelLabel}>Referred By:</Text><Text style={[styles.intelVal, {color: PURPLE_MAIN}]}>{editingUser?.referredBy || 'Direct Registration'}</Text></View>
                 <View style={styles.intelRow}><Text style={styles.intelLabel}>Verification:</Text><Text style={[styles.intelVal, {color: editingUser?.isFullyVerified ? Colors.success : '#2bff00'}]}>{editingUser?.isFullyVerified ? 'Verified KYC 🛡️' : 'verified Account'}</Text></View>
-                <View style={[styles.intelRow, {borderBottomWidth: 0}]}><Text style={styles.intelLabel}>Referral Code:</Text><Text style={[styles.intelVal, {color: Colors.gold, fontWeight: 'bold'}]}>{editingUser?.referralCode || 'NONE'}</Text></View>
+                <View style={[styles.intelRow, {borderBottomWidth: 0}]}><Text style={styles.intelLabel}>Referral Code:</Text><Text style={[styles.intelVal, {color: PURPLE_MAIN, fontWeight: 'bold'}]}>{editingUser?.referralCode || 'NONE'}</Text></View>
               </View>
 
               <Text style={[styles.mLabel, { marginTop: 10 }]}>MODIFY USER LIQUID BALANCE ($)</Text>
-              <TextInput style={styles.mInput} value={newBalance} onChangeText={setNewBalance} keyboardType="decimal-pad" />
+              <TextInput style={styles.mInput} value={newBalance} onChangeText={newVal => setNewBalance(newVal)} keyboardType="decimal-pad" />
               
               <Text style={styles.mLabel}>OVERRIDE VIP MEMBERSHIP TIER</Text>
               <View style={styles.vipPicker}>
                    {[0,1,2,3,4,5,6].map(lvl => (
-                     <Pressable key={lvl} onPress={()=>setNewVip(lvl)} style={[styles.vipOpt, newVip === lvl && {backgroundColor: Colors.gold, borderColor: Colors.gold}]}>
-                       <Text style={[styles.vipOptText, newVip === lvl && {color: '#000'}]}>V{lvl}</Text>
+                     <Pressable key={lvl} onPress={()=>setNewVip(lvl)} style={[styles.vipOpt, newVip === lvl && {backgroundColor: PURPLE_MAIN, borderColor: PURPLE_MAIN}]}>
+                       <Text style={[styles.vipOptText, newVip === lvl && {color: '#fff'}]}>V{lvl}</Text>
                      </Pressable>
                    ))}
               </View>
@@ -818,17 +763,17 @@ export default function AdminScreen() {
                 onPress={() => handleDeleteUserExecution(editingUser)}
               >
                 <Text style={{ fontSize: 16 }}>🗑️</Text>
-                <Text style={{ color: '#ff4d4d', fontSize: 13, fontWeight: 'bold', letterSpacing: 1 }}>DELETE THIS ACCOUNT NODE</Text>
+                <Text style={{ color: '#E53935', fontSize: 13, fontWeight: 'bold', letterSpacing: 1 }}>DELETE THIS ACCOUNT NODE</Text>
               </TouchableOpacity>
 
               <View style={styles.mActions}>
-                <Pressable style={styles.mBtnC} onPress={() => setEditingUser(null)}><Text style={{ color: '#fff' }}>Discard</Text></Pressable>
+                <Pressable style={styles.mBtnC} onPress={() => setEditingUser(null)}><Text style={{ color: TEXT_DARK }}>Discard</Text></Pressable>
                 <Pressable style={styles.mBtnS} onPress={async () => {
                   await adminUpdateUserBalance(editingUser.uid, parseFloat(newBalance) || 0);
                   await adminSetVIP(editingUser.uid, newVip);
                   setEditingUser(null); loadData();
                   showAlert('Success', 'Profile updated.');
-                }}><Text style={{ color: '#000', fontWeight: 'bold' }}>Update Profile</Text></Pressable>
+                }}><Text style={{ color: '#fff', fontWeight: 'bold' }}>Update Profile</Text></Pressable>
               </View>
             </ScrollView>
           </KeyboardAvoidingView>
@@ -839,125 +784,124 @@ export default function AdminScreen() {
 }
 
 const styles = StyleSheet.create({
-  // ستايلاتك لم تتغير وتم الإبقاء عليها كما هي
-  screen: { flex: 1, backgroundColor: '#000', alignItems: 'center' },
+  screen: { flex: 1, backgroundColor: PURPLE_LIGHT, alignItems: 'center' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   headerContainer: { width: '100%', alignItems: 'center' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 25, width: '100%', maxWidth: 850 },
-  hSub: { color: '#333', fontSize: 10, fontWeight: 'bold', letterSpacing: 2 },
-  hTitle: { color: '#fff', fontSize: 24, fontWeight: 'bold' },
+  hSub: { color: TEXT_MUTED, fontSize: 10, fontWeight: 'bold', letterSpacing: 2 },
+  hTitle: { color: TEXT_DARK, fontSize: 24, fontWeight: 'bold' },
   refreshBtn: { padding: 5, justifyContent: 'center', alignItems: 'center' },
   tabBarContainer: { width: '100%', alignItems: 'center' },
-  tabBar: { flexDirection: 'row', backgroundColor: '#050505', borderRadius: 20, padding: 5, borderWidth: 1, borderColor: '#111', marginBottom: 15, width: '90%', maxWidth: 850 },
+  tabBar: { flexDirection: 'row', backgroundColor: BG_WHITE, borderRadius: 20, padding: 5, borderWidth: 1, borderColor: BORDER_COLOR, marginBottom: 15, width: '90%', maxWidth: 850 },
   tab: { flex: 1, paddingVertical: 14, alignItems: 'center', justifyContent: 'center', borderRadius: 15 },
-  tabActive: { backgroundColor: Colors.gold },
-  tabLabel: { color: '#444', fontSize: 11, fontWeight: 'bold', letterSpacing: 0.5 },
-  adminNotifBadge: { position: 'absolute', top: -4, right: -4, backgroundColor: '#E53E3E', minWidth: 18, height: 18, borderRadius: 9, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#111', paddingHorizontal: 4 },
+  tabActive: { backgroundColor: PURPLE_MAIN },
+  tabLabel: { color: TEXT_MUTED, fontSize: 11, fontWeight: 'bold', letterSpacing: 0.5 },
+  adminNotifBadge: { position: 'absolute', top: -4, right: -4, backgroundColor: '#E53E3E', minWidth: 18, height: 18, borderRadius: 9, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: BG_WHITE, paddingHorizontal: 4 },
   adminNotifText: { color: '#fff', fontSize: 9, fontWeight: 'bold' },
   scrollContent: { padding: 20, paddingBottom: 50 },
-  mainProfitCard: { height: 200, borderRadius: 30, overflow: 'hidden', marginBottom: 25, borderWidth: 1, borderColor: '#151515', width: '100%' },
-  glassEffect: { ...StyleSheet.absoluteFillObject, backgroundColor: '#080808', opacity: 0.8 },
+  mainProfitCard: { height: 200, borderRadius: 30, overflow: 'hidden', marginBottom: 25, borderWidth: 1, borderColor: BORDER_COLOR, width: '100%', backgroundColor: PURPLE_MAIN },
+  glassEffect: { ...StyleSheet.absoluteFillObject, backgroundColor: '#ffffff', opacity: 0.1 },
   cardContent: { flex: 1, padding: 25, justifyContent: 'center', alignItems: 'center' },
-  cardLabel: { color: '#333', fontSize: 9, fontWeight: 'bold', letterSpacing: 2, marginBottom: 8 },
+  cardLabel: { color: '#E0D4F5', fontSize: 9, fontWeight: 'bold', letterSpacing: 2, marginBottom: 8 },
   cardValue: { color: '#fff', fontSize: 40, fontWeight: 'bold' },
   splitGrid: { flexDirection: 'row', marginTop: 25, width: '100%', alignItems: 'center' },
   splitBox: { flex: 1, alignItems: 'center' },
-  splitTitle: { color: '#222', fontSize: 8, fontWeight: 'bold', marginBottom: 4 },
+  splitTitle: { color: '#E0D4F5', fontSize: 8, fontWeight: 'bold', marginBottom: 4 },
   splitValue: { fontSize: 18, fontWeight: 'bold', color: '#fff' },
-  splitDivider: { width: 1, height: 30, backgroundColor: '#111' },
+  splitDivider: { width: 1, height: 30, backgroundColor: 'rgba(255,255,255,0.2)' },
   commandGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 25, width: '100%', justifyContent: 'space-between' },
-  commandTile: { width: '48%', backgroundColor: '#080808', padding: 20, borderRadius: 25, borderWidth: 1, borderColor: '#111', gap: 8 },
-  tileVal: { color: '#fff', fontSize: 20, fontWeight: 'bold' },
-  tileLabel: { color: '#333', fontSize: 9, fontWeight: 'bold' },
-  sectionTitle: { color: '#333', fontSize: 10, fontWeight: 'bold', marginTop: 10, marginBottom: 15, marginLeft: 10, letterSpacing: 1.5 },
-  financeBox: { backgroundColor: '#080808', borderRadius: 25, padding: 5, borderWidth: 1, borderColor: '#111', width: '100%' },
-  fRow: { flexDirection: 'row', alignItems: 'center', padding: 18, borderBottomWidth: 1, borderBottomColor: '#050505' },
-  fLabel: { flex: 1, color: '#666', fontSize: 13, marginLeft: 12 },
+  commandTile: { width: '48%', backgroundColor: BG_WHITE, padding: 20, borderRadius: 25, borderWidth: 1, borderColor: BORDER_COLOR, gap: 8 },
+  tileVal: { color: TEXT_DARK, fontSize: 20, fontWeight: 'bold' },
+  tileLabel: { color: TEXT_MUTED, fontSize: 9, fontWeight: 'bold' },
+  sectionTitle: { color: TEXT_MUTED, fontSize: 10, fontWeight: 'bold', marginTop: 10, marginBottom: 15, marginLeft: 10, letterSpacing: 1.5 },
+  financeBox: { backgroundColor: BG_WHITE, borderRadius: 25, padding: 5, borderWidth: 1, borderColor: BORDER_COLOR, width: '100%' },
+  fRow: { flexDirection: 'row', alignItems: 'center', padding: 18, borderBottomWidth: 1, borderBottomColor: PURPLE_LIGHT },
+  fLabel: { flex: 1, color: TEXT_MUTED, fontSize: 13, marginLeft: 12 },
   fVal: { fontWeight: 'bold', fontSize: 15 },
-  luxuryReqCard: { backgroundColor: '#080808', marginBottom: 15, borderRadius: 25, padding: 20, borderWidth: 1, borderColor: '#151515', width: '100%' },
+  luxuryReqCard: { backgroundColor: BG_WHITE, marginBottom: 15, borderRadius: 25, padding: 20, borderWidth: 1, borderColor: BORDER_COLOR, width: '100%' },
   reqTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  reqName: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
+  reqName: { color: TEXT_DARK, fontSize: 18, fontWeight: 'bold' },
   reqBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginTop: 5 },
-  reqAmount: { color: Colors.gold, fontSize: 22, fontWeight: 'bold' },
+  reqAmount: { color: PURPLE_MAIN, fontSize: 22, fontWeight: 'bold' },
   reqActions: { flexDirection: 'row', gap: 10, marginTop: 20 },
-  miniBtnApp: { flex: 2, backgroundColor: Colors.gold, flexDirection: 'row', padding: 15, borderRadius: 15, justifyContent: 'center', alignItems: 'center', gap: 8 },
-  miniBtnRej: { flex: 1, backgroundColor: '#111', flexDirection: 'row', padding: 15, borderRadius: 15, justifyContent: 'center', alignItems: 'center', gap: 8 },
-  miniBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 12 },
-  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#080808', marginVertical: 20, paddingHorizontal: 15, borderRadius: 15, borderWidth: 1, borderColor: '#151515', width: '100%', maxWidth: '100%' },
-  searchInput: { flex: 1, padding: 15, color: '#fff' },
-  userEliteCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#080808', marginBottom: 10, padding: 18, borderRadius: 25, borderWidth: 1, borderColor: '#111', width: '100%' },
-  uAvatar: { width: 48, height: 48, borderRadius: 24, borderWidth: 2, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' },
-  uName: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-  uEmail: { color: '#444', fontSize: 11, marginBottom: 5 },
+  miniBtnApp: { flex: 2, backgroundColor: PURPLE_MAIN, flexDirection: 'row', padding: 15, borderRadius: 15, justifyContent: 'center', alignItems: 'center', gap: 8 },
+  miniBtnRej: { flex: 1, backgroundColor: '#F5F5F5', flexDirection: 'row', padding: 15, borderRadius: 15, justifyContent: 'center', alignItems: 'center', gap: 8 },
+  miniBtnTextApp: { color: '#fff', fontWeight: 'bold', fontSize: 12 },
+  miniBtnTextRej: { color: TEXT_MUTED, fontWeight: 'bold', fontSize: 12 },
+  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: BG_WHITE, marginVertical: 20, paddingHorizontal: 15, borderRadius: 15, borderWidth: 1, borderColor: BORDER_COLOR, width: '100%', maxWidth: '100%' },
+  searchInput: { flex: 1, padding: 15, color: TEXT_DARK },
+  userEliteCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: BG_WHITE, marginBottom: 10, padding: 18, borderRadius: 25, borderWidth: 1, borderColor: BORDER_COLOR, width: '100%' },
+  uAvatar: { width: 48, height: 48, borderRadius: 24, borderWidth: 2, backgroundColor: PURPLE_LIGHT, justifyContent: 'center', alignItems: 'center' },
+  uName: { color: TEXT_DARK, fontSize: 16, fontWeight: 'bold' },
+  uEmail: { color: TEXT_MUTED, fontSize: 11, marginBottom: 5 },
   uBadgeRow: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   uVipTag: { fontSize: 10, fontWeight: 'bold' },
-  uBadgeLabel: { color: '#333', fontSize: 9, fontWeight: 'bold' },
-  uBalanceTag: { color: Colors.gold, fontSize: 11, fontWeight: 'bold' },
-  uEditBtn: { padding: 12, backgroundColor: '#050505', borderRadius: 15, borderWidth: 1, borderColor: '#151515', justifyContent: 'center', alignItems: 'center' },
-  modal: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'flex-end', alignItems: 'center', width: '100%' },
-  mContent: { position: 'relative', backgroundColor: '#080808', padding: 30, borderTopLeftRadius: 35, borderTopRightRadius: 35, borderWidth: 1, borderColor: '#1A1A1A', maxHeight: '90%', width: '100%', maxWidth: 700 },
-  closeModalBtnTop: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#111', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#333', marginTop: 10 },
+  uBalanceTag: { color: PURPLE_MAIN, fontSize: 11, fontWeight: 'bold' },
+  uEditBtn: { padding: 12, backgroundColor: PURPLE_LIGHT, borderRadius: 15, borderWidth: 1, borderColor: BORDER_COLOR, justifyContent: 'center', alignItems: 'center' },
+  modal: { flex: 1, backgroundColor: 'rgba(26, 11, 46, 0.7)', justifyContent: 'flex-end', alignItems: 'center', width: '100%' },
+  mContent: { position: 'relative', backgroundColor: BG_WHITE, padding: 30, borderTopLeftRadius: 35, borderTopRightRadius: 35, borderWidth: 1, borderColor: BORDER_COLOR, maxHeight: '90%', width: '100%', maxWidth: 700 },
+  closeModalBtnTop: { width: 36, height: 36, borderRadius: 18, backgroundColor: PURPLE_LIGHT, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: BORDER_COLOR, marginTop: 10 },
   mContentScrollView: { paddingBottom: 30 },
-  mHandle: { width: 40, height: 4, backgroundColor: '#222', borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
-  mTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold', textAlign: 'center' },
-  mSub: { color: Colors.gold, fontSize: 12, textAlign: 'center', marginBottom: 25, fontWeight: 'bold' },
-  mLabel: { color: '#444', fontSize: 10, fontWeight: 'bold', marginBottom: 10, letterSpacing: 1 },
-  mInput: { backgroundColor: '#000', color: Colors.gold, padding: 18, borderRadius: 15, fontSize: 22, fontWeight: 'bold', borderWidth: 1, borderColor: '#111', textAlign: 'center', marginBottom: 25 },
+  mHandle: { width: 40, height: 4, backgroundColor: BORDER_COLOR, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
+  mTitle: { color: TEXT_DARK, fontSize: 20, fontWeight: 'bold', textAlign: 'center' },
+  mSub: { color: PURPLE_MAIN, fontSize: 12, textAlign: 'center', marginBottom: 25, fontWeight: 'bold' },
+  mLabel: { color: TEXT_MUTED, fontSize: 10, fontWeight: 'bold', marginBottom: 10, letterSpacing: 1 },
+  mInput: { backgroundColor: PURPLE_LIGHT, color: PURPLE_MAIN, padding: 18, borderRadius: 15, fontSize: 22, fontWeight: 'bold', borderWidth: 1, borderColor: BORDER_COLOR, textAlign: 'center', marginBottom: 25 },
   vipPicker: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 35, width: '100%' },
-  vipOpt: { width: 38, height: 38, borderRadius: 10, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#111' },
-  vipOptText: { color: '#fff', fontWeight: 'bold', fontSize: 12 },
+  vipOpt: { width: 38, height: 38, borderRadius: 10, backgroundColor: PURPLE_LIGHT, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: BORDER_COLOR },
+  vipOptText: { color: TEXT_MUTED, fontWeight: 'bold', fontSize: 12 },
   mActions: { flexDirection: 'row', gap: 12, marginTop: 10, width: '100%' },
-  mBtnS: { flex: 2, backgroundColor: Colors.gold, padding: 18, borderRadius: 15, alignItems: 'center' },
-  mBtnC: { flex: 1, backgroundColor: '#111', padding: 18, borderRadius: 15, alignItems: 'center' },
+  mBtnS: { flex: 2, backgroundColor: PURPLE_MAIN, padding: 18, borderRadius: 15, alignItems: 'center' },
+  mBtnC: { flex: 1, backgroundColor: '#F5F5F5', padding: 18, borderRadius: 15, alignItems: 'center' },
   listPadding: { paddingBottom: 150, width: '100%' },
-  emptyText: { color: '#444', textAlign: 'center', marginTop: 50, fontWeight: 'bold' },
+  emptyText: { color: TEXT_MUTED, textAlign: 'center', marginTop: 50, fontWeight: 'bold' },
   historyFilterScroll: { height: 55, marginBottom: 15, width: '100%', maxWidth: '100%' },
   historyFilterBar: { paddingHorizontal: 10, alignItems: 'center', flexDirection: 'row' },
-  historyFilterTab: { backgroundColor: '#080808', paddingHorizontal: 14, height: 38, borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#111', marginRight: 8 },
-  historyFilterLabel: { color: '#888', fontSize: 10, fontWeight: 'bold' },
-  historySummaryCard: { backgroundColor: '#050505', borderRadius: 15, padding: 15, borderWidth: 1, borderColor: '#111', marginBottom: 15, width: '100%' },
-  hSumTitle: { color: '#666', fontSize: 10, fontWeight: 'bold', letterSpacing: 1 },
+  historyFilterTab: { backgroundColor: BG_WHITE, paddingHorizontal: 14, height: 38, borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: BORDER_COLOR, marginRight: 8 },
+  historyFilterLabel: { color: TEXT_MUTED, fontSize: 10, fontWeight: 'bold' },
+  historySummaryCard: { backgroundColor: PURPLE_MAIN, borderRadius: 15, padding: 15, borderWidth: 1, borderColor: BORDER_COLOR, marginBottom: 15, width: '100%' },
+  hSumTitle: { color: '#E0D4F5', fontSize: 10, fontWeight: 'bold', letterSpacing: 1 },
   hSumValue: { color: '#fff', fontSize: 16, fontWeight: 'bold', marginTop: 5 },
-  historyLogCard: { backgroundColor: '#080808', marginBottom: 10, borderRadius: 20, padding: 18, borderWidth: 1, borderColor: '#111', width: '100%' },
+  historyLogCard: { backgroundColor: BG_WHITE, marginBottom: 10, borderRadius: 20, padding: 18, borderWidth: 1, borderColor: BORDER_COLOR, width: '100%' },
   logHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  logUser: { color: '#fff', fontSize: 15, fontWeight: 'bold' },
-  logNote: { color: '#555', fontSize: 11, marginTop: 4, lineHeight: 16 },
-  logAmount: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-  logStatus: { fontSize: 9, fontWeight: 'black', marginTop: 4, letterSpacing: 0.5 },
-  logFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 15, borderTopWidth: 1, borderTopColor: '#030303', paddingTop: 10 },
-  logTypeTag: { color: Colors.gold, backgroundColor: '#161204', fontSize: 9, fontWeight: 'bold', paddingVertical: 3, paddingHorizontal: 8, borderRadius: 6, overflow: 'hidden' },
-  logDate: { color: '#333', fontSize: 10, fontWeight: 'bold' },
-  intelBox: { backgroundColor: '#000', borderRadius: 20, padding: 15, borderWidth: 1, borderColor: '#111', marginBottom: 20, width: '100%' },
-  intelTitle: { color: Colors.gold, fontSize: 10, fontWeight: 'bold', letterSpacing: 1, marginBottom: 15, borderBottomWidth: 1, borderBottomColor: '#080808', paddingBottom: 8 },
-  intelRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#050505' },
-  intelLabel: { color: '#555', fontSize: 12, fontWeight: '600' },
-  intelVal: { color: '#fff', fontSize: 12, fontWeight: '700', maxWidth: '65%', textAlign: 'right' },
-  txidIntelBlock: { backgroundColor: '#020202', padding: 12, borderRadius: 14, borderWidth: 1, borderColor: '#121212', marginTop: 15, gap: 5, width: '100%' },
-  txidBlockLabel: { color: '#444', fontSize: 9, fontWeight: 'bold', letterSpacing: 0.5 },
+  logUser: { color: TEXT_DARK, fontSize: 15, fontWeight: 'bold' },
+  logNote: { color: TEXT_MUTED, fontSize: 11, marginTop: 4, lineHeight: 16 },
+  logAmount: { color: TEXT_DARK, fontSize: 16, fontWeight: 'bold' },
+  logStatus: { fontSize: 9, fontWeight: '900', marginTop: 4, letterSpacing: 0.5 },
+  logFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 15, borderTopWidth: 1, borderTopColor: PURPLE_LIGHT, paddingTop: 10 },
+  logTypeTag: { color: PURPLE_MAIN, backgroundColor: PURPLE_LIGHT, fontSize: 9, fontWeight: 'bold', paddingVertical: 3, paddingHorizontal: 8, borderRadius: 6, overflow: 'hidden' },
+  logDate: { color: TEXT_MUTED, fontSize: 10, fontWeight: 'bold' },
+  intelBox: { backgroundColor: BG_WHITE, borderRadius: 20, padding: 15, borderWidth: 1, borderColor: BORDER_COLOR, marginBottom: 20, width: '100%' },
+  intelTitle: { color: PURPLE_MAIN, fontSize: 10, fontWeight: 'bold', letterSpacing: 1, marginBottom: 15, borderBottomWidth: 1, borderBottomColor: PURPLE_LIGHT, paddingBottom: 8 },
+  intelRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: PURPLE_LIGHT },
+  intelLabel: { color: TEXT_MUTED, fontSize: 12, fontWeight: '600' },
+  intelVal: { color: TEXT_DARK, fontSize: 12, fontWeight: '700', maxWidth: '65%', textAlign: 'right' },
+  txidIntelBlock: { backgroundColor: PURPLE_LIGHT, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: BORDER_COLOR, marginTop: 15, gap: 5, width: '100%' },
+  txidBlockLabel: { color: TEXT_MUTED, fontSize: 9, fontWeight: 'bold', letterSpacing: 0.5 },
   txidRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
-  txidTextString: { flex: 1, color: Colors.gold, fontSize: 13, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', fontWeight: 'bold' },
-  txidMiniCopyBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(212, 175, 55, 0.05)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.15)' },
-  uNetworkIntelRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, backgroundColor: '#030303', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: '#121212', alignSelf: 'flex-start', gap: 8 },
+  txidTextString: { flex: 1, color: PURPLE_MAIN, fontSize: 13, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', fontWeight: 'bold' },
+  txidMiniCopyBtn: {flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(98, 0, 238, 0.1)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(98, 0, 238, 0.2)' },
+  uNetworkIntelRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, backgroundColor: PURPLE_LIGHT, paddingVertical: 5, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: BORDER_COLOR, alignSelf: 'flex-start', gap: 8 },
   uNetworkStatItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  uNetworkStatText: { color: '#666', fontSize: 11, fontWeight: '500' },
-  uNetworkStatDivider: { width: 1, height: 10, backgroundColor: '#222' },
-  networkBox: { backgroundColor: '#050505', borderRadius: 20, padding: 15, borderWidth: 1, borderColor: '#151515', marginBottom: 20, width: '100%' },
-  networkBoxHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15, borderBottomWidth: 1, borderBottomColor: '#111', paddingBottom: 10 },
-  networkBoxTitle: { color: Colors.gold, fontSize: 10, fontWeight: 'bold', letterSpacing: 1 },
+  uNetworkStatText: { color: TEXT_MUTED, fontSize: 11, fontWeight: '500' },
+  uNetworkStatDivider: { width: 1, height: 10, backgroundColor: BORDER_COLOR },
+  networkBox: { backgroundColor: BG_WHITE, borderRadius: 20, padding: 15, borderWidth: 1, borderColor: BORDER_COLOR, marginBottom: 20, width: '100%' },
+  networkBoxHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15, borderBottomWidth: 1, borderBottomColor: PURPLE_LIGHT, paddingBottom: 10 },
+  networkBoxTitle: { color: PURPLE_MAIN, fontSize: 10, fontWeight: 'bold', letterSpacing: 1 },
   networkBoxTotal: { color: Colors.success, fontSize: 11, fontWeight: 'bold' },
-  emptyNetworkText: { color: '#555', fontSize: 11, textAlign: 'center', paddingVertical: 10, fontStyle: 'italic' },
-  refUserRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#000', padding: 12, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: '#111' },
-  refUserName: { color: '#fff', fontSize: 13, fontWeight: 'bold' },
-  refUserEmail: { color: '#555', fontSize: 10, marginTop: 2 },
-  refUserVip: { color: '#00EAFF', fontSize: 10, fontWeight: 'bold', marginBottom: 2 },
-  refUserBalance: { color: Colors.gold, fontSize: 12, fontWeight: 'bold' },
+  emptyNetworkText: { color: TEXT_MUTED, fontSize: 11, textAlign: 'center', paddingVertical: 10, fontStyle: 'italic' },
+  refUserRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: PURPLE_LIGHT, padding: 12, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: BORDER_COLOR },
+  refUserName: { color: TEXT_DARK, fontSize: 13, fontWeight: 'bold' },
+  refUserEmail: { color: TEXT_MUTED, fontSize: 10, marginTop: 2 },
+  refUserVip: { color: '#00B8D4', fontSize: 10, fontWeight: 'bold', marginBottom: 2 },
+  refUserBalance: { color: PURPLE_MAIN, fontSize: 12, fontWeight: 'bold' },
 
-  rejectModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  rejectModalContent: { backgroundColor: '#0a0a0a', width: '100%', maxWidth: 400, borderRadius: 25, padding: 25, borderWidth: 1, borderColor: '#222' },
-  rejectTitle: { color: '#ff4d4d', fontSize: 18, fontWeight: 'bold', marginBottom: 10, textAlign: 'center' },
-  rejectSub: { color: '#888', fontSize: 12, textAlign: 'center', marginBottom: 25, lineHeight: 18 },
-  rejectInput: { backgroundColor: '#000', color: '#fff', padding: 15, borderRadius: 12, minHeight: 120, textAlignVertical: 'top', borderWidth: 1, borderColor: '#333', marginBottom: 25 },
+  rejectModalOverlay: { flex: 1, backgroundColor: 'rgba(26, 11, 46, 0.7)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  rejectModalContent: { backgroundColor: BG_WHITE, width: '100%', maxWidth: 400, borderRadius: 25, padding: 25, borderWidth: 1, borderColor: BORDER_COLOR },
+  rejectTitle: { color: '#D32F2F', fontSize: 18, fontWeight: 'bold', marginBottom: 10, textAlign: 'center' },
+  rejectSub: { color: TEXT_MUTED, fontSize: 12, textAlign: 'center', marginBottom: 25, lineHeight: 18 },
+  rejectInput: { backgroundColor: PURPLE_LIGHT, color: TEXT_DARK, padding: 15, borderRadius: 12, minHeight: 120, textAlignVertical: 'top', borderWidth: 1, borderColor: BORDER_COLOR, marginBottom: 25 },
   rejectActions: { flexDirection: 'row', gap: 12 },
-  rejectCancelBtn: { flex: 1, backgroundColor: '#222', padding: 15, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: '#333' },
-  rejectConfirmBtn: { flex: 1, backgroundColor: '#ff4d4d', padding: 15, borderRadius: 12, alignItems: 'center' }
+  rejectCancelBtn: { flex: 1, backgroundColor: '#F5F5F5', padding: 15, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: BORDER_COLOR },
+  rejectConfirmBtn: { flex: 1, backgroundColor: '#D32F2F', padding: 15, borderRadius: 12, alignItems: 'center' }
 });

@@ -149,10 +149,8 @@ export default function ProfileScreen() {
         finalAvatarUrl = await getDownloadURL(imageRef);
       }
 
-      // تحديث اليوزرنيم والصورة عبر الدالة الأساسية
       const result = await updateUserProfileData(editUsername, finalAvatarUrl);
       
-      // حفظ باقي البيانات (الجنس فقط، الإيميل لا يتغير)
       await update(ref(db, `users/${user.uid}`), {
         gender: editGender
       });
@@ -240,11 +238,9 @@ export default function ProfileScreen() {
             </View>
           </View>
 
-          {/* سطر اليوزرنيم مع أيقونة الجنس (Male/Female) والقلم */}
           <View style={[styles.usernameRow, isAR && { flexDirection: 'row-reverse' }]}>
             <Text style={styles.usernameText}>{user.username || 'User'}</Text>
             
-            {/* أيقونة الجنس تظهر بناءً على اختيار المستخدم */}
             {user.gender === 'Male' && (
               <Ionicons name="male" size={18} color="#007AFF" style={isAR ? { marginRight: 6 } : { marginLeft: 6 }} />
             )}
@@ -261,33 +257,19 @@ export default function ProfileScreen() {
             <Text style={styles.premiumText}>{isAR ? 'عضو مميز' : 'Premium Member'}</Text>
             <MaterialCommunityIcons name="crown" size={16} color="#A3A3A3" style={isAR ? { marginRight: 4 } : { marginLeft: 4 }} />
           </View>
-
-          <Pressable style={[styles.idPill, isAR && { flexDirection: 'row-reverse' }]} onPress={copyReferralCode}>
-            <Text style={styles.idText}>ID: {user.referralCode || 'GENERATING'}</Text>
-            <Ionicons name="copy-outline" size={12} color="#8E8E93" style={isAR ? { marginRight: 6 } : { marginLeft: 6 }} />
-          </Pressable>
         </View>
-
-        {/* Referral Code Card */}
-        <Pressable style={[styles.referralCard, isAR && { flexDirection: 'row-reverse' }]} onPress={copyReferralCode}>
-          <View style={[styles.refLeft, isAR && { flexDirection: 'row-reverse' }]}>
-            <Ionicons name="link-outline" size={22} color="#8A2BE2" />
-            <Text style={styles.refTitle}>{isAR ? 'رمز الإحالة' : 'Referral Code'}</Text>
-          </View>
-          <View style={[styles.refRight, isAR && { flexDirection: 'row-reverse' }]}>
-            <View style={[styles.refCodePill, isAR && { flexDirection: 'row-reverse' }]}>
-              <Text style={styles.refCodeText}>{user.referralCode || 'GENERATING'}</Text>
-              <Ionicons name="copy-outline" size={14} color="#8A2BE2" style={isAR ? { marginRight: 6 } : { marginLeft: 6 }} />
-            </View>
-            <Ionicons name={isAR ? "chevron-back" : "chevron-forward"} size={18} color="#C7C7CC" style={isAR ? { marginRight: 8 } : { marginLeft: 8 }} />
-          </View>
-        </Pressable>
 
         {/* Menu Items Group */}
         <View style={styles.menuGroupCard}>
           {user.uid === 'jec4njRnjSO5ZQfqz1h4X2jAqla2' && (
             <MenuItem icon="shield-half-outline" label="Admin Control Panel" onPress={() => router.push('/admin')} />
           )}
+
+          <MenuItem 
+            icon="link-outline" 
+            label={isAR ? "رمز الإحالة" : "Referral Code"} 
+            onPress={() => router.push('/referral')} 
+          />
           
           <MenuItem 
             icon="globe-outline" 
@@ -401,10 +383,10 @@ export default function ProfileScreen() {
                 style={[
                   styles.textInput, 
                   isAR && { textAlign: 'right' }, 
-                  { backgroundColor: '#EFEFEF', color: '#A0A0A0' } // إعطاء لون باهت ليدل على أنه غير قابل للتعديل
+                  { backgroundColor: '#EFEFEF', color: '#A0A0A0' }
                 ]} 
                 value={editEmail} 
-                editable={false} // منع تعديل الإيميل
+                editable={false} 
                 placeholder="email@example.com" 
                 placeholderTextColor="#8E8E93"
                 keyboardType="email-address"
@@ -529,26 +511,6 @@ const styles = StyleSheet.create({
 
   premiumRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   premiumText: { color: '#8E8E93', fontSize: 14, fontWeight: '500' },
-  
-  idPill: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F0F5',
-    paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20,
-  },
-  idText: { color: '#757575', fontSize: 12, fontWeight: '600' },
-
-  referralCard: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: '#FFFFFF', marginHorizontal: 20, borderRadius: 16, padding: 16, marginBottom: 20,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 10, elevation: 2,
-  },
-  refLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  refTitle: { fontSize: 15, fontWeight: '600', color: '#1E1E1E' },
-  refRight: { flexDirection: 'row', alignItems: 'center' },
-  refCodePill: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(138, 43, 226, 0.08)',
-    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12
-  },
-  refCodeText: { fontSize: 13, fontWeight: '700', color: '#8A2BE2', letterSpacing: 0.5 },
 
   menuGroupCard: {
     backgroundColor: '#FFFFFF', marginHorizontal: 20, borderRadius: 16, paddingHorizontal: 20, paddingVertical: 8, marginBottom: 24,

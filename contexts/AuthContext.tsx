@@ -35,7 +35,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ error: string | null }>;
   register: (username: string, email: string, password: string, phone: string, referralCode?: string) => Promise<{ error: string | null }>;
-  confirmRegisterOTP: (email: string, codeInput: string) => Promise<{ error: string | null }>;
+  confirmRegisterOTP: (email: string, password: string, codeInput: string) => Promise<{ error: string | null }>;
   logout: () => void;
   updateBalance: (newBalance: number) => void;
   upgradeVIP: (newLevel: number, cost: number) => Promise<{ error: string | null }>;
@@ -120,12 +120,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 if (u && u.email) {
                   const safeEmailNode = getSafeEmailNode(u.email);
                   
-                  if (!currentEmailToUid[safeEmailNode]) {
-                    updates[`emailToUid/${safeEmailNode}`] = {
-                      uid: userId,
-                      password: u.password || "123456" 
-                    };
-                  }
+                 // ✅ الكود الجديد الآمن:
+if (!currentEmailToUid[safeEmailNode]) {
+  updates[`emailToUid/${safeEmailNode}`] = {
+    uid: userId
+  };
+}
                 }
               }
 
@@ -160,111 +160,115 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const verifyPhone = async () => ({ verificationId: null, error: "SMS Disabled" }); 
 
   const register = async (username: string, email: string, password: string, phone: string, referralCodeInput?: string) => {
+  try {
+    setIsLoading(true);
+
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 5 * 60 * 1000;
+    const safeEmailNode = getSafeEmailNode(email);
+
+    const referredByValue = (referralCodeInput && referralCodeInput.trim() !== "") 
+      ? referralCodeInput.trim().toUpperCase() 
+      : "none_no_code_entered";
+
+    // 🚨 التعديل هنا: قمنا بإزالة سطر password تماماً من قاعدة البيانات
+    await set(ref(db, `emailVerificationOTPs/${safeEmailNode}`), {
+      username: username.trim(),
+      email: email.trim().toLowerCase(),
+      phone: phone.trim(),
+      referredBy: referredByValue, 
+      code: verificationCode,
+      expiresAt: expiresAt
+    });
+
     try {
-      setIsLoading(true);
-
-      const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
-      const expiresAt = Date.now() + 5 * 60 * 1000;
-      const safeEmailNode = getSafeEmailNode(email);
-
-      const referredByValue = (referralCodeInput && referralCodeInput.trim() !== "") 
-        ? referralCodeInput.trim().toUpperCase() 
-        : "none_no_code_entered";
-
-      await set(ref(db, `emailVerificationOTPs/${safeEmailNode}`), {
-        username: username.trim(),
-        email: email.trim().toLowerCase(),
-        password: password.trim(),
-        phone: phone.trim(),
-        referredBy: referredByValue, 
-        code: verificationCode,
-        expiresAt: expiresAt
+      await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          service_id: 'service_c7pcv6l',
+          template_id: 'template_2j1s8xm',
+          user_id: 'CwFCgpSX66cm7YC9o',
+          template_params: {
+            to_name: username.trim(),
+            to_email: email.trim().toLowerCase(),
+            otp_code: verificationCode,
+            location: "Secure Mobile Network Node"
+          }
+        })
       });
-
-      try {
-        await fetch('https://api.emailjs.com/api/v1.0/email/send', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify({
-            service_id: 'service_c7pcv6l',
-            template_id: 'template_2j1s8xm',
-            user_id: 'CwFCgpSX66cm7YC9o',
-            template_params: {
-              to_name: username.trim(),
-              to_email: email.trim().toLowerCase(),
-              otp_code: verificationCode,
-              location: "Secure Mobile Network Node"
-            }
-          })
-        });
-      } catch (emailErr) {
-        console.log('[EmailJS API] Network transmission crash:', emailErr);
-      }
-
-      setIsLoading(false);
-      return { error: null }; 
-    } catch (error: any) {
-      setIsLoading(false);
-      return { error: "Handshake secure timeout. Please check your connection." };
+    } catch (emailErr) {
+      console.log('[EmailJS API] Network transmission crash:', emailErr);
     }
-  };
 
-  const confirmRegisterOTP = async (email: string, code: string) => {
+    setIsLoading(false);
+    return { error: null }; 
+  } catch (error: any) {
+    setIsLoading(false);
+    return { error: "Handshake secure timeout. Please check your connection." };
+  }
+};
+
+// 🚨 التعديل هنا: أضفنا password كمتغير يتم تمريره للدالة
+const confirmRegisterOTP = async (email: string, password: string, code: string) => {
+  try {
+    const safeEmailNode = getSafeEmailNode(email);
+    const otpRef = ref(db, `emailVerificationOTPs/${safeEmailNode}`);
+    const snapshot = await get(otpRef);
+
+    if (!snapshot.exists()) {
+      return { error: "Security token expired or not found. Please register again." };
+    }
+
+    const data = snapshot.val();
+
+    if (String(data.code).trim() !== String(code).trim()) {
+      return { error: "Invalid security token. Please check the digits." };
+    }
+
+    let userCredential;
     try {
-      const safeEmailNode = getSafeEmailNode(email);
-      const otpRef = ref(db, `emailVerificationOTPs/${safeEmailNode}`);
-      const snapshot = await get(otpRef);
-
-      if (!snapshot.exists()) {
-        return { error: "Security token expired or not found. Please register again." };
-      }
-
-      const data = snapshot.val();
-
-      if (String(data.code).trim() !== String(code).trim()) {
-        return { error: "Invalid security token. Please check the digits." };
-      }
-
-      let userCredential;
-      try {
-        userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
-      } catch (authErr: any) {
-        return { error: authErr.message || "Failed to create authentication node." };
-      }
-
-      const firebaseUser = userCredential.user;
-      const generatedRefCode = generateRandomCode(6);
-
-      const userProfile: UserProfile = {
-        uid: firebaseUser.uid,
-        username: data.username,
-        email: data.email,
-        phone: data.phone || "",
-        referredBy: data.referredBy || "none_no_code_entered",
-        referralCode: generatedRefCode,
-        balance: 0,
-        vip_level: 0, 
-        createdAt: String(Date.now()),
-        emailVerified: false,
-        isFullyVerified: false,
-        password: data.password
-      };
-
-      await set(ref(db, `users/${firebaseUser.uid}`), userProfile);
-      await set(ref(db, `emailToUid/${safeEmailNode}`), { uid: firebaseUser.uid, password: data.password });
-      await set(ref(db, `referralCodes/${generatedRefCode}`), firebaseUser.uid);
-      await remove(otpRef);
-
-      return { error: null };
-
-    } catch (error: any) {
-      console.error("[OTP Verification Critical Error]:", error);
-      return { error: error.message || "Database permission denied. Check Firebase Rules." };
+      // 🚨 التعديل هنا: نستخدم password الممررة للدالة وليس data.password
+      userCredential = await createUserWithEmailAndPassword(auth, data.email, password);
+    } catch (authErr: any) {
+      return { error: authErr.message || "Failed to create authentication node." };
     }
-  };
+
+    const firebaseUser = userCredential.user;
+    const generatedRefCode = generateRandomCode(6);
+
+    // 🚨 التعديل هنا: أزلنا حقل password من البروفايل
+    const userProfile: UserProfile = {
+      uid: firebaseUser.uid,
+      username: data.username,
+      email: data.email,
+      phone: data.phone || "",
+      referredBy: data.referredBy || "none_no_code_entered",
+      referralCode: generatedRefCode,
+      balance: 0,
+      vip_level: 0, 
+      createdAt: String(Date.now()),
+      emailVerified: false,
+      isFullyVerified: false,
+    };
+
+    await set(ref(db, `users/${firebaseUser.uid}`), userProfile);
+    
+    // 🚨 التعديل هنا: أزلنا كلمة السر من شجرة emailToUid
+    await set(ref(db, `emailToUid/${safeEmailNode}`), { uid: firebaseUser.uid });
+    await set(ref(db, `referralCodes/${generatedRefCode}`), firebaseUser.uid);
+    await remove(otpRef);
+
+    return { error: null };
+
+  } catch (error: any) {
+    console.error("[OTP Verification Critical Error]:", error);
+    return { error: error.message || "Database permission denied. Check Firebase Rules." };
+  }
+};
 
   const logout = async () => {
     setIsLoading(true);
@@ -313,12 +317,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const uUid = u.uid ? u.uid.trim().toUpperCase() : "";
             const uRefCode = u.referralCode ? u.referralCode.trim().toUpperCase() : ""; 
 
-            let isMatch = false;
-            if (enteredCode.startsWith("NOIR-")) {
-              isMatch = (uRefCode !== "" && enteredCode === uRefCode);
-            } else {
-              isMatch = (enteredCode === uName || enteredCode === uUid);
-            }
+           const isMatch = (
+              (uRefCode !== "" && enteredCode === uRefCode) ||
+              (enteredCode === uName) ||
+              (enteredCode === uUid)
+            );
 
             if (isMatch) {
               parentUid = key;
@@ -557,12 +560,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (u && u.referredBy) {
           const checkVal = String(u.referredBy).trim().toUpperCase();
 
-          let isMatch = false;
-          if (checkVal.startsWith("NOIR-")) {
-            isMatch = (myRefCode !== "" && checkVal === myRefCode);
-          } else {
-            isMatch = (checkVal === myUsername || checkVal === myUid);
-          }
+        const isMatch = (
+            (myRefCode !== "" && checkVal === myRefCode) ||
+            (myUsername !== "" && checkVal === myUsername) ||
+            (myUid !== "" && checkVal === myUid)
+          );
 
           if (isMatch && key !== user.uid) {
             list.push({ uid: key, ...u } as UserProfile);

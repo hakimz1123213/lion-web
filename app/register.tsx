@@ -196,7 +196,7 @@ export default function RegisterScreen() {
     if (!otpInput.trim()) return;
 
     setLoading(true);
-    const result = await confirmRegisterOTP(email.trim(), otpInput.trim());
+   const result = await confirmRegisterOTP(email.trim(), password, otpInput.trim());
     setLoading(false);
 
     if (result.error === null) {
