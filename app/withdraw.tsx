@@ -63,7 +63,6 @@ const withdrawTranslations: Record<string, Record<string, string>> = {
     reqSentDesc2: "is pending approval.",
     backBtnText: "Back",
     unexpectedError: "An unexpected error occurred. Please try again.",
-    // رسائل الإغلاق التلقائي
     withdrawDisabledTitle: "Withdrawals Closed",
     withdrawDisabledDesc: "Withdrawals are only available on Wednesdays and Thursdays. Please come back then."
   },
@@ -95,7 +94,6 @@ const withdrawTranslations: Record<string, Record<string, string>> = {
     reqSentDesc2: "قيد المراجعة.",
     backBtnText: "رجوع",
     unexpectedError: "حدث خطأ غير متوقع. يرجى المحاولة مجدداً.",
-    // رسائل الإغلاق التلقائي
     withdrawDisabledTitle: "السحب مغلق",
     withdrawDisabledDesc: "عذراً، السحب متاح فقط يومي الأربعاء والخميس من كل أسبوع."
   }
@@ -111,10 +109,9 @@ export default function WithdrawScreen() {
   const [walletAddress, setWalletAddress] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 🟢 استخراج اليوم الحالي (0 = الأحد، 1 = الإثنين، 2 = الثلاثاء، 3 = الأربعاء، 4 = الخميس، 5 = الجمعة، 6 = السبت)
+  // 🟢 استخراج اليوم الحالي
   const currentDay = new Date().getDay();
-  
-  // 🟢 الشرط: إذا كان اليوم ليس الأربعاء (3) وليس الخميس (4)، يتم تعطيل السحب
+  // 🟢 الشرط: إذا كان اليوم ليس الأربعاء (3) وليس الخميس (4)
   const isWithdrawDisabled = currentDay !== 3 && currentDay !== 4;
 
   if (!user) return null;
@@ -129,7 +126,8 @@ export default function WithdrawScreen() {
   const [mainMaxAmt, decimalMaxAmt] = maxWithdrawable.toFixed(2).split('.');
 
   const handleSubmit = async () => {
-    // 🔴 التحقق التلقائي بناءً على اليوم
+    // 🔴 أول شيء عند الضغط على الزر: التحقق من اليوم
+    // إذا لم يكن الأربعاء أو الخميس، تظهر الرسالة ويتوقف الكود فوراً
     if (isWithdrawDisabled) {
       showAlert(t.withdrawDisabledTitle, t.withdrawDisabledDesc);
       return;
@@ -244,10 +242,12 @@ export default function WithdrawScreen() {
             <Pressable
               style={({ pressed }) => [
                 styles.submitBtn,
-                (pressed || isSubmitting || isWithdrawDisabled) && styles.submitBtnDisabled,
+                // أزلنا تعطيل الزر هنا ليظل شكله فعالاً
+                (pressed || isSubmitting) && styles.submitBtnDisabled,
               ]}
               onPress={handleSubmit}
-              disabled={isSubmitting || isWithdrawDisabled}
+              // الزر سيبقى قابلاً للضغط دائماً
+              disabled={isSubmitting}
             >
               {isSubmitting ? (
                 <ActivityIndicator color="#FFF" />
@@ -293,12 +293,12 @@ export default function WithdrawScreen() {
               keyboardType="decimal-pad"
               placeholder="0.00"
               placeholderTextColor={THEME.textSecondary}
-              editable={!isWithdrawDisabled}
+              // أزلنا المنع لكي يتمكن من الكتابة في كل الأيام
             />
             <Pressable 
               style={styles.maxBtn} 
               onPress={() => setAmount(maxWithdrawable.toString())}
-              disabled={isWithdrawDisabled}
+              // أزلنا المنع
             >
               <Text style={styles.maxBtnText}>MAX</Text>
             </Pressable>
@@ -321,7 +321,7 @@ export default function WithdrawScreen() {
               placeholderTextColor={THEME.textSecondary}
               autoCapitalize="none"
               autoCorrect={false}
-              editable={!isWithdrawDisabled}
+              // أزلنا المنع لكي يتمكن من إدخال العنوان في كل الأيام
             />
           </View>
 
