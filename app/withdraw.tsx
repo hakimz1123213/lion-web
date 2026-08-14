@@ -19,11 +19,9 @@ import { useAlert } from '@/template';
 import { WITHDRAWAL_MIN, VIP_TIERS } from '@/constants/config'; 
 import { sendWithdrawalAlert } from '@/services/discord';
 
-// 🟢 استيراد قاعدة البيانات مباشرة بدلاً من الدوال السحابية
 import { ref, get, update, push, set } from 'firebase/database';
-import { db } from '@/services/firebaseConfig'; // تأكد من مسار الـ db الصحيح لديك
+import { db } from '@/services/firebaseConfig'; 
 
-// 🎨 ألوان الثيم 
 const THEME = {
   bg: '#F9FAFB',
   surface: '#FFFFFF',
@@ -64,7 +62,10 @@ const withdrawTranslations: Record<string, Record<string, string>> = {
     reqSentDesc1: "Your withdrawal of",
     reqSentDesc2: "is pending approval.",
     backBtnText: "Back",
-    unexpectedError: "An unexpected error occurred. Please try again."
+    unexpectedError: "An unexpected error occurred. Please try again.",
+    // رسائل الإغلاق التلقائي
+    withdrawDisabledTitle: "Withdrawals Closed",
+    withdrawDisabledDesc: "Withdrawals are only available on Wednesdays and Thursdays. Please come back then."
   },
   AR: {
     withdrawFunds: "سحب الأرباح",
@@ -93,7 +94,10 @@ const withdrawTranslations: Record<string, Record<string, string>> = {
     reqSentDesc1: "طلب سحب",
     reqSentDesc2: "قيد المراجعة.",
     backBtnText: "رجوع",
-    unexpectedError: "حدث خطأ غير متوقع. يرجى المحاولة مجدداً."
+    unexpectedError: "حدث خطأ غير متوقع. يرجى المحاولة مجدداً.",
+    // رسائل الإغلاق التلقائي
+    withdrawDisabledTitle: "السحب مغلق",
+    withdrawDisabledDesc: "عذراً، السحب متاح فقط يومي الأربعاء والخميس من كل أسبوع."
   }
 };
 
@@ -107,6 +111,12 @@ export default function WithdrawScreen() {
   const [walletAddress, setWalletAddress] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // 🟢 استخراج اليوم الحالي (0 = الأحد، 1 = الإثنين، 2 = الثلاثاء، 3 = الأربعاء، 4 = الخميس، 5 = الجمعة، 6 = السبت)
+  const currentDay = new Date().getDay();
+  
+  // 🟢 الشرط: إذا كان اليوم ليس الأربعاء (3) وليس الخميس (4)، يتم تعطيل السحب
+  const isWithdrawDisabled = currentDay !== 3 && currentDay !== 4;
+
   if (!user) return null;
 
   const lang = (user as any)?.language || 'EN';
@@ -119,6 +129,12 @@ export default function WithdrawScreen() {
   const [mainMaxAmt, decimalMaxAmt] = maxWithdrawable.toFixed(2).split('.');
 
   const handleSubmit = async () => {
+    // 🔴 التحقق التلقائي بناءً على اليوم
+    if (isWithdrawDisabled) {
+      showAlert(t.withdrawDisabledTitle, t.withdrawDisabledDesc);
+      return;
+    }
+
     const parsed = parseFloat(amount);
     
     if (isNaN(parsed) || parsed <= 0) {
@@ -138,7 +154,6 @@ export default function WithdrawScreen() {
     try {
       const userRef = ref(db, `users/${user.uid}`);
       
-      // جلب أحدث بيانات المستخدم من قاعدة البيانات للتأكد من الرصيد الحالي
       const userSnap = await get(userRef);
       if (!userSnap.exists()) {
         throw new Error('User account not found.');
@@ -158,12 +173,10 @@ export default function WithdrawScreen() {
 
       const cleanAddress = walletAddress.trim();
 
-      // 1️⃣ خصم المبلغ من رصيد المستخدم مباشرة
       await update(userRef, {
         balance: currentBalance - parsed
       });
 
-      // 2️⃣ تسجيل المعاملة في جدول transactions
       const txsRef = push(ref(db, 'transactions'));
       await set(txsRef, {
         id: txsRef.key,
@@ -177,7 +190,6 @@ export default function WithdrawScreen() {
         createdAt: Date.now(),
       });
 
-      // 3️⃣ إرسال التنبيهات (Discord & Telegram)
       await sendWithdrawalAlert({
         username: user.username, amount: parsed, address: cleanAddress,
         userId: user.uid, vipLevel: vipLevel, balance: currentBalance - parsed, timestamp: Date.now(),
@@ -232,10 +244,10 @@ export default function WithdrawScreen() {
             <Pressable
               style={({ pressed }) => [
                 styles.submitBtn,
-                (pressed || isSubmitting) && styles.submitBtnDisabled,
+                (pressed || isSubmitting || isWithdrawDisabled) && styles.submitBtnDisabled,
               ]}
               onPress={handleSubmit}
-              disabled={isSubmitting}
+              disabled={isSubmitting || isWithdrawDisabled}
             >
               {isSubmitting ? (
                 <ActivityIndicator color="#FFF" />
@@ -281,10 +293,12 @@ export default function WithdrawScreen() {
               keyboardType="decimal-pad"
               placeholder="0.00"
               placeholderTextColor={THEME.textSecondary}
+              editable={!isWithdrawDisabled}
             />
             <Pressable 
               style={styles.maxBtn} 
               onPress={() => setAmount(maxWithdrawable.toString())}
+              disabled={isWithdrawDisabled}
             >
               <Text style={styles.maxBtnText}>MAX</Text>
             </Pressable>
@@ -307,6 +321,7 @@ export default function WithdrawScreen() {
               placeholderTextColor={THEME.textSecondary}
               autoCapitalize="none"
               autoCorrect={false}
+              editable={!isWithdrawDisabled}
             />
           </View>
 
