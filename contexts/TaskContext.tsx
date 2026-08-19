@@ -141,26 +141,26 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   }, [auth?.user?.uid]);
 
   // 3️⃣ مؤقت كشف التلاعب وحساب حالة الوقت والعداد التنازلي
-  useEffect(() => {
-    if (!auth?.user) return;
+  // 3️⃣ مؤقت كشف التلاعب وحساب حالة الوقت والعداد التنازلي
+useEffect(() => {
+  if (!auth?.user) return;
 
-    const timer = setInterval(() => {
-      const now = Date.now();
-      const delta = now - lastLocalTimeRef.current;
-      lastLocalTimeRef.current = now;
+  const timer = setInterval(() => {
+    const now = Date.now();
+    const delta = now - lastLocalTimeRef.current;
+    lastLocalTimeRef.current = now;
 
-      if (Math.abs(delta) > 15000) {
-         console.warn("🛡️ Security Alert: Clock manipulation detected! Resyncing...");
-         syncTrueTime(true).then(() => updateCooldownStatus());
-      } else {
-         secureTimeRef.current += delta; 
-         updateCooldownStatus();
-      }
-    }, 1000);
+    if (Math.abs(delta) > 15000) {
+       console.warn("🛡️ Security Alert: Clock manipulation detected! Resyncing...");
+       syncTrueTime(true).then(() => updateCooldownStatus());
+    } else {
+       secureTimeRef.current += delta;
+       updateCooldownStatus();
+    }
+  }, 1000);
 
-    return () => clearInterval(timer);
-  }, [dailyCounter, lastCompletionTime]);
-
+  return () => clearInterval(timer);
+}, [dailyCounter, lastCompletionTime, auth?.user]); // 👈 أضفنا auth?.user هنا
   const updateCooldownStatus = () => {
     const now = secureTimeRef.current; 
     const windowOpen = checkIsWindowOpen(now);
