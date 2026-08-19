@@ -322,14 +322,16 @@ export default function TasksScreen() {
 
       </ScrollView>
 
-      {watchingIndex !== null && (
-        <VideoAdModal 
-          visible={watchingIndex !== null}
-          videoUrl={ADS_POOL[watchingIndex % ADS_POOL.length]}
-          onComplete={completeVideo}
-          onClose={cancelVideo}
-        />
-      )}
+     {/* 
+        إزالة الشرط لكي يتم تفعيل التحميل المسبق في الخلفية
+        نمرر رابط الفيديو القادم بناءً على dailyCounter
+      */}
+      <VideoAdModal 
+        visible={watchingIndex !== null}
+        videoUrl={ADS_POOL[(watchingIndex !== null ? watchingIndex : dailyCounter) % ADS_POOL.length]}
+        onComplete={completeVideo}
+        onClose={cancelVideo}
+      />
     </View>
   );
 }

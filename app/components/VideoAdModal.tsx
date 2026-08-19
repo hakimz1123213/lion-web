@@ -34,14 +34,13 @@ const adTranslations: Record<string, Record<string, string>> = {
   }
 };
 
-function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: string, onComplete: () => void, onClose: () => void, lang: string }) {
+function AdPlayerContent({ videoUrl, onComplete, onClose, lang, visible }: { videoUrl: string, onComplete: () => void, onClose: () => void, lang: string, visible: boolean }) {
   const [timeLeft, setTimeLeft] = useState(15);
   const [isFinished, setIsFinished] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
 
   const t = adTranslations[lang] || adTranslations['EN'];
   const isWeb = Platform.OS === 'web';
-
   const webVideoRef = useRef<any>(null);
 
   const player = useVideoPlayer(videoUrl, (p) => {
@@ -49,6 +48,20 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
     p.muted = true;
     p.volume = 1.0;
   });
+
+  // 👇 التعديل الجديد: تصفير حالة الإعلان وإيقاف الفيديو عند الإغلاق
+  useEffect(() => {
+    if (visible) {
+      // عندما تفتح النافذة، نعيد ضبط المؤقت والحالة
+      setTimeLeft(15);
+      setIsFinished(false);
+      setIsPlaying(false);
+    } else {
+      // إيقاف الفيديو إجبارياً عند إغلاق النافذة لكي لا يعمل في الخلفية
+      if (isWeb && webVideoRef.current) webVideoRef.current.pause();
+      else if (player) player.pause();
+    }
+  }, [visible, videoUrl]);
 
   const handlePlayAdWithSound = () => {
     try {
@@ -205,14 +218,14 @@ export default function VideoAdModal({ visible, videoUrl, onComplete, onClose }:
   return (
     <Modal visible={visible} animationType="slide" transparent={true}>
       <View style={styles.modalBackdrop}>
-        {visible && (
-          <AdPlayerContent 
-            videoUrl={videoUrl} 
-            onComplete={onComplete} 
-            onClose={onClose} 
-            lang={lang} 
-          />
-        )}
+        {/* 👇 التعديل الجديد: إزالة شرط (visible &&) لكي يتم تحميل الفيديو بالخلفية */}
+        <AdPlayerContent 
+          videoUrl={videoUrl} 
+          onComplete={onComplete} 
+          onClose={onClose} 
+          lang={lang}
+          visible={visible} // تمرير حالة الظهور لتصفير المؤقت
+        />
       </View>
     </Modal>
   );
