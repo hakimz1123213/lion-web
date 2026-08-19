@@ -1,10 +1,12 @@
 import React, { createContext, useState, useContext, useEffect, useRef, ReactNode } from 'react';
 import { db } from '../services/firebaseConfig'; 
-import { ref, onValue, runTransaction, serverTimestamp, push, set } from "firebase/database"; 
+import { ref, onValue } from "firebase/database"; 
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { AuthContext } from './AuthContext';
 import { WalletContext } from './WalletContext';
 import { sendPushNotification } from '../services/pushNotificationService';
 import { TASK_TOTAL } from '@/constants/config';
+import { Alert } from 'react-native';
 
 interface TaskContextType {
   dailyCounter: number;
@@ -14,7 +16,7 @@ interface TaskContextType {
   isLoading: boolean;
   timeRemaining: string;     
   canReset: boolean;         
-  isWindowOpen: boolean; 
+  isWindowOpen: boolean; // 👈 لمعرفة هل الخدمة مفتوحة حالياً أم مغلقة
   startWatchingVideo: (index: number) => void;
   completeVideo: () => void;
   cancelVideo: () => void;
@@ -22,16 +24,11 @@ interface TaskContextType {
 
 export const TaskContext = createContext<TaskContextType | undefined>(undefined);
 
-// 💰 إعدادات أرباح الـ VIP
-const DAILY_VIP_REWARDS: Record<number, number> = {
-  0: 0, 1: 2.2, 2: 4.2, 3: 8.5, 4: 12.4, 5: 23.3, 6: 33.33, 7: 56.5, 8: 96.5
-};
-
 // 🕒 فحص هل النافذة الزمنية مفتوحة حالياً (من 12:00 ظهراً إلى 23:59)
 const checkIsWindowOpen = (timestamp: number): boolean => {
   const date = new Date(timestamp);
-  const hours = date.getUTCHours(); 
-  return hours >= 12 && hours < 24; 
+  const hours = date.getUTCHours(); // استخدام UTC لمنع التلاعب بالتوقيت المحلي
+  return hours >= 12 && hours < 24; // مفتوح من 12:00 ظهراً حتى منتصف الليل
 };
 
 // 🕒 الحصول على وقت بداية الدورة اليومية الحالية (12:00 ظهراً)
@@ -45,7 +42,7 @@ const getCycleStartTimeUTC = (timestamp: number): number => {
   if (timestamp >= today12PM) {
     return today12PM;
   } else {
-    return today12PM - (24 * 60 * 60 * 1000); 
+    return today12PM - (24 * 60 * 60 * 1000); // 12 ظهراً لليوم السابق
   }
 };
 
@@ -171,24 +168,28 @@ export function TaskProvider({ children }: { children: ReactNode }) {
 
     const currentCycleStart = getCycleStartTimeUTC(now);
 
-    // تصفير محلي
+    // تصفير محلي إذا كانت آخر مشاهدة قبل موعد الفتح الحالي (الساعة 12:00 ظهراً)
     if (lastCompletionTime && lastCompletionTime < currentCycleStart) {
       setDailyCounter(0);
       setLastCompletionTime(null);
     }
 
     if (!windowOpen) {
+      // الخدمة مغلقة الآن (بين 12:00 ليلاً و 12:00 ظهراً)
       setCanReset(false);
       const nextOpen = getNextOpenTimeUTC(now);
       const remaining = nextOpen - now;
       formatTimeRemaining(remaining);
     } else {
+      // الخدمة مفتوحة (بين 12:00 ظهراً و 12:00 ليلاً)
       if (dailyCounter >= TASK_TOTAL) {
+        // اكتملت الـ 10 فيديوهات لهذا اليوم
         setCanReset(false);
         const nextOpen = getNextOpenTimeUTC(now);
         const remaining = nextOpen - now;
         formatTimeRemaining(remaining);
       } else {
+        // متاح للمشاهدة الآن
         setTimeRemaining("00:00:00");
         setCanReset(false);
       }
@@ -216,105 +217,37 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   const startWatchingVideo = (index: number) => {
     const now = secureTimeRef.current;
     if (!checkIsWindowOpen(now)) {
-      window.alert("مغلق الآن\nالمشاهدة متاحة فقط من الساعة 12:00 ظهراً إلى 12:00 ليلاً.");
+      Alert.alert("مغلق الآن", "المشاهدة متاحة فقط من الساعة 12:00 ظهراً إلى 12:00 ليلاً.");
       return;
     }
     if (index !== dailyCounter || dailyCounter >= TASK_TOTAL) return;
     setWatchingIndex(index);
   };
 
-  // 🚀 دمج الـ Backend هنا باستخدام Firebase Client Transaction
   const completeVideo = async () => {
     if (watchingIndex === null || !auth?.user) return;
     
-    const currentUserId = auth.user.uid;
     setWatchingIndex(null);
 
-    const now = secureTimeRef.current;
-    if (!checkIsWindowOpen(now)) {
-      window.alert("الخدمة مغلقة حالياً. المشاهدة متاحة فقط من الساعة 12:00 ظهراً إلى 12:00 ليلاً.");
-      return;
-    }
-
     try {
-      const userRef = ref(db, `users/${currentUserId}`);
-      let transactionResultVal: any = null;
+      const functions = getFunctions();
+      const processVideoTaskCall = httpsCallable(functions, 'processVideoTask');
+      
+      const result: any = await processVideoTaskCall({ userId: auth.user.uid });
 
-      // استخدام Transaction لضمان عدم تكرار الضغطات والتلاعب بالرصيد
-      const result = await runTransaction(userRef, (userData) => {
-        if (!userData) return userData;
-
-        let taskState = userData.taskState || { dailyCounter: 0, lastCompletionTime: null };
-        let currentCounter = taskState.dailyCounter || 0;
-        const lastTime = taskState.lastCompletionTime;
-
-        // التحقق من التصفير
-        const currentCycleStart = getCycleStartTimeUTC(secureTimeRef.current);
-        if (lastTime && lastTime < currentCycleStart) {
-          currentCounter = 0; 
-        }
-
-        if (currentCounter >= TASK_TOTAL) {
-          return; // إجهاض الطلب إذا أكمل المهام
-        }
-
-        currentCounter += 1;
-        taskState.dailyCounter = currentCounter;
-        taskState.lastCompletionTime = serverTimestamp(); // وقت السيرفر الفعلي
-
-        // 🎁 إذا أكمل 10 فيديوهات، أضف الرصيد
-        if (currentCounter === TASK_TOTAL) {
-          const vipLevel = userData.vip_level || 0;
-          const reward = DAILY_VIP_REWARDS[vipLevel] || 0;
-          const currentBal = parseFloat(userData.balance?.toString() || '0');
-
-          userData.balance = currentBal + reward;
-          
-          transactionResultVal = { reward, vipLevel, username: userData.username };
-        }
-
-        userData.taskState = taskState;
-        return userData; 
-      });
-
-      if (!result.committed) {
-        throw new Error("إما أن الخدمة مغلقة، أو أكملت المهام اليومية، أو هناك طلب قيد المعالجة.");
-      }
-
-      const finalData = result.snapshot.val();
-      const finalCounter = finalData.taskState.dailyCounter;
-
-      // 🎯 تسجيل المعاملة في قاعدة البيانات إذا كانت المهمة العاشرة
-      if (finalCounter === TASK_TOTAL && transactionResultVal) {
-        const txRef = push(ref(db, 'transactions'));
-        await set(txRef, {
-          id: txRef.key,
-          userId: currentUserId,
-          username: transactionResultVal.username || 'Unknown',
-          type: 'Reward',
-          amount: transactionResultVal.reward,
-          status: 'Completed',
-          note: `Daily reward VIP ${transactionResultVal.vipLevel}`,
-          createdAt: serverTimestamp(),
-        });
-
-        // إذا كنت تستخدم Push Notification للويب/التطبيق، يمكنك تركه:
+      if (result.data.isCompleted) {
         const pushToken = (auth.user as any)?.expoPushToken;
         if (pushToken) {
           await sendPushNotification(
             pushToken,
             '🎁 أرباح المهام جاهزة!',
-            `عمل ممتاز! تم إضافة $${transactionResultVal.reward} إلى رصيدك بنجاح.`
+            `عمل ممتاز! تم إضافة $${result.data.reward} إلى رصيدك بنجاح.`
           );
         }
-        
-        // تنبيه نجاح للمستخدم
-        window.alert(`عمل ممتاز! تم إضافة $${transactionResultVal.reward} إلى رصيدك بنجاح.`);
       }
-
     } catch (error: any) {
       console.error("Task Error:", error);
-      window.alert(error.message || "حدث خطأ في الاتصال، يرجى المحاولة لاحقاً.");
+      Alert.alert("تنبيه", error.message || "حدث خطأ في الاتصال، يرجى المحاولة لاحقاً.");
     }
   };
 

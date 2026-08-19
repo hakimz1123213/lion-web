@@ -1,0 +1,24 @@
+[debug] [2026-08-19T16:38:38.958Z] ----------------------------------------------------------------------
+[debug] [2026-08-19T16:38:38.961Z] Command:       C:\Program Files (x86)\nodejs\node.exe C:\Users\H4_kim\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js init
+[debug] [2026-08-19T16:38:38.961Z] CLI Version:   15.27.0
+[debug] [2026-08-19T16:38:38.961Z] Platform:      win32
+[debug] [2026-08-19T16:38:38.962Z] Node Version:  v20.19.5
+[debug] [2026-08-19T16:38:38.962Z] Detected Agent: unknown
+[debug] [2026-08-19T16:38:38.962Z] Time:          Wed Aug 19 2026 17:38:38 GMT+0100 (توقيت وسط أوروبا الرسمي)
+[debug] [2026-08-19T16:38:38.962Z] ----------------------------------------------------------------------
+[debug] 
+[info] 
+     ######## #### ########  ######## ########     ###     ######  ########
+     ##        ##  ##     ## ##       ##     ##  ##   ##  ##       ##
+     ######    ##  ########  ######   ########  #########  ######  ######
+     ##        ##  ##    ##  ##       ##     ## ##     ##       ## ##
+     ##       #### ##     ## ######## ########  ##     ##  ######  ########
+
+You're about to initialize a Firebase project in this directory:
+
+  C:\Users\H4_kim\Desktop\lion web
+
+Before we get started, keep in mind:
+
+  * You are initializing within an existing Firebase project directory
+

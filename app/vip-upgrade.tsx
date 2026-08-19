@@ -19,9 +19,6 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/hooks/useAuth';
 import { useWallet } from '@/hooks/useWallet';
-import { ref, get } from 'firebase/database';
-import { db } from '@/services/firebaseConfig';
-import { sendPushNotification } from '@/services/pushNotificationService';
 import { useAlert } from '@/template';
 import { VIP_TIERS, VIPTier } from '@/constants/config';
 import { sendVIPUpgradeAlert } from '@/services/discord';
@@ -190,7 +187,7 @@ export default function VIPUpgradeScreen() {
             const result = await upgradeVIP(tier.level, 0);
 
             if (result.error === null) {
-              await addVIPUpgradeTx(0, tier.level);
+              await addVIPUpgradeTx(tier.entryFee, tier.level);
               await sendVIPUpgradeAlert({
                 username: user.username,
                 userId: user.uid,
@@ -203,6 +200,7 @@ export default function VIPUpgradeScreen() {
                 timestamp: Date.now(),
               });
 
+              /*
               if (user.referredBy && user.referredBy.trim() !== '' && user.referredBy.toLowerCase() !== 'none') {
                 const usersRef = ref(db, 'users');
                 const usersSnap = await get(usersRef);
@@ -228,6 +226,7 @@ export default function VIPUpgradeScreen() {
                 }
               }
 
+              */
               showAlert(t.successTitle, `${t.successDesc1} ${tier.label} ${t.successDesc2}`, [{ text: t.perfect, onPress: () => router.back() }]);
             } else {
               showAlert('Error', result.error);

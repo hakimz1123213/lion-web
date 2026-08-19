@@ -1,7 +1,8 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { db } from '../services/firebaseConfig'; 
-// 🟢 الاعتماد بالكامل على Realtime Database (بدون Functions)
+// ✅ أضفنا query, orderByChild, equalTo لعمل تصفية ذكية من جهة السيرفر
 import { ref, push, set, onValue, update, get, query, orderByChild, equalTo } from "firebase/database";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import { AuthContext } from './AuthContext';
 
 // ─── الأنواع (Types) ────────────────────────────────────────────────────────
@@ -55,7 +56,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
     const transactionsRef = ref(db, 'transactions');
     
-    // 🛡️ حارس الواجهة: إذا كان أدمن يقرأ كل شيء، وإذا مستخدم عادي يقرأ معاملاته فقط
+    // 🛡️ حارس السيرفر: إذا كان أدمن يقرا كلش، وإذا مستخدم عادي يقرا غير معاملاته برك
     const txQuery = auth.user.email === ADMIN_EMAIL
       ? transactionsRef
       : query(transactionsRef, orderByChild('userId'), equalTo(auth.user.uid));
@@ -77,6 +78,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, [auth?.user?.uid, auth?.user?.email]);
 
+  // دالة تحديث يدوية آمنة
   const refreshTransactions = async () => {
     if (!auth?.user?.uid) return;
     setIsLoading(true);
@@ -94,7 +96,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setIsLoading(false);
   };
 
-  // 1. إضافة مكافأة المهام اليومية
+  // 1. إضافة مكافأة المهام اليومية (الإعلانات)
   const addReward = async (amount: number, note: string) => {
     if (!auth?.user) return;
     const newTxRef = push(ref(db, 'transactions'));
@@ -112,7 +114,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     await set(newTxRef, newTx);
   };
 
-  // 2. إضافة عمولة الإحالة
+  // 2. إضافة عمولة الإحالة الذكية
   const addReferralBonus = async (referrerId: string, referrerUsername: string, amount: number, referredUsername: string) => {
     const newTxRef = push(ref(db, 'transactions'));
     const bonusTx: Transaction = {
@@ -135,79 +137,52 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     await set(newTxRef, bonusTx);
   };
 
-  // 3. طلب إيداع (تم تحويله ليعمل Client-Side)
+  // 3. طلب إيداع
   const requestDeposit = async (amount: number, proofImageUri?: string) => {
     if (!auth?.user) return;
 
     try {
-      const newTxRef = push(ref(db, 'transactions'));
-      const newTx: Transaction = {
-        id: newTxRef.key!,
-        userId: auth.user.uid,
-        username: auth.user.username,
-        type: 'Deposit',
-        amount: amount,
-        status: 'Pending',
-        note: 'Deposit requested by user',
-        createdAt: Date.now(),
-        proofImageUri: proofImageUri || ''
-      };
+      const functions = getFunctions();
+      // استدعاء دالة الإيداع من السيرفر
+      const submitDepositFn = httpsCallable(functions, 'submitDeposit');
       
-      // حفظ المعاملة في قاعدة البيانات مباشرة
-      await set(newTxRef, newTx);
+      await submitDepositFn({
+        userId: auth.user.uid, // 👈 إرسال الـ ID بوضوح
+        username: auth.user.username,
+        amount: amount,
+        proofImageUri: proofImageUri || ''
+      });
+      
     } catch (err: any) {
-      console.error("Deposit Error:", err);
+      console.error("Deposit Function Error:", err);
       throw err;
     }
   };
 
-  // 4. طلب سحب (تم تحويله ليعمل Client-Side مع خصم الرصيد فوراً)
+  // 4. طلب سحب
+  // 4. طلب سحب
   const requestWithdrawal = async (amount: number, walletAddress: string) => {
     if (!auth?.user) return { error: 'Not authenticated.' };
     
     try {
-      const userId = auth.user.uid;
-      const userRef = ref(db, `users/${userId}`);
-      const userSnap = await get(userRef);
+      // سطر للتأكد من أن الـ ID موجود قبل الإرسال (سيظهر في شاشة الـ Terminal لديك)
+      console.log("🚀 Payload Sender ID:", auth.user.uid); 
 
-      if (!userSnap.exists()) return { error: 'User not found.' };
-
-      const currentBalance = parseFloat(userSnap.val().balance?.toString() || '0');
-
-      // التحقق من الرصيد الكافي
-      if (currentBalance < amount) {
-        return { error: 'الرصيد غير كافٍ لإتمام عملية السحب.' };
-      }
-
-      // 1️⃣ خصم الرصيد من قاعدة البيانات
-      const newBalance = currentBalance - amount;
-      await update(userRef, { balance: newBalance });
-
-      // 2️⃣ تحديث حالة الواجهة (Context) فوراً
-      if (auth.updateBalance) {
-        await auth.updateBalance(newBalance);
-      }
-
-      // 3️⃣ تسجيل معاملة السحب كـ Pending
-      const newTxRef = push(ref(db, 'transactions'));
-      const newTx: Transaction = {
-        id: newTxRef.key!,
-        userId: userId,
-        username: auth.user.username,
-        type: 'Withdrawal',
-        amount: amount,
-        status: 'Pending',
-        note: 'Withdrawal requested by user',
-        createdAt: Date.now(),
-        walletAddress: walletAddress
-      };
+      const functions = getFunctions();
+      const submitWithdrawFn = httpsCallable(functions, 'submitWithdraw');
       
-      await set(newTxRef, newTx);
+      await submitWithdrawFn({
+        userId: auth.user.uid,
+        uid: auth.user.uid, // 👈 زيادة تأكيد أرسلناه بالاسمين
+        username: auth.user.username,
+        amount: amount,
+        walletAddress: walletAddress
+      });
 
       return { error: null };
     } catch (err: any) {
-      console.error("Withdraw Error:", err);
-      return { error: err.message || 'فشل الاتصال بقاعدة البيانات.' };
+      console.error("Withdraw Function Error:", err);
+      return { error: err.message || 'فشل الاتصال بالسيرفر.' };
     }
   };
 
@@ -227,19 +202,23 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  // ─── 🛡️ وظائف الأدمن ────────────────────────────────────────────────
+  // ─── 🛡️ وظائف الأدمن المحصنة عسكرياً ضد التكرار والـ Double Spend ──────────────────
   const adminApprove = async (txId: string) => {
     const txRef = ref(db, `transactions/${txId}`);
     
+    // [الدرع السحابي] تحقق فوري من السيرفر مباشرة قبل لمس أي دولار
     const checkSnap = await get(txRef);
     if (!checkSnap.exists()) return;
     
     const currentStatus = (checkSnap.val().status || '').toLowerCase();
-    if (['completed', 'approved', 'success', 'rejected'].includes(currentStatus)) {
-      return; 
+    if (currentStatus === 'completed' || currentStatus === 'approved' || currentStatus === 'success' || currentStatus === 'rejected') {
+      console.log("Transaction already processed inside Context Guard.");
+      return; // طرد العملية لو مفرزة أصلاً
     }
 
     const txData = checkSnap.val() as Transaction;
+
+    // تحديث الحالة فوراً في الفايربيز
     await update(txRef, { status: 'Completed' });
 
     // حقن رصيد العميل لو كان إيداع
@@ -256,15 +235,19 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const adminReject = async (txId: string) => {
     const txRef = ref(db, `transactions/${txId}`);
     
+    // [الدرع السحابي] تحقق فوري لمنع الـ Double Refund في السحب
     const checkSnap = await get(txRef);
     if (!checkSnap.exists()) return;
 
     const currentStatus = (checkSnap.val().status || '').toLowerCase();
-    if (['completed', 'approved', 'success', 'rejected'].includes(currentStatus)) {
+    if (currentStatus === 'completed' || currentStatus === 'approved' || currentStatus === 'success' || currentStatus === 'rejected') {
+      console.log("Transaction already processed inside Context Guard.");
       return; 
     }
 
     const txData = checkSnap.val() as Transaction;
+
+    // تحديث الحالة لـ Rejected
     await update(txRef, { status: 'Rejected' });
 
     // إرجاع الأموال المحجوزة للمستخدم لو كان طلب سحب تم رفضه
@@ -283,6 +266,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   return (
     <WalletContext.Provider value={{
+      // تأمين واجهة الحساب للأدمن لكي يرى معاملاته الشخصية فقط في شاشته الخاصة
       transactions: auth?.user?.email === ADMIN_EMAIL 
         ? allTransactions.filter(t => t.userId === auth.user?.uid) 
         : allTransactions,
