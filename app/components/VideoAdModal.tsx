@@ -96,7 +96,22 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang, visible }: { vid
 
     if (isPlaying && timeLeft > 0) {
       timer = setInterval(() => {
-        setTimeLeft((prev) => prev - 1);
+        // التحقق من أن الفيديو بدأ التشغيل فعلياً وليس معلقاً في التحميل
+        let isVideoRunning = false;
+
+        if (isWeb && webVideoRef.current) {
+          const videoEl = webVideoRef.current;
+          // readyState >= 3 تعني أن المتصفح قام بتحميل بيانات كافية لبدء التشغيل
+          isVideoRunning = !videoEl.paused && videoEl.readyState >= 3;
+        } else if (player) {
+          // مكتبة expo-video تمتلك خاصية playing التي تخبرنا بحالة الفيديو الحقيقية
+          isVideoRunning = player.playing;
+        }
+
+        // السر هنا: لا تقم بإنقاص العداد إطلاقاً إلا إذا كان الفيديو يتحرك!
+        if (isVideoRunning) {
+          setTimeLeft((prev) => prev - 1);
+        }
       }, 1000);
     } else if (timeLeft === 0) {
       setIsFinished(true);
@@ -106,10 +121,11 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang, visible }: { vid
         player.pause();
       }
     }
+    
     return () => {
       if (timer) clearInterval(timer);
     };
-  }, [isPlaying, timeLeft]);
+  }, [isPlaying, timeLeft, player]); // أضفنا player هنا لضمان تحديث الحالة
 
   return (
     <View style={styles.cyberCard}>
