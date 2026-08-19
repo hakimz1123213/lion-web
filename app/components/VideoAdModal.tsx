@@ -34,13 +34,17 @@ const adTranslations: Record<string, Record<string, string>> = {
   }
 };
 
-function AdPlayerContent({ videoUrl, onComplete, onClose, lang, visible }: { videoUrl: string, onComplete: () => void, onClose: () => void, lang: string, visible: boolean }) {
+function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: string, onComplete: () => void, onClose: () => void, lang: string }) {
   const [timeLeft, setTimeLeft] = useState(15);
   const [isFinished, setIsFinished] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
 
+  // عداد الطوارئ لحل مشكلة الشاشة السوداء والتعليق
+  const stuckCounter = useRef(0);
+
   const t = adTranslations[lang] || adTranslations['EN'];
   const isWeb = Platform.OS === 'web';
+
   const webVideoRef = useRef<any>(null);
 
   const player = useVideoPlayer(videoUrl, (p) => {
@@ -48,20 +52,6 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang, visible }: { vid
     p.muted = true;
     p.volume = 1.0;
   });
-
-  // 👇 التعديل الجديد: تصفير حالة الإعلان وإيقاف الفيديو عند الإغلاق
-  useEffect(() => {
-    if (visible) {
-      // عندما تفتح النافذة، نعيد ضبط المؤقت والحالة
-      setTimeLeft(15);
-      setIsFinished(false);
-      setIsPlaying(false);
-    } else {
-      // إيقاف الفيديو إجبارياً عند إغلاق النافذة لكي لا يعمل في الخلفية
-      if (isWeb && webVideoRef.current) webVideoRef.current.pause();
-      else if (player) player.pause();
-    }
-  }, [visible, videoUrl]);
 
   const handlePlayAdWithSound = () => {
     try {
@@ -96,21 +86,38 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang, visible }: { vid
 
     if (isPlaying && timeLeft > 0) {
       timer = setInterval(() => {
-        // التحقق من أن الفيديو بدأ التشغيل فعلياً وليس معلقاً في التحميل
         let isVideoRunning = false;
 
-        if (isWeb && webVideoRef.current) {
-          const videoEl = webVideoRef.current;
-          // readyState >= 3 تعني أن المتصفح قام بتحميل بيانات كافية لبدء التشغيل
-          isVideoRunning = !videoEl.paused && videoEl.readyState >= 3;
-        } else if (player) {
-          // مكتبة expo-video تمتلك خاصية playing التي تخبرنا بحالة الفيديو الحقيقية
-          isVideoRunning = player.playing;
+        try {
+          if (isWeb && webVideoRef.current) {
+            const videoEl = webVideoRef.current;
+            // الفيديو يعتبر شغال إذا ما كان متوقف ووقت التشغيل الفعلي قاعد يزيد
+            isVideoRunning = !videoEl.paused && videoEl.currentTime > 0;
+            // حماية: لو رابط الفيديو مكسور أو فيه خطأ، نعتبره شغال عشان العداد ما يوقف
+            if (videoEl.error) isVideoRunning = true;
+          } else if (player) {
+            // نسخة التطبيق Native
+            isVideoRunning = player.playing;
+            // @ts-ignore - حماية إضافية لو فيه مشكلة في مشغل إكسبو
+            if (player.status === 'error') isVideoRunning = true;
+          }
+        } catch (err) {
+          // لو حصل أي كراش، نمشي العداد إجبارياً
+          isVideoRunning = true; 
         }
 
-        // السر هنا: لا تقم بإنقاص العداد إطلاقاً إلا إذا كان الفيديو يتحرك!
         if (isVideoRunning) {
+          // الفيديو شغال تمام -> نصفر عداد الطوارئ ونمشي الوقت
+          stuckCounter.current = 0;
           setTimeLeft((prev) => prev - 1);
+        } else {
+          // الفيديو معلق يحمل أو شاشة سوداء -> نزود عداد الطوارئ
+          stuckCounter.current += 1;
+          
+          // لو علق لأكثر من 4 ثواني، نمشي العداد إجبارياً
+          if (stuckCounter.current >= 4) {
+            setTimeLeft((prev) => prev - 1);
+          }
         }
       }, 1000);
     } else if (timeLeft === 0) {
@@ -125,7 +132,7 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang, visible }: { vid
     return () => {
       if (timer) clearInterval(timer);
     };
-  }, [isPlaying, timeLeft, player]); // أضفنا player هنا لضمان تحديث الحالة
+  }, [isPlaying, timeLeft, player]);
 
   return (
     <View style={styles.cyberCard}>
@@ -174,7 +181,7 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang, visible }: { vid
               playsInline: true,
               muted: true,
               preload: 'auto',
-              controls: false, // 👈 التعديل هنا: تم تغييرها إلى false لإخفاء الشريط
+              controls: false,
               onError: (e: any) => console.warn('[VideoAdModal:web] خطأ فـ تحميل الفيديو:', e),
             } as any)
           ) : (
@@ -234,14 +241,14 @@ export default function VideoAdModal({ visible, videoUrl, onComplete, onClose }:
   return (
     <Modal visible={visible} animationType="slide" transparent={true}>
       <View style={styles.modalBackdrop}>
-        {/* 👇 التعديل الجديد: إزالة شرط (visible &&) لكي يتم تحميل الفيديو بالخلفية */}
-        <AdPlayerContent 
-          videoUrl={videoUrl} 
-          onComplete={onComplete} 
-          onClose={onClose} 
-          lang={lang}
-          visible={visible} // تمرير حالة الظهور لتصفير المؤقت
-        />
+        {visible && (
+          <AdPlayerContent 
+            videoUrl={videoUrl} 
+            onComplete={onComplete} 
+            onClose={onClose} 
+            lang={lang} 
+          />
+        )}
       </View>
     </Modal>
   );
