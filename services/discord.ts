@@ -3,9 +3,7 @@
 const DEPOSIT_WEBHOOK_URL = 'https://discord.com/api/webhooks/1500083325803692122/lUGEHNf-Au1pPecgmQrKuox01chfxFxRctGwfDUs2wcMCmVz-XJCtVUZUVJy85cb3j36';
 const WITHDRAW_WEBHOOK_URL = 'https://discord.com/api/webhooks/1511670423006478421/SgjnUz4ricoL8cFVXxrC2zsoJPAdNDOCLR-X020Z7_CSm1eu6KBOKpf2Q0fBtPkPJB7i';
 
-// ⚙️ اختر نوع التنبيه المطلوب هنا:
-// للتاغ العام: '@everyone'
-// لتاغ رول معين: '<@&123456789012345678>' (استبدل الأرقام بـ Role ID)
+// ✅ تم تصحيح التاغ هنا
 const NOTIFY_MENTION = '<@&1508886867351834655>';
 
 interface DepositAlertPayload {
@@ -56,7 +54,9 @@ export async function sendDepositAlert(payload: DepositAlertPayload): Promise<vo
   const body: any = {
     username: 'LION Monitor',
     avatar_url: 'https://i.imgur.com/G2hWYfv.jpeg',
-    content: NOTIFY_MENTION, // 👈 إرسال التنبيه هنا لتفعيل الإشعار
+    content: NOTIFY_MENTION, 
+    // 👇 هذا هو السطر السحري الذي سيجعل ديسكورد يقبل التاغ ويرسل إشعاراً صوتياً
+    allowed_mentions: { parse: ["roles", "everyone", "users"] },
     embeds: [
       {
         title: '💰 New Deposit Request',
@@ -87,7 +87,9 @@ export async function sendWithdrawalAlert(payload: WithdrawalAlertPayload): Prom
   const body = {
     username: 'LION Monitor',
     avatar_url: 'https://i.imgur.com/G2hWYfv.jpeg',
-    content: NOTIFY_MENTION, // 👈 إرسال التنبيه هنا لتفعيل الإشعار
+    content: NOTIFY_MENTION, 
+    // 👇 وهذا نفس السطر لدالة السحب
+    allowed_mentions: { parse: ["roles", "everyone", "users"] },
     embeds: [
       {
         title: '🏦 New Withdrawal Request',
