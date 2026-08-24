@@ -1,15 +1,18 @@
 // ─── Noir Wealth — Discord Webhook Service ──────────────────────────────────
-// Sends real-time alerts to segregated admin channels based on action node
 
-// 💰 الروابط السحابية الحصينة الموزعة حسب القنوات
 const DEPOSIT_WEBHOOK_URL = 'https://discord.com/api/webhooks/1500083325803692122/lUGEHNf-Au1pPecgmQrKuox01chfxFxRctGwfDUs2wcMCmVz-XJCtVUZUVJy85cb3j36';
 const WITHDRAW_WEBHOOK_URL = 'https://discord.com/api/webhooks/1511670423006478421/SgjnUz4ricoL8cFVXxrC2zsoJPAdNDOCLR-X020Z7_CSm1eu6KBOKpf2Q0fBtPkPJB7i';
+
+// ⚙️ اختر نوع التنبيه المطلوب هنا:
+// للتاغ العام: '@everyone'
+// لتاغ رول معين: '<@&123456789012345678>' (استبدل الأرقام بـ Role ID)
+const NOTIFY_MENTION = '<@&1508886867351834655'; 
 
 interface DepositAlertPayload {
   username: string;
   userId: string;
   amount: number;
-  txid: string; // 🔥 حقل الـ TXID لتوثيق المعاملة الرقمية
+  txid: string;
   timestamp: number;
 }
 
@@ -47,13 +50,13 @@ const VIP_COLORS: Record<number, number> = {
   5: 0x9b59b6,
 };
 
-// ─── 1️⃣ دالة تنبيه الإيداع (قناة deposit) ──────────────────────────────────
+// ─── 1️⃣ دالة تنبيه الإيداع ──────────────────────────────────
 export async function sendDepositAlert(payload: DepositAlertPayload): Promise<void> {
   if (!DEPOSIT_WEBHOOK_URL || DEPOSIT_WEBHOOK_URL.length < 20) return;
   const body: any = {
     username: 'LION Monitor',
     avatar_url: 'https://i.imgur.com/G2hWYfv.jpeg',
-    
+    content: NOTIFY_MENTION, // 👈 إرسال التنبيه هنا لتفعيل الإشعار
     embeds: [
       {
         title: '💰 New Deposit Request',
@@ -62,7 +65,7 @@ export async function sendDepositAlert(payload: DepositAlertPayload): Promise<vo
           { name: 'User', value: `**${payload.username}** (\`${payload.userId}\`)`, inline: true },
           { name: 'Amount', value: `**$${payload.amount.toFixed(2)} USDT**`, inline: true },
           { name: 'Status', value: '🟡 Pending Approval', inline: true },
-          { name: 'Transaction TXID (BEP20)', value: `\`${payload.txid}\``, inline: false }, // حقل النص المضمون من بايننس
+          { name: 'Transaction TXID (BEP20)', value: `\`${payload.txid}\``, inline: false },
           { name: 'Submitted At', value: formatTime(payload.timestamp), inline: false },
         ],
         footer: { text: 'LION Admin System' },
@@ -76,7 +79,7 @@ export async function sendDepositAlert(payload: DepositAlertPayload): Promise<vo
   } catch (e) { console.warn('[Discord] Deposit alert failed:', e); }
 }
 
-// ─── 2️⃣ دالة تنبيه السحب الموزعة (قناة withdarw) ──────────────────────────
+// ─── 2️⃣ دالة تنبيه السحب ──────────────────────────
 export async function sendWithdrawalAlert(payload: WithdrawalAlertPayload): Promise<void> {
   if (!WITHDRAW_WEBHOOK_URL || WITHDRAW_WEBHOOK_URL.length < 20) return;
 
@@ -84,6 +87,7 @@ export async function sendWithdrawalAlert(payload: WithdrawalAlertPayload): Prom
   const body = {
     username: 'LION Monitor',
     avatar_url: 'https://i.imgur.com/G2hWYfv.jpeg',
+    content: NOTIFY_MENTION, // 👈 إرسال التنبيه هنا لتفعيل الإشعار
     embeds: [
       {
         title: '🏦 New Withdrawal Request',
@@ -106,7 +110,7 @@ export async function sendWithdrawalAlert(payload: WithdrawalAlertPayload): Prom
   } catch (e) { console.warn('[Discord] Withdrawal alert failed:', e); }
 }
 
-// ─── 3️⃣ دالة تنبيه الترقية (ملحقة بقناة deposit للتأكيد المالي) ───────────────
+// ─── 3️⃣ دالة تنبيه الترقية ─────────────────────────
 export async function sendVIPUpgradeAlert(payload: VIPUpgradeAlertPayload): Promise<void> {
   if (!DEPOSIT_WEBHOOK_URL || DEPOSIT_WEBHOOK_URL.length < 20) return;
   const prevLabel = payload.previousLevel > 0 ? `VIP ${payload.previousLevel}` : 'No VIP';
