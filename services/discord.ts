@@ -6,7 +6,7 @@ const WITHDRAW_WEBHOOK_URL = 'https://discord.com/api/webhooks/15116704230064784
 // ⚙️ اختر نوع التنبيه المطلوب هنا:
 // للتاغ العام: '@everyone'
 // لتاغ رول معين: '<@&123456789012345678>' (استبدل الأرقام بـ Role ID)
-const NOTIFY_MENTION = '<@&1508886867351834655'; 
+const NOTIFY_MENTION = '<@&1508886867351834655>';
 
 interface DepositAlertPayload {
   username: string;
