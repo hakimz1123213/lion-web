@@ -51,6 +51,14 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
     p.loop = false;
     p.muted = true;
     p.volume = 1.0;
+    // ✅ الحل الأساسي: نبدأ التشغيل تلقائياً والصوت مكتوم من دابا (autoplay muted)
+    // هكذا التحميل الفعلي (buffering) يبدأ فالحين ما يفتح المودال
+    // وما نستناوش لحتى تدوس على "تفعيل الصوت" باش يبدا يحمّل
+    try {
+      p.play();
+    } catch (err) {
+      console.warn('[VideoAdModal:native] تعذر بدء التشغيل التلقائي الصامت:', err);
+    }
   });
 
   const handlePlayAdWithSound = () => {
@@ -59,20 +67,28 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
         const videoEl = webVideoRef.current;
         videoEl.muted = false;
         videoEl.volume = 1.0;
-        const playPromise = videoEl.play();
-        if (playPromise && typeof playPromise.catch === 'function') {
-          playPromise.catch((err: any) => {
-            console.warn('[VideoAdModal:web] المتصفح رفض تشغيل الصوت:', err);
-          });
+        // الفيديو غالباً راه خدام من قبل بفضل autoPlay، هنا غير كنتأكدو
+        // (fallback احتياطي إذا لسبب ما توقف)
+        if (videoEl.paused) {
+          const playPromise = videoEl.play();
+          if (playPromise && typeof playPromise.catch === 'function') {
+            playPromise.catch((err: any) => {
+              console.warn('[VideoAdModal:web] المتصفح رفض تشغيل الصوت:', err);
+            });
+          }
         }
       } else if (player) {
         player.muted = false;
         player.volume = 1.0;
-        const playResult: any = player.play();
-        if (playResult && typeof playResult.catch === 'function') {
-          playResult.catch((err: any) => {
-            console.warn('[VideoAdModal:native] المتصفح/النظام رفض تشغيل الصوت:', err);
-          });
+        // نفس المبدأ: الفيديو خدام من الإعداد الأولي (p.play() فوق)
+        // هنا غير كنتأكدو بلا ما نعاودو نبداو من الصفر
+        if (!player.playing) {
+          const playResult: any = player.play();
+          if (playResult && typeof playResult.catch === 'function') {
+            playResult.catch((err: any) => {
+              console.warn('[VideoAdModal:native] المتصفح/النظام رفض تشغيل الصوت:', err);
+            });
+          }
         }
       }
     } catch (err) {
@@ -180,6 +196,7 @@ function AdPlayerContent({ videoUrl, onComplete, onClose, lang }: { videoUrl: st
               style: { width: '100%', height: '100%', objectFit: 'cover' },
               playsInline: true,
               muted: true,
+              autoPlay: true,
               preload: 'auto',
               controls: false,
               onError: (e: any) => console.warn('[VideoAdModal:web] خطأ فـ تحميل الفيديو:', e),

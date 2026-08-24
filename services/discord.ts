@@ -53,6 +53,7 @@ export async function sendDepositAlert(payload: DepositAlertPayload): Promise<vo
   const body: any = {
     username: 'LION Monitor',
     avatar_url: 'https://i.imgur.com/G2hWYfv.jpeg',
+    
     embeds: [
       {
         title: '💰 New Deposit Request',
