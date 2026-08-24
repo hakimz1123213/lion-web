@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ref, onValue, remove } from 'firebase/database'; // تمت إضافة remove هنا
+import { ref, onValue } from 'firebase/database'; // إزالة get حيث لم نعد بحاجة إليه
 import * as Clipboard from 'expo-clipboard'; 
 import { getFunctions, httpsCallable } from 'firebase/functions';
 
@@ -144,7 +144,9 @@ export default function AdminScreen() {
         }
       }
 
-      // أ. حساب إجمالي الإيداعات الناجحة
+      // --- التعديل هنا: حساب الأرقام محلياً بدلاً من جلبها من العقدة المخصصة ---
+      
+      // أ. حساب إجمالي الإيداعات الناجحة (أرباح المنصة)
       const pureDepositsVolume = txsArray
         .filter(t => {
           const type = (t?.type || t?.txType || '').trim().toLowerCase();
@@ -154,8 +156,8 @@ export default function AdminScreen() {
         .reduce((sum, t) => sum + (parseFloat(t.amount || t.value || 0) || 0), 0);
 
       // ب. حساب النسب المئوية للشركاء
-      const pureManagerEarned = pureDepositsVolume * 0.80;
-      const pureHakimEarned = pureDepositsVolume * 0.20;
+      const pureManagerEarned = pureDepositsVolume * 0.80; // Latcha 80%
+      const pureHakimEarned = pureDepositsVolume * 0.20;   // Hakim 20%
 
       // ج. حساب السحوبات الناجحة
       const withdrawals = txsArray
@@ -244,7 +246,9 @@ export default function AdminScreen() {
       const parsedTime = new Date(dateValue).getTime();
       return isNaN(parsedTime) ? 0 : parsedTime;
     };
-    return getSafeTime(b.createdAt) - getSafeTime(a.createdAt);
+    
+    // التعديل هنا: الترتيب من الأقدم إلى الأحدث
+    return getSafeTime(a.createdAt) - getSafeTime(b.createdAt); 
   });
 
   const openRejectPrompt = (tx: any) => {
@@ -303,47 +307,6 @@ export default function AdminScreen() {
     }
   };
 
-  // --- دالة حذف المعاملة من السجل نهائياً ---
- // --- دالة حذف المعاملة من السجل نهائياً ---
-  const handleDeleteTransaction = async (txId: string) => {
-    // التحقق مما إذا كان التطبيق يعمل على متصفح ويب
-    if (Platform.OS === 'web') {
-      const isConfirmed = window.confirm("تأكيد الحذف (Trash)\n\nهل أنت متأكد أنك تريد مسح هذه المعاملة نهائياً من السجل؟ لا يمكن التراجع عن هذه الخطوة.");
-      
-      if (isConfirmed) {
-        try {
-          const txRef = ref(db, `transactions/${txId}`);
-          await remove(txRef);
-          showAlert('تم المسح 🗑️', 'تم إزالة المعاملة من قاعدة البيانات بنجاح.');
-        } catch (error: any) {
-          window.alert("خطأ في الحذف: " + error.message);
-        }
-      }
-    } else {
-      // الكود الخاص بالهواتف (Android / iOS)
-      Alert.alert(
-        "تأكيد الحذف (Trash)",
-        "هل أنت متأكد أنك تريد مسح هذه المعاملة نهائياً من السجل؟ لا يمكن التراجع عن هذه الخطوة.",
-        [
-          { text: "إلغاء", style: "cancel" },
-          {
-            text: "مسح نهائي",
-            style: "destructive",
-            onPress: async () => {
-              try {
-                const txRef = ref(db, `transactions/${txId}`);
-                await remove(txRef);
-                showAlert('تم المسح 🗑️', 'تم إزالة المعاملة من قاعدة البيانات بنجاح.');
-              } catch (error: any) {
-                Alert.alert("خطأ في الحذف", error.message);
-              }
-            }
-          }
-        ]
-      );
-    }
-  };
-
   const getStatusColor = (status: string) => {
     const s = (status || '').toLowerCase();
     if (s === 'completed' || s === 'approved' || s === 'success') return Colors.success || '#2ecc71';
@@ -382,6 +345,7 @@ const referredUsersList = editingUser ? allUsers.filter(u => {
     const targetUsername = editingUser.username ? String(editingUser.username).trim().toLowerCase() : "";
     const targetUid = editingUser.uid ? String(editingUser.uid).trim().toLowerCase() : "";
     
+    // مقارنة شاملة بحروف صغيرة لتجنب أي مشاكل في الـ Case
     return (targetRefCode !== "" && checkVal === targetRefCode) || 
            (targetUsername !== "" && checkVal === targetUsername) || 
            (targetUid !== "" && checkVal === targetUid);
@@ -679,26 +643,6 @@ const referredUsersList = editingUser ? allUsers.filter(u => {
                           <Text style={styles.logTypeTag}>{item.type || 'Transaction'}</Text>
                           <Text style={styles.logDate}>{item.createdAt ? new Date(item.createdAt).toLocaleString() : 'N/A'}</Text>
                         </View>
-                        
-                        {/* زر الحذف السريع (سلة المهملات) المضاف حديثاً */}
-                        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: BORDER_COLOR }}>
-                          <Pressable 
-                            style={{
-                              flexDirection: 'row', 
-                              alignItems: 'center', 
-                              backgroundColor: '#FFEBEE', 
-                              paddingVertical: 6, 
-                              paddingHorizontal: 12, 
-                              borderRadius: 8
-                            }}
-                            onPress={() => handleDeleteTransaction(item.id)}
-                            disabled={processingId !== null}
-                          >
-                            <Text style={{ fontSize: 14, marginRight: 6 }}>🗑️</Text>
-                            <Text style={{ color: '#C62828', fontSize: 12, fontWeight: 'bold' }}>مسح من السجل</Text>
-                          </Pressable>
-                        </View>
-                        
                       </View>
                     )}
                     ListEmptyComponent={<Text style={styles.emptyText}>No records match this query.</Text>}
