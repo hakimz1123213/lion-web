@@ -304,27 +304,44 @@ export default function AdminScreen() {
   };
 
   // --- دالة حذف المعاملة من السجل نهائياً ---
-  const handleDeleteTransaction = (txId: string) => {
-    Alert.alert(
-      "تأكيد الحذف (Trash)",
-      "هل أنت متأكد أنك تريد مسح هذه المعاملة نهائياً من السجل؟ لا يمكن التراجع عن هذه الخطوة.",
-      [
-        { text: "إلغاء", style: "cancel" },
-        {
-          text: "مسح نهائي",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const txRef = ref(db, `transactions/${txId}`);
-              await remove(txRef);
-              showAlert('تم المسح 🗑️', 'تم إزالة المعاملة من قاعدة البيانات بنجاح.');
-            } catch (error: any) {
-              Alert.alert("خطأ في الحذف", error.message);
+ // --- دالة حذف المعاملة من السجل نهائياً ---
+  const handleDeleteTransaction = async (txId: string) => {
+    // التحقق مما إذا كان التطبيق يعمل على متصفح ويب
+    if (Platform.OS === 'web') {
+      const isConfirmed = window.confirm("تأكيد الحذف (Trash)\n\nهل أنت متأكد أنك تريد مسح هذه المعاملة نهائياً من السجل؟ لا يمكن التراجع عن هذه الخطوة.");
+      
+      if (isConfirmed) {
+        try {
+          const txRef = ref(db, `transactions/${txId}`);
+          await remove(txRef);
+          showAlert('تم المسح 🗑️', 'تم إزالة المعاملة من قاعدة البيانات بنجاح.');
+        } catch (error: any) {
+          window.alert("خطأ في الحذف: " + error.message);
+        }
+      }
+    } else {
+      // الكود الخاص بالهواتف (Android / iOS)
+      Alert.alert(
+        "تأكيد الحذف (Trash)",
+        "هل أنت متأكد أنك تريد مسح هذه المعاملة نهائياً من السجل؟ لا يمكن التراجع عن هذه الخطوة.",
+        [
+          { text: "إلغاء", style: "cancel" },
+          {
+            text: "مسح نهائي",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                const txRef = ref(db, `transactions/${txId}`);
+                await remove(txRef);
+                showAlert('تم المسح 🗑️', 'تم إزالة المعاملة من قاعدة البيانات بنجاح.');
+              } catch (error: any) {
+                Alert.alert("خطأ في الحذف", error.message);
+              }
             }
           }
-        }
-      ]
-    );
+        ]
+      );
+    }
   };
 
   const getStatusColor = (status: string) => {
