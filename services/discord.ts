@@ -2,7 +2,6 @@
 
 const DEPOSIT_WEBHOOK_URL = 'https://discord.com/api/webhooks/1500083325803692122/lUGEHNf-Au1pPecgmQrKuox01chfxFxRctGwfDUs2wcMCmVz-XJCtVUZUVJy85cb3j36';
 const WITHDRAW_WEBHOOK_URL = 'https://discord.com/api/webhooks/1511670423006478421/SgjnUz4ricoL8cFVXxrC2zsoJPAdNDOCLR-X020Z7_CSm1eu6KBOKpf2Q0fBtPkPJB7i';
-
 // ✅ تم تصحيح التاغ هنا
 const NOTIFY_MENTION = '<@&1508886867351834655>';
 

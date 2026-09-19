@@ -123,10 +123,11 @@ export default function ForgotPasswordScreen() {
 
         showAlert(t.codeSentTitle, t.codeSentDesc);
         setCurrentStep(2);
-      } catch (err: any) {
-        console.error("[Secure Node Refused]:", err);
-        showAlert('Security Error', "Secure node handshake rejected. Please retry.");
-      }
+    } catch (err: any) {
+  console.error("[Secure Node Refused]:", err);
+  // سيعرض الخطأ الحقيقي القادم من السيرفر (مثل CORS أو Function not found)
+  showAlert('Security Error', err.message || "حدث خطأ في الاتصال بالخادم."); 
+}
     } else {
       showAlert('Error', result.error || 'Failed to generate security token.');
     }

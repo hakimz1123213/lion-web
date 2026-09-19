@@ -65,8 +65,8 @@ export const VIP_TIERS: VIPTier[] = [
     level: 4,
     label: 'VIP 4 Royal',
     entryFee: 500,
-    dailyPayoutMin: 12.4,
-    dailyPayoutMax: 12.4,
+    dailyPayoutMin: 13.3,
+    dailyPayoutMax: 13.3,
     durationDays: 30,
     color: '#a020f0', // بنفسجي ملكي
   },
@@ -83,8 +83,8 @@ export const VIP_TIERS: VIPTier[] = [
     level: 6,
     label: 'VIP 6 Grand Master',
     entryFee: 1400,
-    dailyPayoutMin: 33.33,
-    dailyPayoutMax: 33.33,
+    dailyPayoutMin: 40,
+    dailyPayoutMax: 40,
     durationDays: 30,
     color: '#0011fd', // أزرق ملكي مشع
   },
@@ -92,8 +92,8 @@ export const VIP_TIERS: VIPTier[] = [
     level: 7,
     label: 'VIP 7 Supreme',
     entryFee: 2400,
-    dailyPayoutMin: 56.5,
-    dailyPayoutMax: 56.5,
+    dailyPayoutMin: 66.66,
+    dailyPayoutMax: 66.66,
     durationDays: 30,
     color: '#ff8800', // برتقالي نيون فخم
   },
@@ -101,8 +101,8 @@ export const VIP_TIERS: VIPTier[] = [
     level: 8,
     label: 'VIP 8 Apex',
     entryFee: 4100,
-    dailyPayoutMin: 96.5,
-    dailyPayoutMax: 96.5,
+    dailyPayoutMin: 116.6,
+    dailyPayoutMax: 116.6,
     durationDays: 30,
     color: '#00ff40', // أخضر زمردي نيون
   }
