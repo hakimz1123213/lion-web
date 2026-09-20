@@ -2,7 +2,7 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 
 const DAILY_VIP_REWARDS: Record<number, number> = {
-  0: 0, 1: 2.2, 2: 4.2, 3: 8.5, 4: 12.4, 5: 23.3, 6: 33.33, 7: 56.5, 8: 96.5
+  0: 0, 1: 2.2, 2: 4.2, 3: 8.5, 4: 13.4, 5: 23.3, 6: 40, 7: 66.6, 8: 116.5
 };
 
 // 🕒 فحص هل الوقت الحالي يقع في النافذة المسموحة (من 12:00 ظهراً إلى 23:59)
