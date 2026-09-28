@@ -10,7 +10,7 @@ export function isSuperAdmin(uid: string | null | undefined): boolean {
 }
 
 // Admin USDT BEP20 wallet address for deposits
-export const ADMIN_USDT_ADDRESS = '0xecce5719d3aec249a6b239d4a503e2f534b00f2b';
+export const ADMIN_USDT_ADDRESS = '0xd30bc656b044b477f6aab63c450e2015aee62cfd';
 
 export interface VIPTier {
   level: number;
