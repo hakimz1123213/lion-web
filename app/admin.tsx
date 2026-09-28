@@ -259,7 +259,8 @@ export default function AdminScreen() {
       const parsedTime = new Date(dateValue).getTime();
       return isNaN(parsedTime) ? 0 : parsedTime;
     };
-    return getSafeTime(b.createdAt) - getSafeTime(a.createdAt);
+    // ⬇️ التعديل تم هنا: a ناقص b لترتيب من الأقدم إلى الأجدد
+    return getSafeTime(a.createdAt) - getSafeTime(b.createdAt);
   });
 
   const openRejectPrompt = (tx: any) => {
