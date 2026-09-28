@@ -1,11 +1,11 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Pressable, FlatList,
   TextInput, Modal, KeyboardAvoidingView, ActivityIndicator, Alert, RefreshControl, TouchableOpacity, Platform
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ref, onValue, remove } from 'firebase/database'; // تمت إضافة remove هنا
+import { ref, onValue, remove } from 'firebase/database';
 import * as Clipboard from 'expo-clipboard'; 
 import { getFunctions, httpsCallable } from 'firebase/functions';
 
@@ -42,8 +42,11 @@ export default function AdminScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [historySearchQuery, setHistorySearchQuery] = useState(''); 
-  const [showVipOnly, setShowVipOnly] = useState(false);
   
+  // --- إدارة فلترة VIP ---
+  const [showVipOnly, setShowVipOnly] = useState(false);
+  const [selectedVipFilter, setSelectedVipFilter] = useState<number | 'ALL'>('ALL');
+
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [newBalance, setNewBalance] = useState('');
   const [newVip, setNewVip] = useState(0);
@@ -63,6 +66,18 @@ export default function AdminScreen() {
     activeUsers: 0,
     vipHolders: 0
   });
+
+  // حساب أعداد المستخدمين لكل مستوى VIP من 0 إلى 8
+  const vipCounts = useMemo(() => {
+    const counts: Record<number, number> = {};
+    for (let i = 0; i <= 8; i++) counts[i] = 0;
+    
+    allUsers.forEach(u => {
+      const lvl = parseInt(u.vip_level?.toString()) || 0;
+      counts[lvl] = (counts[lvl] || 0) + 1;
+    });
+    return counts;
+  }, [allUsers]);
 
   useEffect(() => {
     if (!user?.uid || !isSuperAdmin(user?.uid)) return;
@@ -115,7 +130,6 @@ export default function AdminScreen() {
     try {
       setIsRefreshing(true);
       
-      // 1. جلب المستخدمين
       const rawUsers = await getAllUsers();
       let usersArray: any[] = [];
       if (rawUsers) {
@@ -130,7 +144,6 @@ export default function AdminScreen() {
       }
       setAllUsers(usersArray);
 
-      // 2. جلب كل العمليات من Firebase عبر Wallet Hook
       const rawTxs = await getAllTransactions();
       let txsArray: any[] = [];
       if (rawTxs) {
@@ -144,7 +157,6 @@ export default function AdminScreen() {
         }
       }
 
-      // أ. حساب إجمالي الإيداعات الناجحة
       const pureDepositsVolume = txsArray
         .filter(t => {
           const type = (t?.type || t?.txType || '').trim().toLowerCase();
@@ -153,11 +165,9 @@ export default function AdminScreen() {
         })
         .reduce((sum, t) => sum + (parseFloat(t.amount || t.value || 0) || 0), 0);
 
-      // ب. حساب النسب المئوية للشركاء
       const pureManagerEarned = pureDepositsVolume * 0.80;
       const pureHakimEarned = pureDepositsVolume * 0.20;
 
-      // ج. حساب السحوبات الناجحة
       const withdrawals = txsArray
         .filter(t => {
           const type = (t?.type || t?.txType || '').trim().toLowerCase();
@@ -166,7 +176,6 @@ export default function AdminScreen() {
         })
         .reduce((sum, t) => sum + (parseFloat(t.amount || t.value || 0) || 0), 0);
 
-      // 3. تحديث الإحصائيات
       setStats({
         totalDeposits: pureDepositsVolume, 
         totalWithdrawals: withdrawals,
@@ -219,9 +228,21 @@ export default function AdminScreen() {
     );
   };
 
+  // فلترة المستخدمين بحسب مستوى الـ VIP المحدد وكلمة البحث
   const filteredUsers = allUsers.filter(u => {
+    const userVip = parseInt(u.vip_level?.toString()) || 0;
+
+    if (showVipOnly) {
+      if (selectedVipFilter === 'ALL') {
+        if (userVip <= 0) return false;
+      } else {
+        if (userVip !== selectedVipFilter) return false;
+      }
+    } else if (selectedVipFilter !== 'ALL') {
+      if (userVip !== selectedVipFilter) return false;
+    }
+
     if (!searchQuery || searchQuery.trim() === '') {
-      if (showVipOnly) return (parseInt(u.vip_level?.toString()) || 0) > 0;
       return true;
     }
 
@@ -230,13 +251,7 @@ export default function AdminScreen() {
     const safeRefCode = String(u.referralCode || '').toLowerCase(); 
     const safeQuery = searchQuery.toLowerCase().trim();
 
-    const matchesSearch = safeUsername.includes(safeQuery) || safeEmail.includes(safeQuery) || safeRefCode.includes(safeQuery);
-    
-    if (showVipOnly) {
-      return matchesSearch && (parseInt(u.vip_level?.toString()) || 0) > 0;
-    }
-
-    return matchesSearch;
+    return safeUsername.includes(safeQuery) || safeEmail.includes(safeQuery) || safeRefCode.includes(safeQuery);
   }).sort((a, b) => {
     const getSafeTime = (dateValue: any) => {
       if (!dateValue) return 0;
@@ -303,10 +318,7 @@ export default function AdminScreen() {
     }
   };
 
-  // --- دالة حذف المعاملة من السجل نهائياً ---
- // --- دالة حذف المعاملة من السجل نهائياً ---
   const handleDeleteTransaction = async (txId: string) => {
-    // التحقق مما إذا كان التطبيق يعمل على متصفح ويب
     if (Platform.OS === 'web') {
       const isConfirmed = window.confirm("تأكيد الحذف (Trash)\n\nهل أنت متأكد أنك تريد مسح هذه المعاملة نهائياً من السجل؟ لا يمكن التراجع عن هذه الخطوة.");
       
@@ -320,7 +332,6 @@ export default function AdminScreen() {
         }
       }
     } else {
-      // الكود الخاص بالهواتف (Android / iOS)
       Alert.alert(
         "تأكيد الحذف (Trash)",
         "هل أنت متأكد أنك تريد مسح هذه المعاملة نهائياً من السجل؟ لا يمكن التراجع عن هذه الخطوة.",
@@ -351,7 +362,7 @@ export default function AdminScreen() {
     return '#FFB300'; 
   };
 
-const sponsorCode = editingUser?.referredBy ? String(editingUser.referredBy).trim().toUpperCase() : "";
+  const sponsorCode = editingUser?.referredBy ? String(editingUser.referredBy).trim().toUpperCase() : "";
   let sponsorUser: any = null;
   if (sponsorCode !== "" && !sponsorCode.includes("NONE")) {
     sponsorUser = allUsers.find(u => {
@@ -365,7 +376,7 @@ const sponsorCode = editingUser?.referredBy ? String(editingUser.referredBy).tri
     });
   }
 
-const sponsorEarnedFromThisUser = sponsorUser && editingUser ? historyTxs
+  const sponsorEarnedFromThisUser = sponsorUser && editingUser ? historyTxs
     .filter(t => 
        t.userId === sponsorUser.uid && 
        t.type === 'Referral Bonus' && 
@@ -374,7 +385,7 @@ const sponsorEarnedFromThisUser = sponsorUser && editingUser ? historyTxs
     )
     .reduce((sum, t) => sum + (parseFloat(t.amount || 0) || 0), 0) : 0;
 
-const referredUsersList = editingUser ? allUsers.filter(u => {
+  const referredUsersList = editingUser ? allUsers.filter(u => {
     if (!u.referredBy) return false;
     
     const checkVal = String(u.referredBy).trim().toLowerCase();
@@ -414,7 +425,13 @@ const referredUsersList = editingUser ? allUsers.filter(u => {
             <Pressable 
               key={t} 
               disabled={processingId !== null}
-              onPress={() => { setActiveTab(t as any); if (t !== 'users') setShowVipOnly(false); }} 
+              onPress={() => { 
+                setActiveTab(t as any); 
+                if (t !== 'users') {
+                  setShowVipOnly(false);
+                  setSelectedVipFilter('ALL');
+                }
+              }} 
               style={[styles.tab, activeTab === t && styles.tabActive, { position: 'relative' }]}
             >
               <Text style={[styles.tabLabel, activeTab === t && { color: '#fff' }]}>{t.toUpperCase()}</Text>
@@ -459,10 +476,10 @@ const referredUsersList = editingUser ? allUsers.filter(u => {
                   <Text style={styles.sectionTitle}>COMMAND TILES</Text>
                   <View style={styles.commandGrid}>
                       {[
-                        { label: 'Pending Txs', val: pendingTxs.length, icon: '⏳', action: () => { setActiveTab('requests'); setShowVipOnly(false); } },
-                        { label: 'Active Users', val: stats.activeUsers, icon: '👥', action: () => { setActiveTab('users'); setShowVipOnly(false); } },
-                        { label: 'VIP Holders', val: stats.vipHolders, icon: '💎', action: () => { setActiveTab('users'); setShowVipOnly(true); } },
-                        { label: 'Total Logs', val: historyTxs.length, icon: '📂', action: () => { setActiveTab('historique'); setShowVipOnly(false); } }
+                        { label: 'Pending Txs', val: pendingTxs.length, icon: '⏳', action: () => { setActiveTab('requests'); setShowVipOnly(false); setSelectedVipFilter('ALL'); } },
+                        { label: 'Active Users', val: stats.activeUsers, icon: '👥', action: () => { setActiveTab('users'); setShowVipOnly(false); setSelectedVipFilter('ALL'); } },
+                        { label: 'VIP Holders', val: stats.vipHolders, icon: '💎', action: () => { setActiveTab('users'); setShowVipOnly(true); setSelectedVipFilter('ALL'); } },
+                        { label: 'Total Logs', val: historyTxs.length, icon: '📂', action: () => { setActiveTab('historique'); setShowVipOnly(false); setSelectedVipFilter('ALL'); } }
                       ].map((item, i) => (
                         <Pressable key={i} style={styles.commandTile} onPress={item.action} disabled={processingId !== null}>
                           <Text style={{ fontSize: 18 }}>{item.icon}</Text>
@@ -583,12 +600,82 @@ const referredUsersList = editingUser ? allUsers.filter(u => {
                     <Text style={{ fontSize: 14, marginRight: 6 }}>🔍</Text>
                     <TextInput style={styles.searchInput} placeholder="Search user identity..." placeholderTextColor={TEXT_MUTED} value={searchQuery} onChangeText={setSearchQuery} editable={processingId === null} />
                   </View>
-                  {showVipOnly && (
+
+                  {/* 💎 شريط خيارات الـ 8 مستويات VIP المضافة حديثاً */}
+                  <View style={styles.vipFilterContainer}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.vipFilterScrollContent}>
+                      <Pressable
+                        onPress={() => {
+                          setShowVipOnly(true);
+                          setSelectedVipFilter('ALL');
+                        }}
+                        style={[
+                          styles.vipFilterChip,
+                          showVipOnly && selectedVipFilter === 'ALL' && styles.vipFilterChipActive
+                        ]}
+                      >
+                        <Text style={[styles.vipFilterChipText, showVipOnly && selectedVipFilter === 'ALL' && { color: '#fff' }]}>
+                          💎 All VIPs ({stats.vipHolders})
+                        </Text>
+                      </Pressable>
+
+                      {[1, 2, 3, 4, 5, 6, 7, 8].map((lvl) => {
+                        const count = vipCounts[lvl] || 0;
+                        const isSelected = showVipOnly && selectedVipFilter === lvl;
+                        return (
+                          <Pressable
+                            key={lvl}
+                            onPress={() => {
+                              setShowVipOnly(true);
+                              setSelectedVipFilter(lvl);
+                            }}
+                            style={[
+                              styles.vipFilterChip,
+                              isSelected && styles.vipFilterChipActive
+                            ]}
+                          >
+                            <Text style={[styles.vipFilterChipText, isSelected && { color: '#fff' }]}>
+                              VIP {lvl} ({count})
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+
+                      <Pressable
+                        onPress={() => {
+                          setShowVipOnly(false);
+                          setSelectedVipFilter(0);
+                        }}
+                        style={[
+                          styles.vipFilterChip,
+                          !showVipOnly && selectedVipFilter === 0 && styles.vipFilterChipActive
+                        ]}
+                      >
+                        <Text style={[styles.vipFilterChipText, !showVipOnly && selectedVipFilter === 0 && { color: '#fff' }]}>
+                          👤 VIP 0 ({vipCounts[0] || 0})
+                        </Text>
+                      </Pressable>
+                    </ScrollView>
+                  </View>
+
+                  {/* زر إلغاء الفلترة والإحصائية السريعة */}
+                  {(showVipOnly || selectedVipFilter !== 'ALL') && (
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 25, marginBottom: 15, alignItems: 'center' }}>
-                      <Text style={{ color: '#00B8D4', fontSize: 12, fontWeight: 'bold' }}>💎 Showing VIP Holders Only ({filteredUsers.length})</Text>
-                      <Pressable onPress={() => setShowVipOnly(false)} disabled={processingId !== null}><Text style={{ color: PURPLE_MAIN, fontSize: 12, fontWeight: 'bold', textDecorationLine: 'underline' }}>Clear Filter</Text></Pressable>
+                      <Text style={{ color: '#00B8D4', fontSize: 12, fontWeight: 'bold' }}>
+                        💎 {selectedVipFilter === 'ALL' ? `Showing All VIP Holders (${filteredUsers.length})` : `Showing VIP ${selectedVipFilter} Members (${filteredUsers.length})`}
+                      </Text>
+                      <Pressable 
+                        onPress={() => {
+                          setShowVipOnly(false);
+                          setSelectedVipFilter('ALL');
+                        }} 
+                        disabled={processingId !== null}
+                      >
+                        <Text style={{ color: PURPLE_MAIN, fontSize: 12, fontWeight: 'bold', textDecorationLine: 'underline' }}>Clear Filter</Text>
+                      </Pressable>
                     </View>
                   )}
+
                   <FlatList
                     data={filteredUsers}
                     keyExtractor={(item) => item.uid || Math.random().toString()}
@@ -597,10 +684,10 @@ const referredUsersList = editingUser ? allUsers.filter(u => {
                       <View style={{ alignItems: 'center', marginTop: 80 }}>
                         <Text style={{ fontSize: 50 }}>📭</Text>
                         <Text style={{ color: TEXT_DARK, fontSize: 18, marginTop: 15, fontWeight: 'bold' }}>
-                          {allUsers.length === 0 ? "قاعدة البيانات مارجعت حتى مستخدم!" : "مكاش مستخدم بهاد الاسم!"}
+                          {allUsers.length === 0 ? "قاعدة البيانات لم ترجع أي مستخدم!" : "لا يوجد مستخدمين في هذا المستوى!"}
                         </Text>
                         <Text style={{ color: PURPLE_MAIN, fontSize: 14, marginTop: 8 }}>
-                          (إجمالي المستخدمين في الذاكرة: {allUsers.length})
+                          (إجمالي المستخدمين في النظام: {allUsers.length})
                         </Text>
                       </View>
                     }
@@ -625,7 +712,7 @@ const referredUsersList = editingUser ? allUsers.filter(u => {
                             <Text style={[styles.uName, item.isFullyVerified && { color: Colors.success }]}>{item.username} {item.isFullyVerified && '✔'}</Text>
                             <Text style={styles.uEmail}>{item.email}</Text>
                             <View style={styles.uBadgeRow}>
-                               <Text style={[styles.uVipTag, { color: tier.color }]}>VIP {item.vip_level}</Text>
+                               <Text style={[styles.uVipTag, { color: tier.color }]}>VIP {item.vip_level || 0}</Text>
                                <Text style={styles.uBalanceTag}>${(parseFloat(item.balance?.toString()) || 0).toFixed(2)}</Text>
                             </View>
                             <View style={styles.uNetworkIntelRow}>
@@ -680,7 +767,6 @@ const referredUsersList = editingUser ? allUsers.filter(u => {
                           <Text style={styles.logDate}>{item.createdAt ? new Date(item.createdAt).toLocaleString() : 'N/A'}</Text>
                         </View>
                         
-                        {/* زر الحذف السريع (سلة المهملات) المضاف حديثاً */}
                         <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: BORDER_COLOR }}>
                           <Pressable 
                             style={{
@@ -807,9 +893,9 @@ const referredUsersList = editingUser ? allUsers.filter(u => {
               <Text style={[styles.mLabel, { marginTop: 10 }]}>MODIFY USER LIQUID BALANCE ($)</Text>
               <TextInput style={styles.mInput} value={newBalance} onChangeText={newVal => setNewBalance(newVal)} keyboardType="decimal-pad" />
               
-              <Text style={styles.mLabel}>OVERRIDE VIP MEMBERSHIP TIER</Text>
+              <Text style={styles.mLabel}>OVERRIDE VIP MEMBERSHIP TIER (0 TO 8)</Text>
               <View style={styles.vipPicker}>
-                   {[0,1,2,3,4,5,6].map(lvl => (
+                   {[0,1,2,3,4,5,6,7,8].map(lvl => (
                      <Pressable key={lvl} onPress={()=>setNewVip(lvl)} style={[styles.vipOpt, newVip === lvl && {backgroundColor: PURPLE_MAIN, borderColor: PURPLE_MAIN}]}>
                        <Text style={[styles.vipOptText, newVip === lvl && {color: '#fff'}]}>V{lvl}</Text>
                      </Pressable>
@@ -886,8 +972,16 @@ const styles = StyleSheet.create({
   miniBtnRej: { flex: 1, backgroundColor: '#F5F5F5', flexDirection: 'row', padding: 15, borderRadius: 15, justifyContent: 'center', alignItems: 'center', gap: 8 },
   miniBtnTextApp: { color: '#fff', fontWeight: 'bold', fontSize: 12 },
   miniBtnTextRej: { color: TEXT_MUTED, fontWeight: 'bold', fontSize: 12 },
-  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: BG_WHITE, marginVertical: 20, paddingHorizontal: 15, borderRadius: 15, borderWidth: 1, borderColor: BORDER_COLOR, width: '100%', maxWidth: '100%' },
+  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: BG_WHITE, marginVertical: 15, paddingHorizontal: 15, borderRadius: 15, borderWidth: 1, borderColor: BORDER_COLOR, width: '100%' },
   searchInput: { flex: 1, padding: 15, color: TEXT_DARK },
+
+  // --- ستايلات شريط خيارات الـ VIP ---
+  vipFilterContainer: { marginBottom: 15, width: '100%' },
+  vipFilterScrollContent: { paddingHorizontal: 10, gap: 8, alignItems: 'center' },
+  vipFilterChip: { backgroundColor: BG_WHITE, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: BORDER_COLOR },
+  vipFilterChipActive: { backgroundColor: PURPLE_MAIN, borderColor: PURPLE_MAIN },
+  vipFilterChipText: { color: TEXT_MUTED, fontSize: 11, fontWeight: 'bold' },
+
   userEliteCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: BG_WHITE, marginBottom: 10, padding: 18, borderRadius: 25, borderWidth: 1, borderColor: BORDER_COLOR, width: '100%' },
   uAvatar: { width: 48, height: 48, borderRadius: 24, borderWidth: 2, backgroundColor: PURPLE_LIGHT, justifyContent: 'center', alignItems: 'center' },
   uName: { color: TEXT_DARK, fontSize: 16, fontWeight: 'bold' },
@@ -905,7 +999,7 @@ const styles = StyleSheet.create({
   mSub: { color: PURPLE_MAIN, fontSize: 12, textAlign: 'center', marginBottom: 25, fontWeight: 'bold' },
   mLabel: { color: TEXT_MUTED, fontSize: 10, fontWeight: 'bold', marginBottom: 10, letterSpacing: 1 },
   mInput: { backgroundColor: PURPLE_LIGHT, color: PURPLE_MAIN, padding: 18, borderRadius: 15, fontSize: 22, fontWeight: 'bold', borderWidth: 1, borderColor: BORDER_COLOR, textAlign: 'center', marginBottom: 25 },
-  vipPicker: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 35, width: '100%' },
+  vipPicker: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginBottom: 25, width: '100%' },
   vipOpt: { width: 38, height: 38, borderRadius: 10, backgroundColor: PURPLE_LIGHT, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: BORDER_COLOR },
   vipOptText: { color: TEXT_MUTED, fontWeight: 'bold', fontSize: 12 },
   mActions: { flexDirection: 'row', gap: 12, marginTop: 10, width: '100%' },

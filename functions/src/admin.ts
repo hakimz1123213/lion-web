@@ -89,12 +89,10 @@ export const adminApproveTransaction = onCall(async (request) => {
 
   const updates: Record<string, any> = {};
   
-  // تحديث حالة المعاملة
   updates[`transactions/${txId}/status`] = 'Completed';
   updates[`transactions/${txId}/note`] = 'Approved successfully by System Master.';
   updates[`transactions/${txId}/updatedAt`] = admin.database.ServerValue.TIMESTAMP;
 
-  // إذا كانت عملية إيداع -> زيادة رصيد المستخدم
   if (type === 'deposit' && tx.userId) {
     const userSnap = await db.ref(`users/${tx.userId}`).once('value');
     if (userSnap.exists()) {
@@ -104,10 +102,8 @@ export const adminApproveTransaction = onCall(async (request) => {
     }
   }
 
-  // تنفيذ جميع التعديلات دفعة واحدة
   await db.ref().update(updates);
 
-  // إرسال الإشعار
   if (tx.userId) {
     const uSnap = await db.ref(`users/${tx.userId}`).once('value');
     if (uSnap.exists() && uSnap.val().expoPushToken) {
@@ -151,12 +147,10 @@ export const adminRejectTransaction = onCall(async (request) => {
 
   const updates: Record<string, any> = {};
 
-  // تحديث حالة المعاملة
   updates[`transactions/${txId}/status`] = 'Rejected';
   updates[`transactions/${txId}/note`] = `Rejected Reason: ${reason.trim()}`;
   updates[`transactions/${txId}/updatedAt`] = admin.database.ServerValue.TIMESTAMP;
 
-  // إذا كانت عملية سحب -> إرجاع الرصيد للحساب
   if ((type === 'withdrawal' || type === 'withdraw') && tx.userId) {
     const userSnap = await db.ref(`users/${tx.userId}`).once('value');
     if (userSnap.exists()) {
@@ -168,7 +162,6 @@ export const adminRejectTransaction = onCall(async (request) => {
 
   await db.ref().update(updates);
 
-  // إرسال الإشعار
   if (tx.userId) {
     const uSnap = await db.ref(`users/${tx.userId}`).once('value');
     if (uSnap.exists() && uSnap.val().expoPushToken) {
@@ -196,7 +189,6 @@ export const adminUpdateUserProfile = onCall(async (request) => {
     throw new HttpsError('invalid-argument', 'المعرف targetUid مطلوب.');
   }
 
-  // 🔴 مسح المستخدم بالكامل
   if (isDelete) {
     try {
       await admin.auth().deleteUser(targetUid);
@@ -207,7 +199,6 @@ export const adminUpdateUserProfile = onCall(async (request) => {
     return { success: true, message: 'User deleted completely.' };
   }
 
-  // 🟢 تعديل البيانات
   const updates: Record<string, any> = {};
 
   if (newBalance !== undefined && newBalance !== null && newBalance !== '') {
