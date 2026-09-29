@@ -230,7 +230,7 @@ export default function AdminScreen() {
 
   // فلترة المستخدمين بحسب مستوى الـ VIP المحدد وكلمة البحث
 // فلترة المستخدمين بحسب مستوى الـ VIP المحدد وكلمة البحث
- const filteredUsers = allUsers.filter(u => {
+const filteredUsers = allUsers.filter(u => {
     const userVip = parseInt(u.vip_level?.toString()) || 0;
 
     if (showVipOnly) {
@@ -279,8 +279,8 @@ export default function AdminScreen() {
     if (timeA === null) return 1;
     if (timeB === null) return -1;
 
-    // الترتيب من الأقدم للأحدث
-    return timeA - timeB;
+    // الترتيب من الأحدث (في الأعلى) للأقدم (في الأسفل)
+    return timeB - timeA;
   });
 
   const openRejectPrompt = (tx: any) => {
