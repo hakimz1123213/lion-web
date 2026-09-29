@@ -230,7 +230,7 @@ export default function AdminScreen() {
 
   // فلترة المستخدمين بحسب مستوى الـ VIP المحدد وكلمة البحث
 // فلترة المستخدمين بحسب مستوى الـ VIP المحدد وكلمة البحث
-  const filteredUsers = allUsers.filter(u => {
+ const filteredUsers = allUsers.filter(u => {
     const userVip = parseInt(u.vip_level?.toString()) || 0;
 
     if (showVipOnly) {
@@ -254,15 +254,33 @@ export default function AdminScreen() {
 
     return safeUsername.includes(safeQuery) || safeEmail.includes(safeQuery) || safeRefCode.includes(safeQuery);
   }).sort((a, b) => {
-    const getSafeTime = (dateValue: any) => {
-      if (!dateValue) return 0;
-      if (typeof dateValue === 'number') return dateValue;
-      const parsedTime = new Date(dateValue).getTime();
-      return isNaN(parsedTime) ? 0 : parsedTime;
+    // دالة مخصصة لـ Realtime Database (أرقام أو نصوص)
+    const getSafeTime = (value: any): number | null => {
+      if (value === null || value === undefined || value === '') return null;
+
+      // محاولة التعامل مع القيمة كرقم (وهي الطريقة الافتراضية في Realtime Database إذا استخدمت ServerValue.TIMESTAMP)
+      const asNumber = typeof value === 'number' ? value : Number(String(value).trim());
+      if (Number.isFinite(asNumber)) {
+        if (asNumber <= 0) return null;
+        // إذا كان الرقم صغيراً جداً (ثواني وليس أجزاء من الثانية)، نحوله
+        return asNumber < 1e11 ? asNumber * 1000 : asNumber;
+      }
+
+      // إذا كان التاريخ محفوظاً كنص (ISO string)
+      const parsed = new Date(String(value)).getTime();
+      return Number.isFinite(parsed) ? parsed : null;
     };
-    
-    // الترتيب من القديم إلى الجديد (a - b)
-    return getSafeTime(a.createdAt) - getSafeTime(b.createdAt);
+
+    const timeA = getSafeTime(a?.createdAt);
+    const timeB = getSafeTime(b?.createdAt);
+
+    // المستخدمون بدون تاريخ يذهبون لأسفل القائمة دائماً
+    if (timeA === null && timeB === null) return 0;
+    if (timeA === null) return 1;
+    if (timeB === null) return -1;
+
+    // الترتيب من الأقدم للأحدث
+    return timeA - timeB;
   });
 
   const openRejectPrompt = (tx: any) => {
