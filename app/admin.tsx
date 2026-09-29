@@ -229,6 +229,7 @@ export default function AdminScreen() {
   };
 
   // فلترة المستخدمين بحسب مستوى الـ VIP المحدد وكلمة البحث
+// فلترة المستخدمين بحسب مستوى الـ VIP المحدد وكلمة البحث
   const filteredUsers = allUsers.filter(u => {
     const userVip = parseInt(u.vip_level?.toString()) || 0;
 
@@ -259,7 +260,8 @@ export default function AdminScreen() {
       const parsedTime = new Date(dateValue).getTime();
       return isNaN(parsedTime) ? 0 : parsedTime;
     };
-    // ⬇️ التعديل تم هنا: a ناقص b لترتيب من الأقدم إلى الأجدد
+    
+    // الترتيب من القديم إلى الجديد (a - b)
     return getSafeTime(a.createdAt) - getSafeTime(b.createdAt);
   });
 
