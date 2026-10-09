@@ -105,6 +105,24 @@ export const VIP_TIERS: VIPTier[] = [
     dailyPayoutMax: 116.6,
     durationDays: 30,
     color: '#00ff40', // أخضر زمردي نيون
+  },
+    {
+    level: 9,
+    label: 'VIP 9 Celestial',
+    entryFee: 8000,
+    dailyPayoutMin: 237,
+    dailyPayoutMax: 237,
+    durationDays: 30,
+    color: '#f8cb00', // أخضر زمردي نيون
+  },
+  {
+   level: 10,
+    label: 'VIP 10 Infinity',
+    entryFee: 20000,
+    dailyPayoutMin: 595.3,
+    dailyPayoutMax: 595.3,
+    durationDays: 30,
+    color: '#00ffff', // أخضر زمردي نيون
   }
 ];
 
